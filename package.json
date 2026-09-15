@@ -9,12 +9,13 @@
     "dev": "node --watch src/server.js",
     "db:init": "node src/db/init.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "test:coverage": "c8 --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 node --test --test-concurrency=1 tests/*.test.js"
+    "test:coverage": "c8 --include='src/**' --exclude='vendor/**' --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 node --test --test-concurrency=1 tests/*.test.js"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
+    "@neteasecloudmusicapienhanced/api": "workspace:*",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
     "connect-sqlite3": "^0.9.18",

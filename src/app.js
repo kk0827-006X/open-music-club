@@ -8,8 +8,15 @@ const { createApplicationsRouter } = require('./routes/applications.routes')
 const {
   createAdminApplicationsRouter,
 } = require('./routes/adminApplications.routes')
+const { createNeteaseRouter } = require('./routes/netease.routes')
+const { createNeteaseService } = require('./services/netease.service')
 
-function createApp({ databasePath, sessionDatabasePath, sessionSecret }) {
+function createApp({
+  databasePath,
+  sessionDatabasePath,
+  sessionSecret,
+  neteaseService = createNeteaseService(),
+}) {
   if (!sessionSecret) {
     throw new Error('SESSION_SECRET 不能为空')
   }
@@ -44,6 +51,7 @@ function createApp({ databasePath, sessionDatabasePath, sessionSecret }) {
     requireAdmin,
     createAdminApplicationsRouter(),
   )
+  app.use('/api/netease', requireLogin, createNeteaseRouter(neteaseService))
 
   app.get('/api/protected', requireLogin, (req, res) => {
     res.json({ success: true, user: req.safeUser })
