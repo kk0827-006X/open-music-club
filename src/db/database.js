@@ -40,6 +40,26 @@ function initializeSchema(database) {
       SET updated_at = CURRENT_TIMESTAMP
       WHERE id = OLD.id;
     END;
+
+    CREATE TABLE IF NOT EXISTS access_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL COLLATE NOCASE,
+      nickname TEXT NOT NULL,
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected')),
+      reviewed_by INTEGER,
+      reviewed_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS unique_pending_access_request_email
+      ON access_requests(email)
+      WHERE status = 'pending';
+
+    CREATE INDEX IF NOT EXISTS index_access_requests_status_created_at
+      ON access_requests(status, created_at DESC);
   `)
 }
 

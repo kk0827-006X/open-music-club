@@ -4,6 +4,10 @@ const { createSessionMiddleware } = require('./config/session')
 const { requireLogin } = require('./middleware/requireLogin')
 const { requireAdmin } = require('./middleware/requireAdmin')
 const { createAuthRouter } = require('./routes/auth.routes')
+const { createApplicationsRouter } = require('./routes/applications.routes')
+const {
+  createAdminApplicationsRouter,
+} = require('./routes/adminApplications.routes')
 
 function createApp({ databasePath, sessionDatabasePath, sessionSecret }) {
   if (!sessionSecret) {
@@ -33,6 +37,13 @@ function createApp({ databasePath, sessionDatabasePath, sessionSecret }) {
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }))
   app.use('/api/auth', createAuthRouter())
+  app.use('/api/applications', createApplicationsRouter())
+  app.use(
+    '/api/admin/applications',
+    requireLogin,
+    requireAdmin,
+    createAdminApplicationsRouter(),
+  )
 
   app.get('/api/protected', requireLogin, (req, res) => {
     res.json({ success: true, user: req.safeUser })

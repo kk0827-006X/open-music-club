@@ -21,6 +21,9 @@ __pycache__/
 *.db
 *.sqlite
 *.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+cookies.txt
 
 # 用户上传及运行时文件
 storage/music/*
