@@ -37,3 +37,4 @@ storage/temp/*
 .DS_Store
 .idea/
 .vscode/
+*.cookies
