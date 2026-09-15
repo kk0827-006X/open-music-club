@@ -1,0 +1,36 @@
+# Node.js / pnpm
+node_modules/
+.pnpm-store/
+coverage/
+dist/
+build/
+*.log
+
+# 环境变量与本地配置
+.env
+.env.*
+!.env.example
+
+# Python 临时环境与缓存
+.venv/
+**pycache**/
+__pycache__/
+*.pyc
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 用户上传及运行时文件
+storage/music/*
+storage/covers/*
+storage/temp/*
+!storage/music/.gitkeep
+!storage/covers/.gitkeep
+!storage/temp/.gitkeep
+
+# 操作系统与编辑器文件
+.DS_Store
+.idea/
+.vscode/
