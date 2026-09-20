@@ -1,12 +1,15 @@
 const { findUserById, toSafeUser } = require('../db/users')
-const { SESSION_COOKIE_NAME } = require('../config/session')
-
-function clearSessionCookie(res) {
-  res.clearCookie(SESSION_COOKIE_NAME, {
+function clearSessionCookie(req, res) {
+  const cookieName =
+    req.app.locals.sessionCookieName || 'open_music_club.sid'
+  const options = req.app.locals.sessionCookieOptions || {
     httpOnly: true,
     sameSite: 'lax',
     secure: false,
-  })
+    path: '/',
+  }
+  const { maxAge, expires, ...clearOptions } = options
+  res.clearCookie(cookieName, clearOptions)
 }
 
 function requireLogin(req, res, next) {
@@ -18,7 +21,7 @@ function requireLogin(req, res, next) {
   if (!user || user.status !== 'active') {
     return req.session.destroy((error) => {
       if (error) return next(error)
-      clearSessionCookie(res)
+      clearSessionCookie(req, res)
       return res.status(401).json({ success: false, message: '登录状态已失效' })
     })
   }

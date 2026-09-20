@@ -2,7 +2,7 @@
   "name": "open-music-club",
   "version": "0.1.0",
   "private": true,
-  "description": "局域网音乐共享与播放服务",
+  "description": "面向公网部署的音乐共享与播放服务",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -18,15 +18,19 @@
     "@neteasecloudmusicapienhanced/api": "workspace:*",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
-    "connect-sqlite3": "^0.9.18",
+    "connect-redis": "^10.0.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
     "express-session": "^1.19.0",
-    "sqlite3": "^6.0.1"
+    "helmet": "^8.3.0",
+    "multer": "^2.4.0",
+    "music-metadata": "^11.15.0",
+    "rate-limit-redis": "^6.0.1",
+    "redis": "^6.2.1"
   },
   "devDependencies": {
     "c8": "^12.0.0",
-    "node-gyp": "^13.0.2",
     "supertest": "^7.2.2"
   }
 }

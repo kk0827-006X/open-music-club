@@ -38,3 +38,4 @@ storage/temp/*
 .idea/
 .vscode/
 *.cookies
+*.cookies.txt

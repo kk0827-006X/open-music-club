@@ -6,7 +6,7 @@ const { clearSessionCookie } = require('../middleware/requireLogin')
 function destroySession(req, res, next, callback) {
   req.session.destroy((error) => {
     if (error) return next(error)
-    clearSessionCookie(res)
+    clearSessionCookie(req, res)
     return callback()
   })
 }

@@ -412,6 +412,7 @@ describe('访问申请与管理员审核 API', () => {
     assert.deepEqual(response.body, {
       success: false,
       message: '服务器内部错误',
+      requestId: response.headers['x-request-id'],
     })
     assert.equal(findApplication(applicationId).status, 'pending')
     assert.equal(findUserByEmail(database, 'rollback@example.com'), undefined)

@@ -1,0 +1,6 @@
+# Caddy 负责申请/续期证书与 HTTP 到 HTTPS 跳转，Node 仅监听 127.0.0.1。
+webkk.xyz {
+	encode zstd gzip
+
+	reverse_proxy 127.0.0.1:3000
+}

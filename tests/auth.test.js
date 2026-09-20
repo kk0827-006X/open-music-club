@@ -15,14 +15,12 @@ const TEST_PASSWORD = 'test-password'
 describe('登录与认证 API', () => {
   let directory
   let databasePath
-  let sessionDatabasePath
   let passwordHash
   let applications
 
   beforeEach(async () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-auth-'))
     databasePath = path.join(directory, 'users.sqlite')
-    sessionDatabasePath = path.join(directory, 'sessions.sqlite')
     passwordHash = await bcrypt.hash(TEST_PASSWORD, 4)
     applications = []
 
@@ -67,11 +65,11 @@ describe('登录与认证 API', () => {
     fs.rmSync(directory, { recursive: true, force: true })
   })
 
-  function buildApp() {
+  function buildApp(sessionStore) {
     const app = createApp({
       databasePath,
-      sessionDatabasePath,
       sessionSecret: 'test-session-secret',
+      ...(sessionStore ? { infrastructure: { sessionStore } } : {}),
     })
     applications.push(app)
     return app
@@ -86,7 +84,6 @@ describe('登录与认证 API', () => {
       () =>
         createApp({
           databasePath,
-          sessionDatabasePath,
           sessionSecret: '',
         }),
       /SESSION_SECRET/,
@@ -208,7 +205,7 @@ describe('登录与认证 API', () => {
     assert.equal(protectedResponse.status, 401)
   })
 
-  it('Session 写入 SQLite，并能被新的应用实例读取', async () => {
+  it('Session Store 共享时，新的应用实例能读取原 Session', async () => {
     const firstApp = buildApp()
     const loginResponse = await login(
       request(firstApp),
@@ -216,9 +213,7 @@ describe('登录与认证 API', () => {
     )
     const cookie = loginResponse.headers['set-cookie'][0].split(';')[0]
 
-    assert.equal(fs.existsSync(sessionDatabasePath), true)
-
-    const secondApp = buildApp()
+    const secondApp = buildApp(firstApp.locals.sessionStore)
     const meResponse = await request(secondApp)
       .get('/api/auth/me')
       .set('Cookie', cookie)

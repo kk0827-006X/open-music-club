@@ -60,6 +60,47 @@ function initializeSchema(database) {
 
     CREATE INDEX IF NOT EXISTS index_access_requests_status_created_at
       ON access_requests(status, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS uploaded_music (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      artist TEXT NOT NULL,
+      album TEXT,
+      original_filename TEXT NOT NULL,
+      stored_filename TEXT NOT NULL UNIQUE,
+      file_path TEXT NOT NULL,
+      cover_filename TEXT,
+      cover_path TEXT,
+      cover_mime_type TEXT,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL CHECK (file_size >= 0),
+      duration_ms INTEGER NOT NULL CHECK (duration_ms >= 0),
+      uploader_id INTEGER NOT NULL,
+      download_count INTEGER NOT NULL DEFAULT 0 CHECK (download_count >= 0),
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (uploader_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS index_uploaded_music_uploader
+      ON uploaded_music(uploader_id);
+
+    CREATE INDEX IF NOT EXISTS index_uploaded_music_created_at
+      ON uploaded_music(created_at DESC, id DESC);
+
+    CREATE TABLE IF NOT EXISTS download_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      music_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      downloaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (music_id) REFERENCES uploaded_music(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS index_download_logs_music
+      ON download_logs(music_id);
+
+    CREATE INDEX IF NOT EXISTS index_download_logs_user_downloaded_at
+      ON download_logs(user_id, downloaded_at DESC);
   `)
 }
 

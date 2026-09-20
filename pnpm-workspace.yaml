@@ -7,4 +7,3 @@ allowBuilds:
   better-sqlite3: true
   core-js: true
   es5-ext: true
-  sqlite3: true
