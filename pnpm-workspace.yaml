@@ -1,9 +1,11 @@
 packages:
   - '.'
+  - 'frontend'
   - 'vendor/api-enhanced'
 
 allowBuilds:
   bcrypt: true
   better-sqlite3: true
   core-js: true
+  esbuild: true
   es5-ext: true
