@@ -1,5 +1,6 @@
 import { demoAlbums, type DemoAlbum } from './album-data.ts'
-import { sampleAlbumWave } from './album-wave.ts'
+import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
+import type { ArchiveScene } from './rhine/scene.ts'
 
 const icon = (content: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${content}</svg>`
 const icons = {
@@ -54,41 +55,6 @@ function playerMarkup(album: DemoAlbum) {
   </footer>`
 }
 
-// 与 RhineLabUI 一样使用固定实例池；其中 5 个实例承载真实演示数据，其余只构成连续档案墙。
-const interactiveSlots = new Map([[24, 0], [10, 1], [18, 2], [32, 3], [40, 4]])
-
-function albumCase(album: DemoAlbum, albumIndex: number, fieldIndex: number, row: number, lane: number, selectedIndex: number) {
-  const number = String(albumIndex + 1).padStart(3, '0')
-  return `<button class="archive-case album-sleeve${albumIndex === selectedIndex ? ' is-current' : ''}" type="button"
-    data-archive-case data-album-id="${album.id}" data-album-index="${albumIndex}" data-field-index="${fieldIndex}"
-    data-row="${row}" data-lane="${lane}" style="--case-left:${-2 + lane * 14.3 + row * 2.4}%;--case-top:${-17 + row * 14.6 + lane * 2.1}%;--case-z:${10 + row * 7 + lane};--depth-scale:${0.78 + row * 0.055};--depth-opacity:${0.62 + row * 0.055};--depth-blur:${1.4 - row * 0.2}px;--album-accent:${album.accent}"
-    aria-label="选择专辑 ${album.title}">
-    <span class="archive-case-shell"><span class="archive-case-label"><small>NO.${number}</small><b>∞</b></span>
-      <img src="${album.coverUrl}" alt="${album.title} 占位封面" /><span class="archive-case-spine">OPEN MUSIC CLUB</span><i aria-hidden="true"></i>
-    </span>
-  </button>`
-}
-
-function decorativeCase(fieldIndex: number, row: number, lane: number) {
-  const album = demoAlbums[(fieldIndex + row * 2) % demoAlbums.length]
-  return `<span class="archive-case archive-case-decorative" data-archive-case aria-hidden="true"
-    data-field-index="${fieldIndex}" data-row="${row}" data-lane="${lane}"
-    style="--case-left:${-2 + lane * 14.3 + row * 2.4}%;--case-top:${-17 + row * 14.6 + lane * 2.1}%;--case-z:${10 + row * 7 + lane};--depth-scale:${0.78 + row * 0.055};--depth-opacity:${0.62 + row * 0.055};--depth-blur:${1.4 - row * 0.2}px;--album-accent:${album.accent}">
-    <span class="archive-case-shell"><span class="archive-case-label"><small>NO.${String(fieldIndex + 1).padStart(3, '0')}</small><b>∞</b></span><img src="${album.coverUrl}" alt="" /><i></i></span>
-  </span>`
-}
-
-function archiveField(selectedIndex: number) {
-  return Array.from({ length: 49 }, (_, fieldIndex) => {
-    const row = Math.floor(fieldIndex / 7)
-    const lane = fieldIndex % 7
-    const albumIndex = interactiveSlots.get(fieldIndex)
-    return albumIndex === undefined
-      ? decorativeCase(fieldIndex, row, lane)
-      : albumCase(demoAlbums[albumIndex], albumIndex, fieldIndex, row, lane, selectedIndex)
-  }).join('')
-}
-
 function albumInformation(album: DemoAlbum, index: number) {
   return `<aside class="archive-selection-copy" data-album-information aria-live="polite">
     <p>ALBUM ${String(index + 1).padStart(3, '0')}</p><h2>${album.title}</h2><h3>${album.artist}</h3><span>${album.artist}</span>
@@ -104,10 +70,10 @@ function albumInformation(album: DemoAlbum, index: number) {
 export function createAlbumArchiveMarkup(selectedIndex = 0) {
   const selected = demoAlbums[selectedIndex]
   return `<main class="album-archive" data-album-archive>
-    <header class="archive-brand"><h1>OPEN MUSIC CLUB</h1><p>MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p><small><i></i>35 张专辑 · 436 首音乐 · 12 位艺术家</small></header>
+    <header class="archive-brand"><h1>OPEN MUSIC CLUB</h1><p>MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p><small><i></i>5 张演示专辑 · 15 首演示曲目 · 5 位艺术家</small></header>
     ${archiveNavigation()}
-    <section class="album-wave-stage" data-wave-field aria-label="专辑档案选择"><div class="archive-case-field">${archiveField(selectedIndex)}</div></section>
-    <aside class="archive-callout"><p>ALBUM / SELECT</p><strong data-album-counter>${String(selectedIndex + 1).padStart(2, '0')}</strong><span>/ 35</span></aside>
+    <section class="album-wave-stage" data-wave-field aria-label="三维专辑档案选择"><div class="archive-three-scene" data-three-scene></div></section>
+    <aside class="archive-callout"><p>ALBUM / SELECT</p><strong data-album-counter>${String(selectedIndex + 1).padStart(2, '0')}</strong><span>/ 05</span></aside>
     <div class="archive-switcher" aria-label="专辑切换预览"><button type="button" data-album-previous aria-label="上一张专辑">↑</button><i></i><button type="button" data-album-next aria-label="下一张专辑">↓</button></div>
     ${albumInformation(selected, selectedIndex)}${playerMarkup(selected)}
   </main>`
@@ -131,21 +97,21 @@ export const wrapAlbumIndex = (value: number, count = demoAlbums.length) => ((va
 export function mountAlbumArchive(root: HTMLElement) {
   let frame = 0
   let selectedIndex = 0
-  let changing = false
+  let recordIndex = 16
+  let disposed = false
   let cleanup: () => void = () => undefined
 
   const renderArchive = () => {
     cleanup()
-    changing = false
     root.innerHTML = createAlbumArchiveMarkup(selectedIndex)
-    const archive = root.querySelector<HTMLElement>('[data-album-archive]')
-    const cases = [...root.querySelectorAll<HTMLElement>('[data-archive-case]')]
-    const cards = [...root.querySelectorAll<HTMLElement>('[data-album-id]')]
+    const container = root.querySelector<HTMLElement>('[data-three-scene]')!
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    let wheelLocked = false
-    let pointerStart: { x: number; y: number } | null = null
+    let scene: ArchiveScene | null = null
+    let sceneLoaded = false
+    let active = true
 
     const openDetail = () => {
+      cleanup()
       const album = demoAlbums[selectedIndex]
       root.innerHTML = createAlbumDetailMarkup(album)
       const onDetailKey = (event: KeyboardEvent) => { if (event.key === 'Escape') renderArchive() }
@@ -154,9 +120,10 @@ export function mountAlbumArchive(root: HTMLElement) {
       cleanup = () => window.removeEventListener('keydown', onDetailKey)
     }
 
-    const refreshSelection = () => {
+    const refreshSelection = (nextRecord: number) => {
+      recordIndex = nextRecord
+      selectedIndex = records[nextRecord].albumIndex
       const album = demoAlbums[selectedIndex]
-      cards.forEach((card) => card.classList.toggle('is-current', Number(card.dataset.albumIndex) === selectedIndex))
       const information = root.querySelector<HTMLElement>('[data-album-information]')
       const player = root.querySelector<HTMLElement>('[data-global-player]')
       if (information) information.outerHTML = albumInformation(album, selectedIndex)
@@ -166,72 +133,71 @@ export function mountAlbumArchive(root: HTMLElement) {
       root.querySelector('[data-open-selected]')?.addEventListener('click', openDetail)
     }
 
-    const selectAlbum = (nextIndex: number) => {
-      if (changing) return
-      changing = true
-      selectedIndex = wrapAlbumIndex(nextIndex)
-      refreshSelection()
-      // RhineLabUI 的选择始终发生在固定观察槽，周围实例围绕该槽产生波动。
-      const sourceRow = 3
-      const sourceLane = 3
-      const startedAt = performance.now()
-      archive?.classList.add('is-rippling')
-      const animate = (now: number) => {
-        const age = (now - startedAt) / 1000
-        cases.forEach((entry) => {
-          const distance = Math.hypot(Number(entry.dataset.row) - sourceRow, (Number(entry.dataset.lane) - sourceLane) * 1.35) * 1.9
-          const wave = sampleAlbumWave(distance, age, reduced)
-          entry.style.setProperty('--wave-y', `${-wave * 94}px`)
-          entry.style.setProperty('--wave-z', `${Math.abs(wave) * 34}px`)
-        })
-        if (age < 1.6 && !reduced) frame = requestAnimationFrame(animate)
-        else {
-          cases.forEach((entry) => { entry.style.removeProperty('--wave-y'); entry.style.removeProperty('--wave-z') })
-          archive?.classList.remove('is-rippling')
-          changing = false
-        }
-      }
-      frame = requestAnimationFrame(animate)
+    const selectRecord = (nextRecord: number, navigation?: { axis: 'row' | 'lane'; direction: number } | { cell: { lane: number; row: number } }) => {
+      if (!scene) return
+      refreshSelection(nextRecord)
+      scene.select(nextRecord, navigation)
+    }
+
+    const navigate = (axis: 'row' | 'lane', direction: number) => {
+      const current = fileLocation(recordIndex)
+      const lane = axis === 'lane'
+        ? (current.lane + direction + archiveColumns.length) % archiveColumns.length
+        : current.lane
+      const files = columnFiles(lane)
+      const row = (current.row - 12 + (axis === 'row' ? direction : 0) + files.length) % files.length
+      selectRecord(files[row], { axis, direction })
     }
 
     const onKeydown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') { event.preventDefault(); selectAlbum(selectedIndex - 1) }
-      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') { event.preventDefault(); selectAlbum(selectedIndex + 1) }
+      if (event.key === 'ArrowUp') { event.preventDefault(); navigate('row', -1) }
+      if (event.key === 'ArrowDown') { event.preventDefault(); navigate('row', 1) }
+      if (event.key === 'ArrowLeft') { event.preventDefault(); navigate('lane', -1) }
+      if (event.key === 'ArrowRight') { event.preventDefault(); navigate('lane', 1) }
       if (event.key === 'Enter') openDetail()
     }
-    const onWheel = (event: WheelEvent) => {
-      if (wheelLocked || Math.abs(event.deltaY) < 8) return
-      wheelLocked = true
-      selectAlbum(selectedIndex + Math.sign(event.deltaY))
-      window.setTimeout(() => { wheelLocked = false }, 420)
-    }
-    const onPointerDown = (event: PointerEvent) => { pointerStart = { x: event.clientX, y: event.clientY } }
-    const onPointerUp = (event: PointerEvent) => {
-      if (!pointerStart) return
-      const deltaX = event.clientX - pointerStart.x
-      const deltaY = event.clientY - pointerStart.y
-      pointerStart = null
-      const distance = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY
-      if (Math.abs(distance) > 42) selectAlbum(selectedIndex + (distance < 0 ? 1 : -1))
-    }
 
-    cards.forEach((card) => card.addEventListener('click', () => selectAlbum(Number(card.dataset.albumIndex))))
-    root.querySelector('[data-album-previous]')?.addEventListener('click', () => selectAlbum(selectedIndex - 1))
-    root.querySelector('[data-album-next]')?.addEventListener('click', () => selectAlbum(selectedIndex + 1))
+    root.querySelector('[data-album-previous]')?.addEventListener('click', () => navigate('row', -1))
+    root.querySelector('[data-album-next]')?.addEventListener('click', () => navigate('row', 1))
     root.querySelector('[data-open-selected]')?.addEventListener('click', openDetail)
     window.addEventListener('keydown', onKeydown)
-    archive?.addEventListener('wheel', onWheel, { passive: true })
-    archive?.addEventListener('pointerdown', onPointerDown)
-    archive?.addEventListener('pointerup', onPointerUp)
+    const onResize = () => scene?.resize()
+    window.addEventListener('resize', onResize)
+
+    void import('./rhine/scene.ts').then(async ({ ArchiveScene }) => {
+      if (!active || disposed) return
+      const next = new ArchiveScene(container)
+      scene = next
+      next.setReduced(reduced)
+      await next.load()
+      sceneLoaded = true
+      if (!active || disposed) { next.dispose(); return }
+      next.setMode('archive')
+      next.onSelect = (index, cell) => selectRecord(index, cell ? { cell } : undefined)
+      next.onNavigate = navigate
+      next.select(recordIndex)
+      next.resize()
+      const animate = (now: number) => {
+        if (!active || disposed) return
+        next.update(now / 1000)
+        frame = requestAnimationFrame(animate)
+      }
+      frame = requestAnimationFrame(animate)
+    }).catch(() => {
+      scene?.dispose()
+      scene = null
+      if (active) container.textContent = '三维档案墙暂时无法加载，请刷新页面重试。'
+    })
+
     cleanup = () => {
+      active = false
       cancelAnimationFrame(frame)
+      if (sceneLoaded) scene?.dispose()
       window.removeEventListener('keydown', onKeydown)
-      archive?.removeEventListener('wheel', onWheel)
-      archive?.removeEventListener('pointerdown', onPointerDown)
-      archive?.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('resize', onResize)
     }
   }
 
   renderArchive()
-  return () => cleanup()
+  return () => { disposed = true; cleanup() }
 }

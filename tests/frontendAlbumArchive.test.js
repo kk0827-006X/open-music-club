@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const crypto = require('node:crypto')
 const path = require('node:path')
 const { describe, it } = require('node:test')
 const { pathToFileURL } = require('node:url')
@@ -10,7 +11,7 @@ function frontendModule(relativePath) {
   return `${pathToFileURL(modulePath).href}?test=${Date.now()}-${Math.random()}`
 }
 
-describe('静态专辑档案 UI', () => {
+describe('三维专辑档案 UI', () => {
   it('提供 5 张静态专辑和可复用的本地占位封面', async () => {
     const { demoAlbums } = await import(frontendModule('album-data.ts'))
 
@@ -22,19 +23,38 @@ describe('静态专辑档案 UI', () => {
     }
   })
 
-  it('档案页只渲染静态 UI，不包含 API 或真实播放入口', async () => {
+  it('档案页为原 Three.js 场景提供画布容器，不再生成 CSS 卡片墙', async () => {
     const { createAlbumArchiveMarkup } = await import(
       frontendModule('album-archive.ts')
     )
     const markup = createAlbumArchiveMarkup()
 
-    assert.equal((markup.match(/data-album-id=/g) || []).length, 5)
-    assert.ok((markup.match(/data-archive-case/g) || []).length >= 30)
+    assert.match(markup, /data-three-scene/)
+    assert.doesNotMatch(markup, /archive-case-field/)
     assert.match(markup, /ALBUM \/ SELECT/)
     assert.match(markup, /data-wave-field/)
     assert.match(markup, /data-album-information/)
     assert.doesNotMatch(markup, /\/api\//)
     assert.doesNotMatch(markup, /<audio/i)
+  })
+
+  it('档案墙复用原场景、模型和波动算法，不载入拆解模型', () => {
+    const fs = require('node:fs')
+    const scenePath = path.join(projectRoot, 'frontend/src/rhine/scene.ts')
+    const motionPath = path.join(projectRoot, 'frontend/src/rhine/motion.ts')
+    const modelPath = path.join(projectRoot, 'frontend/public/assets/archive-cassette.glb')
+
+    assert.match(fs.readFileSync(scenePath, 'utf8'), /export class ArchiveScene/)
+    assert.match(fs.readFileSync(scenePath, 'utf8'), /archiveWave\(/)
+    assert.equal(
+      crypto.createHash('sha256').update(fs.readFileSync(motionPath)).digest('hex'),
+      '60c4bbef70f34f69e36ff60aa631b3b88b2eb42a6e9b431b6af3c6fd69eb744e'
+    )
+    assert.equal(
+      crypto.createHash('sha256').update(fs.readFileSync(modelPath)).digest('hex'),
+      'dda42b9b3b471d11c69820a64084d254a64b27761287ab0e35dd8387ec0a0bed'
+    )
+    assert.equal(fs.existsSync(path.join(projectRoot, 'frontend/public/assets/archive-assembly.glb')), false)
   })
 
   it('顶部导航严格遵循设计文档的顺序、图标和激活状态', async () => {
@@ -68,20 +88,19 @@ describe('静态专辑档案 UI', () => {
     assert.doesNotMatch(markup, /PLAYER \/ STANDBY/)
   })
 
-  it('海浪波包从点击位置向外传播并随时间衰减', async () => {
-    const { sampleAlbumWave } = await import(frontendModule('album-wave.ts'))
+  it('原版海浪波包从所选档案向外传播并随时间衰减', async () => {
+    const { baselineSelectionWave } = await import(frontendModule('rhine/motion.ts'))
 
-    assert.equal(sampleAlbumWave(0, -1), 0)
-    const source = sampleAlbumWave(0, 0.22)
-    const nearby = sampleAlbumWave(2.2, 0.5)
-    const distantEarly = sampleAlbumWave(8.8, 0.22)
-    const settled = sampleAlbumWave(0, 3.3)
+    assert.equal(baselineSelectionWave(0, -1), 0)
+    const source = baselineSelectionWave(0, 0.22)
+    const nearby = baselineSelectionWave(2.2, 0.5)
+    const distantEarly = baselineSelectionWave(8.8, 0.22)
+    const settled = baselineSelectionWave(0, 3.3)
 
     assert.ok(Math.abs(source) > 0.05)
     assert.ok(Math.abs(nearby) > 0.01)
     assert.ok(Math.abs(distantEarly) < Math.abs(source))
     assert.equal(settled, 0)
-    assert.equal(sampleAlbumWave(4.4, 0.5, true), 0)
   })
 
   it('专辑选择沿用循环索引，首尾切换不会反向跳跃', async () => {
