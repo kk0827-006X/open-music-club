@@ -1,5 +1,6 @@
 import './style.css'
 import { loginAndVerify } from './auth-client.ts'
+import { mountAlbumArchive } from './album-archive.ts'
 import { mountAuthorizedSequence } from './authorized-sequence.ts'
 import { mountEntryPage } from './entry-page.ts'
 import { mountLoginPage } from './login-page.ts'
@@ -14,7 +15,10 @@ if (app) {
       const result = await loginAndVerify(credentials)
       window.setTimeout(() => {
         cleanup()
-        cleanup = mountAuthorizedSequence(app, result.user.role)
+        cleanup = mountAuthorizedSequence(app, result.user.role, () => {
+          cleanup()
+          cleanup = mountAlbumArchive(app)
+        })
       }, 1_150)
       return { role: result.user.role }
     })

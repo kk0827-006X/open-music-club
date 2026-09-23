@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title description">
+  <title id="title">潮汐信号占位封面</title><desc id="description">暮色海面和人物剪影构成的原创抽象封面</desc>
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7a8994"/><stop offset=".52" stop-color="#d3b394"/><stop offset="1" stop-color="#263138"/></linearGradient><filter id="grain"><feTurbulence baseFrequency=".78" numOctaves="3" seed="7" result="n"/><feBlend in="SourceGraphic" in2="n" mode="soft-light"/></filter></defs>
+  <rect width="800" height="800" fill="url(#sky)"/><path d="M0 480c132-18 219 22 340 3 122-19 265-43 460-2v319H0Z" fill="#243038" opacity=".84"/><path d="M0 530c163-30 248 18 405-1 139-17 244-21 395 5" fill="none" stroke="#e6d4b7" stroke-opacity=".32" stroke-width="4"/><circle cx="624" cy="408" r="13" fill="#f0c47c"/><path d="M248 442c50-70 123-71 166 2l35 356H192Z" fill="#171c20"/><rect width="800" height="800" filter="url(#grain)" opacity=".18"/>
+  <g fill="#f2eee4"><text x="52" y="64" font-family="sans-serif" font-size="15" letter-spacing="7">OPEN MUSIC CLUB / 001</text><text x="52" y="710" font-family="sans-serif" font-size="44" font-weight="700">潮汐信号</text><text x="54" y="748" font-family="sans-serif" font-size="16" letter-spacing="5">TIDAL SIGNAL</text></g>
+</svg>

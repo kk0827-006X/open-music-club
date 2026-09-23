@@ -137,6 +137,7 @@ function renderFrame(stage: HTMLElement, elapsedMs: number) {
 export function mountAuthorizedSequence(
   root: HTMLElement,
   role: 'admin' | 'user',
+  onComplete?: () => void,
 ) {
   root.innerHTML = createSequenceMarkup(role)
   const stage = root.querySelector<HTMLElement>('[data-authorized-stage]')
@@ -150,10 +151,15 @@ export function mountAuthorizedSequence(
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const startedAt = performance.now()
   let frame = 0
+  let finished = false
   const animate = (now: number) => {
     const elapsed = reduced ? FINAL_WELCOME_FRAME_MS : now - startedAt
     const state = renderFrame(stage, elapsed)
     if (!reduced && !state.complete) frame = window.requestAnimationFrame(animate)
+    else if (!finished) {
+      finished = true
+      window.setTimeout(() => onComplete?.(), reduced ? 500 : 650)
+    }
   }
   frame = window.requestAnimationFrame(animate)
   return () => {
