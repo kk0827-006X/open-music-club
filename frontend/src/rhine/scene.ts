@@ -476,7 +476,15 @@ export class ArchiveScene {
     this.labelTexture.anisotropy =
       this.renderer.capabilities.getMaxAnisotropy();
     this.coverTextures = await Promise.all(demoAlbums.map(async (album) => {
-      const texture = await new THREE.TextureLoader().loadAsync(publicAsset(album.coverUrl));
+      const source = await new THREE.TextureLoader().loadAsync(publicAsset(album.coverUrl));
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 800;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('专辑封面无法绘制');
+      context.drawImage(source.image, 0, 0, canvas.width, canvas.height);
+      source.dispose();
+      const texture = new THREE.CanvasTexture(canvas);
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
       return texture;

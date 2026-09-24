@@ -508,10 +508,10 @@ p, h1, h2 { margin: 0; }
 }
 
 /* 专辑档案：三维阵列使用 RhineLabUI 原场景，资料和播放器保留界面层。 */
-.album-archive, .album-detail { position: fixed; inset: 0; overflow: hidden; color: #20211e; background: #eeece7; }
+.album-archive { position: fixed; inset: 0; overflow: hidden; color: #20211e; background: #eeece7; }
 .album-archive { isolation: isolate; }
 .album-archive::before { position: absolute; inset: 0; z-index: 8; background: linear-gradient(90deg, transparent 48%, rgba(238,236,231,.16) 57%, rgba(238,236,231,.92) 68%, #eeece7 78%); content: ""; pointer-events: none; }
-.album-archive::after, .album-detail::after { position: absolute; inset: 0; z-index: 20; background: radial-gradient(ellipse at 48% 48%, transparent 22%, rgba(238,236,231,.1) 65%, rgba(224,220,212,.24)); content: ""; pointer-events: none; }
+.album-archive::after { position: absolute; inset: 0; z-index: 20; background: radial-gradient(ellipse at 48% 48%, transparent 22%, rgba(238,236,231,.1) 65%, rgba(224,220,212,.24)); content: ""; pointer-events: none; }
 
 .archive-brand { position: absolute; z-index: 30; top: 42px; left: 54px; }
 .archive-brand h1 { margin: 0; font-size: clamp(2rem, 3vw, 3.25rem); font-weight: 800; letter-spacing: -.04em; line-height: .94; }
@@ -575,15 +575,20 @@ p, h1, h2 { margin: 0; }
 .player-queue-summary { display: flex; gap: 9px; justify-content: center; align-items: center; height: 48px; border-inline: 1px solid rgba(32,33,30,.15); font-size: .58rem; }
 .global-player > p { margin: 0 0 0 22px; color: #89877f; font-size: .45rem; letter-spacing: .15em; line-height: 1.65; }
 
-.detail-back { position: absolute; z-index: 30; top: 170px; left: 58px; padding: 0 0 8px; border: 0; border-bottom: 1px solid rgba(32,33,30,.25); background: transparent; font-size: .7rem; cursor: pointer; }
+.album-detail { position: absolute; inset: 0; z-index: 25; overflow: hidden; pointer-events: none; --detail-visibility: 0; }
+.album-detail[hidden] { display: none; }
+.album-archive[data-mode="detail"] .archive-selection-copy, .album-archive[data-mode="detail"] .archive-callout, .album-archive[data-mode="detail"] .archive-switcher { opacity: 0; pointer-events: none; }
+.archive-selection-copy, .archive-callout, .archive-switcher { transition: opacity 260ms ease; }
+.detail-back, .detail-information { opacity: var(--detail-visibility); transform: translateY(var(--detail-offset, 18px)); }
+.detail-back { position: absolute; z-index: 30; top: 170px; left: 58px; padding: 0 0 8px; border: 0; border-bottom: 1px solid rgba(32,33,30,.25); background: transparent; font-size: .7rem; cursor: pointer; pointer-events: auto; }
 .detail-back kbd { margin-left: 17px; padding: 4px; border: 1px solid rgba(32,33,30,.18); color: #77776f; background: transparent; font: inherit; font-size: .55rem; }
-.detail-cover-frame { position: absolute; top: 225px; bottom: 90px; left: 5.5%; width: 42%; }
+.detail-cover-frame { display: none; position: absolute; top: 225px; bottom: 90px; left: 5.5%; width: 42%; }
 .detail-cover-frame::before { position: absolute; inset: -25px; border: 1px solid rgba(32,33,30,.12); background: rgba(255,255,255,.13); box-shadow: 0 28px 70px rgba(60,53,43,.1); content: ""; transform: rotate(-1deg); }
 .detail-cover { position: relative; width: min(60vh, 75%); aspect-ratio: 1; margin: 0 auto; padding: 24px; border: 1px solid rgba(32,33,30,.15); background: rgba(237,234,226,.75); }
 .detail-cover img { width: 100%; height: 100%; object-fit: cover; box-shadow: 0 18px 35px rgba(44,40,34,.16); }
 .detail-cover-frame > p { position: relative; margin-top: 21px; font-size: .68rem; letter-spacing: .15em; }
 .detail-cover-frame > small { position: relative; display: block; margin-top: 7px; color: #7c7b74; font-size: .54rem; }
-.detail-information { position: absolute; top: 202px; right: 6%; width: 43%; max-width: 720px; }
+.detail-information { position: absolute; top: 202px; right: 6%; width: 43%; max-width: 720px; max-height: calc(100% - 308px); overflow-y: auto; pointer-events: auto; scrollbar-width: thin; }
 .detail-information > p:first-child { color: #77766f; font-size: .55rem; letter-spacing: .18em; }
 .detail-information h2 { margin: 27px 0 5px; font-size: clamp(2.6rem, 4vw, 4.5rem); letter-spacing: -.055em; line-height: .95; }
 .detail-information h3 { margin: 0 0 28px; color: #70716a; font-size: 1.25rem; font-weight: 400; }
@@ -613,9 +618,9 @@ p, h1, h2 { margin: 0; }
   .player-controls { gap: 14px; }
   .player-controls .player-main-control { width: 42px; height: 42px; }
   .detail-back { top: 115px; left: 24px; }
-  .album-detail { overflow-y: auto; }
+  .album-detail { overflow-y: auto; pointer-events: auto; }
   .detail-cover-frame, .detail-information { position: relative; inset: auto; width: auto; margin: 170px 24px 0; }
   .detail-cover-frame { height: auto; }
   .detail-cover { width: min(78vw, 430px); }
-  .detail-information { margin-top: 70px; padding-bottom: 120px; }
+  .detail-information { max-height: none; overflow: visible; margin-top: 170px; padding-bottom: 120px; }
 }

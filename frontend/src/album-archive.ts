@@ -75,21 +75,21 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
     <section class="album-wave-stage" data-wave-field aria-label="三维专辑档案选择"><div class="archive-three-scene" data-three-scene></div></section>
     <aside class="archive-callout"><p>ALBUM / SELECT</p><strong data-album-counter>${String(selectedIndex + 1).padStart(2, '0')}</strong><span>/ 05</span></aside>
     <div class="archive-switcher" aria-label="专辑切换预览"><button type="button" data-album-previous aria-label="上一张专辑">↑</button><i></i><button type="button" data-album-next aria-label="下一张专辑">↓</button></div>
-    ${albumInformation(selected, selectedIndex)}${playerMarkup(selected)}
+    ${albumInformation(selected, selectedIndex)}
+    <section class="album-detail" data-album-detail hidden inert aria-hidden="true"></section>
+    ${playerMarkup(selected)}
   </main>`
 }
 
 export function createAlbumDetailMarkup(album: DemoAlbum) {
   const tracks = album.tracks.map((track, index) => `<li><span>${String(index + 1).padStart(2, '0')}</span><strong>${track.title}</strong><small>LOCAL</small><time>${track.duration}</time></li>`).join('')
-  return `<main class="album-detail" data-album-detail>
-    <header class="archive-brand"><h1>OPEN MUSIC CLUB</h1><p>MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p></header>${archiveNavigation()}
+  return `
     <button class="detail-back" type="button" data-back-to-archive>←&nbsp;&nbsp;返回专辑架 <kbd>ESC</kbd></button>
     <section class="detail-cover-frame"><div class="detail-cover"><img src="${album.coverUrl}" alt="${album.title} 占位封面" /></div><p>ALBUM / ${album.id.slice(-3)}</p><small>本地占位视觉 · 未来由真实封面替换</small></section>
-    <article class="detail-information"><p>ALBUM DETAIL&nbsp;&nbsp;/&nbsp;&nbsp;UI PREVIEW</p><h2>${album.title}</h2><h3>${album.artist}</h3>
+    <article class="detail-information" data-detail-information><p>ALBUM DETAIL&nbsp;&nbsp;/&nbsp;&nbsp;UI PREVIEW</p><h2>${album.title}</h2><h3>${album.artist}</h3>
       <div class="detail-facts"><p><small>RELEASE / 发行年份</small>${album.year}</p><p><small>ARTIST / 艺术家</small>${album.artist}</p><p><small>GENRE / 流派</small>${album.genre}</p><p><small>FORMAT / 来源</small>STATIC VISUAL</p></div>
       <p class="detail-description">${album.description}</p><section class="detail-track-preview"><header><b>01&nbsp;&nbsp;曲目预览</b><span>暂未连接播放</span></header><ol>${tracks}</ol></section>
-    </article>${playerMarkup(album)}
-  </main>`
+    </article>`
 }
 
 export const wrapAlbumIndex = (value: number, count = demoAlbums.length) => ((value % count) + count) % count
@@ -99,26 +99,73 @@ export function mountAlbumArchive(root: HTMLElement) {
   let selectedIndex = 0
   let recordIndex = 16
   let disposed = false
-  let cleanup: () => void = () => undefined
+  let scene: ArchiveScene | null = null
+  let sceneReady = false
+  let mode: 'archive' | 'detail' = 'archive'
+  let detailIdleSince = 0
+  root.innerHTML = createAlbumArchiveMarkup(selectedIndex)
+  const archive = root.querySelector<HTMLElement>('[data-album-archive]')!
+  const detail = root.querySelector<HTMLElement>('[data-album-detail]')!
+  const container = root.querySelector<HTMLElement>('[data-three-scene]')!
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  const renderArchive = () => {
-    cleanup()
-    root.innerHTML = createAlbumArchiveMarkup(selectedIndex)
-    const container = root.querySelector<HTMLElement>('[data-three-scene]')!
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    let scene: ArchiveScene | null = null
-    let sceneLoaded = false
-    let active = true
-
-    const openDetail = () => {
-      cleanup()
-      const album = demoAlbums[selectedIndex]
-      root.innerHTML = createAlbumDetailMarkup(album)
-      const onDetailKey = (event: KeyboardEvent) => { if (event.key === 'Escape') renderArchive() }
-      root.querySelector('[data-back-to-archive]')?.addEventListener('click', renderArchive)
-      window.addEventListener('keydown', onDetailKey)
-      cleanup = () => window.removeEventListener('keydown', onDetailKey)
+  const animate = (now: number) => {
+    frame = 0
+    if (disposed || document.hidden || !scene) return
+    scene.update(now / 1000)
+    if (mode === 'detail') {
+      const visibility = scene.detailVisibility
+      detail.style.setProperty('--detail-visibility', String(visibility))
+      detail.style.setProperty('--detail-offset', `${(1 - visibility) * 18}px`)
+      if (visibility > .995) {
+        if (!detailIdleSince) detailIdleSince = now
+        if (now - detailIdleSince > 1_400) {
+          scene.finishDecryption()
+          scene.update(now / 1000)
+          return
+        }
+      } else detailIdleSince = 0
+    } else if (!detail.hidden) {
+      const visibility = scene.detailVisibility
+      detail.style.setProperty('--detail-visibility', String(visibility))
+      detail.style.setProperty('--detail-offset', `${(1 - visibility) * 18}px`)
+      if (visibility < .01) {
+        detail.hidden = true
+        archive.dataset.mode = 'archive'
+      }
     }
+    frame = requestAnimationFrame(animate)
+  }
+
+  const wakeScene = () => {
+    if (!frame && scene && !disposed && !document.hidden) frame = requestAnimationFrame(animate)
+  }
+
+  const openDetail = () => {
+    if (mode !== 'archive' || !scene) return
+    mode = 'detail'
+    detailIdleSince = 0
+    detail.innerHTML = createAlbumDetailMarkup(demoAlbums[selectedIndex])
+    detail.hidden = false
+    detail.inert = false
+    detail.setAttribute('aria-hidden', 'false')
+    detail.style.setProperty('--detail-visibility', '0')
+    detail.style.setProperty('--detail-offset', '18px')
+    detail.querySelector('[data-back-to-archive]')?.addEventListener('click', closeDetail)
+    archive.dataset.mode = 'detail'
+    scene.setMode('detail')
+    wakeScene()
+  }
+
+  const closeDetail = () => {
+    if (mode !== 'detail') return
+    mode = 'archive'
+    detailIdleSince = 0
+    detail.inert = true
+    detail.setAttribute('aria-hidden', 'true')
+    scene?.setMode('archive')
+    wakeScene()
+  }
 
     const refreshSelection = (nextRecord: number) => {
       recordIndex = nextRecord
@@ -150,6 +197,10 @@ export function mountAlbumArchive(root: HTMLElement) {
     }
 
     const onKeydown = (event: KeyboardEvent) => {
+      if (mode === 'detail') {
+        if (event.key === 'Escape') { event.preventDefault(); closeDetail() }
+        return
+      }
       if (event.key === 'ArrowUp') { event.preventDefault(); navigate('row', -1) }
       if (event.key === 'ArrowDown') { event.preventDefault(); navigate('row', 1) }
       if (event.key === 'ArrowLeft') { event.preventDefault(); navigate('lane', -1) }
@@ -161,43 +212,36 @@ export function mountAlbumArchive(root: HTMLElement) {
     root.querySelector('[data-album-next]')?.addEventListener('click', () => navigate('row', 1))
     root.querySelector('[data-open-selected]')?.addEventListener('click', openDetail)
     window.addEventListener('keydown', onKeydown)
-    const onResize = () => scene?.resize()
+    const onResize = () => { scene?.resize(); wakeScene() }
     window.addEventListener('resize', onResize)
+    const onVisibility = () => wakeScene()
+    document.addEventListener('visibilitychange', onVisibility)
 
     void import('./rhine/scene.ts').then(async ({ ArchiveScene }) => {
-      if (!active || disposed) return
+      if (disposed) return
       const next = new ArchiveScene(container)
       scene = next
       next.setReduced(reduced)
       await next.load()
-      sceneLoaded = true
-      if (!active || disposed) { next.dispose(); return }
+      if (disposed) { next.dispose(); return }
+      sceneReady = true
       next.setMode('archive')
       next.onSelect = (index, cell) => selectRecord(index, cell ? { cell } : undefined)
       next.onNavigate = navigate
       next.select(recordIndex)
       next.resize()
-      const animate = (now: number) => {
-        if (!active || disposed) return
-        next.update(now / 1000)
-        frame = requestAnimationFrame(animate)
-      }
-      frame = requestAnimationFrame(animate)
+      wakeScene()
     }).catch(() => {
       scene?.dispose()
       scene = null
-      if (active) container.textContent = '三维档案墙暂时无法加载，请刷新页面重试。'
+      if (!disposed) container.textContent = '三维档案墙暂时无法加载，请刷新页面重试。'
     })
-
-    cleanup = () => {
-      active = false
-      cancelAnimationFrame(frame)
-      if (sceneLoaded) scene?.dispose()
-      window.removeEventListener('keydown', onKeydown)
-      window.removeEventListener('resize', onResize)
-    }
+  return () => {
+    disposed = true
+    cancelAnimationFrame(frame)
+    if (sceneReady) scene?.dispose()
+    window.removeEventListener('keydown', onKeydown)
+    window.removeEventListener('resize', onResize)
+    document.removeEventListener('visibilitychange', onVisibility)
   }
-
-  renderArchive()
-  return () => { disposed = true; cleanup() }
 }
