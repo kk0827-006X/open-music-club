@@ -124,4 +124,31 @@ describe('三维专辑档案 UI', () => {
     assert.match(markup, new RegExp(demoAlbums[0].title))
     assert.doesNotMatch(markup, /<audio/i)
   })
+
+  it('搜索页保留全站导航和播放器，提供档案索引布局', async () => {
+    const { createAlbumArchiveMarkup } = await import(frontendModule('album-archive.ts'))
+    const { createSearchPageMarkup } = await import(frontendModule('search-page.ts'))
+    const archive = createAlbumArchiveMarkup()
+    const search = createSearchPageMarkup()
+
+    assert.match(archive, /data-search-host/)
+    assert.equal((archive.match(/data-global-player/g) || []).length, 1)
+    assert.match(search, /data-search-input/)
+    assert.match(search, /data-search-results/)
+    assert.match(search, /data-search-selected/)
+    assert.match(search, /data-search-source="netease"/)
+    assert.match(search, /data-search-type="artist"/)
+    assert.doesNotMatch(search, /<audio|\/api\//i)
+  })
+
+  it('演示搜索支持关键词、来源和类型组合筛选', async () => {
+    const { demoSearchItems, filterDemoSearchItems } = await import(frontendModule('search-page.ts'))
+
+    assert.equal(demoSearchItems.filter((item) => item.kind === 'song').length, 15)
+    assert.equal(filterDemoSearchItems('潮汐', 'all', 'song').length, 3)
+    assert.equal(filterDemoSearchItems(' 晨雾 ', 'netease', 'song').length, 1)
+    assert.equal(filterDemoSearchItems('晨雾', 'local', 'song').length, 0)
+    assert.equal(filterDemoSearchItems('lin yue', 'all', 'artist').length, 1)
+    assert.equal(filterDemoSearchItems('', 'all', 'album').length, 5)
+  })
 })

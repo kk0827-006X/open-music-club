@@ -1,4 +1,5 @@
 import { demoAlbums, type DemoAlbum } from './album-data.ts'
+import { mountSearchPage } from './search-page.ts'
 import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
 import type { ArchiveScene } from './rhine/scene.ts'
 
@@ -77,6 +78,7 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
     <div class="archive-switcher" aria-label="专辑切换预览"><button type="button" data-album-previous aria-label="上一张专辑">↑</button><i></i><button type="button" data-album-next aria-label="下一张专辑">↓</button></div>
     ${albumInformation(selected, selectedIndex)}
     <section class="album-detail" data-album-detail hidden inert aria-hidden="true"></section>
+    <div data-search-host></div>
     ${playerMarkup(selected)}
   </main>`
 }
@@ -102,16 +104,20 @@ export function mountAlbumArchive(root: HTMLElement) {
   let scene: ArchiveScene | null = null
   let sceneReady = false
   let mode: 'archive' | 'detail' = 'archive'
+  let view: 'archive' | 'search' = 'archive'
   let detailIdleSince = 0
+  let searchHideTimer = 0
+  let searchController: ReturnType<typeof mountSearchPage> | null = null
   root.innerHTML = createAlbumArchiveMarkup(selectedIndex)
   const archive = root.querySelector<HTMLElement>('[data-album-archive]')!
   const detail = root.querySelector<HTMLElement>('[data-album-detail]')!
   const container = root.querySelector<HTMLElement>('[data-three-scene]')!
+  const searchHost = root.querySelector<HTMLElement>('[data-search-host]')!
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   const animate = (now: number) => {
     frame = 0
-    if (disposed || document.hidden || !scene) return
+    if (disposed || document.hidden || view === 'search' || !scene) return
     scene.update(now / 1000)
     if (mode === 'detail') {
       const visibility = scene.detailVisibility
@@ -138,7 +144,59 @@ export function mountAlbumArchive(root: HTMLElement) {
   }
 
   const wakeScene = () => {
-    if (!frame && scene && !disposed && !document.hidden) frame = requestAnimationFrame(animate)
+    if (!frame && scene && view === 'archive' && !disposed && !document.hidden) frame = requestAnimationFrame(animate)
+  }
+
+  const setNavigation = (name: 'library' | 'search') => {
+    for (const button of archive.querySelectorAll<HTMLButtonElement>('[data-nav="library"], [data-nav="search"]')) {
+      if (button.dataset.nav === name) button.setAttribute('aria-current', 'page')
+      else button.removeAttribute('aria-current')
+    }
+  }
+
+  const setArchiveContentInert = (value: boolean) => {
+    for (const selector of ['[data-wave-field]', '.archive-switcher', '[data-album-information]']) {
+      const element = archive.querySelector<HTMLElement>(selector)
+      if (element) element.inert = value
+    }
+  }
+
+  const showSearch = () => {
+    if (view === 'search') { searchController?.focus(); return }
+    if (mode === 'detail') {
+      mode = 'archive'
+      detail.hidden = true
+      detail.inert = true
+      detail.setAttribute('aria-hidden', 'true')
+      archive.dataset.mode = 'archive'
+      scene?.setMode('archive')
+    }
+    if (!searchController) searchController = mountSearchPage(searchHost)
+    window.clearTimeout(searchHideTimer)
+    const page = searchHost.querySelector<HTMLElement>('[data-search-page]')!
+    view = 'search'
+    cancelAnimationFrame(frame)
+    frame = 0
+    page.hidden = false
+    page.inert = false
+    setArchiveContentInert(true)
+    setNavigation('search')
+    if (reduced) archive.dataset.view = 'search'
+    else requestAnimationFrame(() => { if (!disposed && view === 'search') archive.dataset.view = 'search' })
+    searchController.focus()
+  }
+
+  const hideSearch = () => {
+    if (view !== 'search') return
+    view = 'archive'
+    archive.dataset.view = 'archive'
+    setNavigation('library')
+    const page = searchHost.querySelector<HTMLElement>('[data-search-page]')!
+    page.inert = true
+    setArchiveContentInert(false)
+    window.clearTimeout(searchHideTimer)
+    searchHideTimer = window.setTimeout(() => { if (view === 'archive') page.hidden = true }, reduced ? 0 : 280)
+    wakeScene()
   }
 
   const openDetail = () => {
@@ -197,10 +255,18 @@ export function mountAlbumArchive(root: HTMLElement) {
     }
 
     const onKeydown = (event: KeyboardEvent) => {
+      if (view === 'search') {
+        if (event.key === 'Escape') { event.preventDefault(); hideSearch() }
+        else if (event.key === '/' && event.target !== searchHost.querySelector('[data-search-input]')) {
+          event.preventDefault(); searchController?.focus()
+        }
+        return
+      }
       if (mode === 'detail') {
         if (event.key === 'Escape') { event.preventDefault(); closeDetail() }
         return
       }
+      if (event.key === '/') { event.preventDefault(); showSearch(); return }
       if (event.key === 'ArrowUp') { event.preventDefault(); navigate('row', -1) }
       if (event.key === 'ArrowDown') { event.preventDefault(); navigate('row', 1) }
       if (event.key === 'ArrowLeft') { event.preventDefault(); navigate('lane', -1) }
@@ -211,6 +277,8 @@ export function mountAlbumArchive(root: HTMLElement) {
     root.querySelector('[data-album-previous]')?.addEventListener('click', () => navigate('row', -1))
     root.querySelector('[data-album-next]')?.addEventListener('click', () => navigate('row', 1))
     root.querySelector('[data-open-selected]')?.addEventListener('click', openDetail)
+    archive.querySelector('[data-nav="search"]')?.addEventListener('click', showSearch)
+    archive.querySelector('[data-nav="library"]')?.addEventListener('click', hideSearch)
     window.addEventListener('keydown', onKeydown)
     const onResize = () => { scene?.resize(); wakeScene() }
     window.addEventListener('resize', onResize)
@@ -238,6 +306,8 @@ export function mountAlbumArchive(root: HTMLElement) {
     })
   return () => {
     disposed = true
+    window.clearTimeout(searchHideTimer)
+    searchController?.destroy()
     cancelAnimationFrame(frame)
     if (sceneReady) scene?.dispose()
     window.removeEventListener('keydown', onKeydown)
