@@ -162,9 +162,9 @@ describe('网易云 API 白名单', () => {
     assert.equal(calls.length, 0)
   })
 
-  it('搜索固定为歌曲类型并只传递允许的参数', async () => {
+  it('搜索默认歌曲类型并只传递允许的参数', async () => {
     const response = await memberAgent.get(
-      '/api/netease/search?keywords=%20hello%20&limit=20&offset=2&type=1000&unblock=true&proxy=http://example.com&crypto=api&cookie=secret',
+      '/api/netease/search?keywords=%20hello%20&limit=20&offset=2&unblock=true&proxy=http://example.com&crypto=api&cookie=secret',
     )
 
     assert.equal(response.status, 200)
@@ -177,6 +177,24 @@ describe('网易云 API 白名单', () => {
         offset: 2,
       },
     })
+  })
+
+  it('只允许歌曲、专辑、歌手三种搜索类型', async () => {
+    for (const type of [1, 10, 100]) {
+      const response = await memberAgent.get(`/api/netease/search?keywords=陈奕迅&type=${type}`)
+      assert.equal(response.status, 200)
+      assert.deepEqual(calls.at(-1), {
+        moduleName: 'search',
+        parameters: { keywords: '陈奕迅', type },
+      })
+    }
+
+    const callsBeforeInvalid = calls.length
+    for (const type of ['1000', '2000', '0', 'abc', '1,10']) {
+      const response = await memberAgent.get(`/api/netease/search?keywords=陈奕迅&type=${type}`)
+      assert.equal(response.status, 400)
+    }
+    assert.equal(calls.length, callsBeforeInvalid)
   })
 
   it('播放地址默认 standard 且不会传递解灰等危险参数', async () => {

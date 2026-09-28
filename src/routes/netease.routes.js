@@ -10,6 +10,7 @@ const PLAYBACK_LEVELS = new Set([
   'jymaster',
   'sky',
 ])
+const SEARCH_TYPES = new Set(['1', '10', '100'])
 
 function readSingleQueryValue(value) {
   return typeof value === 'string' ? value.trim() : ''
@@ -54,6 +55,8 @@ function createNeteaseRouter(neteaseService) {
   router.get('/search', (req, res) => {
     const keywords = readSingleQueryValue(req.query.keywords)
     if (!keywords) return parameterError(res, 'keywords 不能为空')
+    const type = req.query.type === undefined ? '1' : readSingleQueryValue(req.query.type)
+    if (!SEARCH_TYPES.has(type)) return parameterError(res, '搜索类型无效')
 
     const limit = parseIntegerParameter(req.query.limit, {
       minimum: 1,
@@ -69,7 +72,7 @@ function createNeteaseRouter(neteaseService) {
 
     return callModule(res, 'search', {
       keywords,
-      type: 1,
+      type: Number(type),
       ...(limit === undefined ? {} : { limit }),
       ...(offset === undefined ? {} : { offset }),
     })

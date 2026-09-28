@@ -90,6 +90,8 @@ function createApp({
           defaultSrc: ["'self'"],
           baseUri: ["'self'"],
           frameAncestors: ["'none'"],
+          imgSrc: ["'self'", 'data:', 'https://*.music.126.net'],
+          mediaSrc: ["'self'", 'https://*.music.126.net'],
           objectSrc: ["'none'"],
         },
       },

@@ -83,6 +83,8 @@ describe('三维专辑档案 UI', () => {
     assert.match(markup, /data-player-progress/)
     assert.match(markup, /data-player-controls/)
     assert.match(markup, /data-player-volume/)
+    assert.match(markup, /data-player-toggle/)
+    assert.match(markup, /data-player-progress-bar/)
     assert.match(markup, /LOCAL/)
     assert.match(markup, /GOOD MUSIC/)
     assert.doesNotMatch(markup, /PLAYER \/ STANDBY/)
@@ -125,7 +127,7 @@ describe('三维专辑档案 UI', () => {
     assert.doesNotMatch(markup, /<audio/i)
   })
 
-  it('搜索页保留全站导航和播放器，提供档案索引布局', async () => {
+  it('搜索页保留全站导航和播放器，提供真实来源筛选布局', async () => {
     const { createAlbumArchiveMarkup } = await import(frontendModule('album-archive.ts'))
     const { createSearchPageMarkup } = await import(frontendModule('search-page.ts'))
     const archive = createAlbumArchiveMarkup()
@@ -138,17 +140,18 @@ describe('三维专辑档案 UI', () => {
     assert.match(search, /data-search-selected/)
     assert.match(search, /data-search-source="netease"/)
     assert.match(search, /data-search-type="artist"/)
+    assert.doesNotMatch(search, /演示|STATIC PREVIEW/)
     assert.doesNotMatch(search, /<audio|\/api\//i)
   })
 
-  it('演示搜索支持关键词、来源和类型组合筛选', async () => {
-    const { demoSearchItems, filterDemoSearchItems } = await import(frontendModule('search-page.ts'))
+  it('搜索页结果仍提供选择、来源和详情容器', async () => {
+    const { createSearchPageMarkup, selectedMarkup } = await import(frontendModule('search-page.ts'))
+    const markup = createSearchPageMarkup()
 
-    assert.equal(demoSearchItems.filter((item) => item.kind === 'song').length, 15)
-    assert.equal(filterDemoSearchItems('潮汐', 'all', 'song').length, 3)
-    assert.equal(filterDemoSearchItems(' 晨雾 ', 'netease', 'song').length, 1)
-    assert.equal(filterDemoSearchItems('晨雾', 'local', 'song').length, 0)
-    assert.equal(filterDemoSearchItems('lin yue', 'all', 'artist').length, 1)
-    assert.equal(filterDemoSearchItems('', 'all', 'album').length, 5)
+    assert.match(markup, /data-search-results/)
+    assert.match(markup, /data-search-selected/)
+    assert.match(markup, /data-search-count/)
+    assert.match(markup, /data-search-empty/)
+    assert.match(selectedMarkup({ kind: 'song', key: 'local:1', title: '测试歌曲', sourceId: '1', source: 'local', artist: '歌手', album: '专辑', coverUrl: '/images/album-placeholder-01.svg', year: '—', duration: '1:00', description: '' }), /data-search-play/)
   })
 })

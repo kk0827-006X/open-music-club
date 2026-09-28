@@ -562,11 +562,13 @@ p, h1, h2 { margin: 0; }
 .player-track strong { overflow: hidden; font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
 .player-track span { overflow: hidden; color: #6f7069; font-size: .59rem; text-overflow: ellipsis; white-space: nowrap; }
 .player-track > button, .player-controls button { display: grid; place-items: center; padding: 0; border: 0; background: transparent; cursor: default; }
+.player-controls button:not(:disabled) { cursor: pointer; }
 .player-timeline { display: grid; grid-template-columns: 36px 1fr 38px; gap: 10px; align-items: center; padding: 0 22px; border-inline: 1px solid rgba(32,33,30,.15); }
 .player-timeline time { color: #666760; font-size: .56rem; }
-.player-timeline > div { position: relative; height: 1px; background: rgba(32,33,30,.23); }
-.player-timeline > div i { position: absolute; top: 0; left: 0; width: 35%; height: 1px; background: #af7a39; }
-.player-timeline > div b { position: absolute; top: 50%; left: 35%; width: 9px; height: 9px; border-radius: 50%; background: #af7a39; transform: translate(-50%, -50%); }
+.player-timeline > button { position: relative; height: 16px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.player-timeline > button::before { position: absolute; top: 50%; right: 0; left: 0; height: 1px; background: rgba(32,33,30,.23); content: ''; }
+.player-timeline > button i { position: absolute; top: 50%; left: 0; width: 0; height: 1px; background: #af7a39; }
+.player-timeline > button b { position: absolute; top: 50%; left: 0; width: 9px; height: 9px; border-radius: 50%; background: #af7a39; transform: translate(-50%, -50%); }
 .player-controls { display: flex; justify-content: center; gap: 20px; align-items: center; }
 .player-controls .player-main-control { width: 48px; height: 48px; border: 1px solid rgba(32,33,30,.5); border-radius: 50%; }
 .player-main-control svg { width: 23px; height: 23px; }
@@ -652,7 +654,8 @@ p, h1, h2 { margin: 0; }
 .search-source-tag { display: inline-flex; align-items: center; min-height: 20px; padding: 2px 6px; border: 1px solid #d6d2c9; border-radius: 3px; background: #e7e5df; color: #44453e; font-size: .52rem; font-weight: 550; letter-spacing: .04em; white-space: nowrap; }
 .search-source-tag[data-source="local"] { border-color: #e0cfb4; background: #ead9bd; }
 .search-result-actions { display: flex; justify-content: end; align-items: center; }
-.search-result-actions button { width: 31px; height: 31px; padding: 0; border: 0; background: transparent; color: #8d8c83; font-size: 1rem; cursor: not-allowed; }
+.search-result-actions button { width: 31px; height: 31px; padding: 0; border: 0; background: transparent; color: #30332d; font-size: 1rem; cursor: pointer; }
+.search-result-actions button:disabled { color: #8d8c83; cursor: not-allowed; }
 .search-result-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 9px; color: #88877e; font-size: .52rem; letter-spacing: .07em; }
 .search-empty { padding: 45px 10px; color: #77766f; font-size: .73rem; text-align: center; }
 .search-empty[hidden] { display: none; }
@@ -669,8 +672,10 @@ p, h1, h2 { margin: 0; }
 .search-inspector dd { margin: 3px 0 0; font-size: .65rem; }
 .search-selected-description { margin: 8px 0 0; color: #707169; font-size: .62rem; line-height: 1.5; }
 .search-selected-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-.search-selected-actions button { min-height: 34px; border: 1px solid #b8b6af; background: transparent; color: #83847d; font-size: .65rem; cursor: not-allowed; }
-.search-selected-actions button:first-child { border-color: #30332d; background: #30332d; color: #e9e7e1; opacity: .7; }
+.search-selected-actions button { min-height: 34px; border: 1px solid #b8b6af; background: transparent; color: #30332d; font-size: .65rem; cursor: pointer; }
+.search-selected-actions button:disabled { color: #83847d; cursor: not-allowed; }
+.search-selected-actions button:first-child { border-color: #30332d; background: #30332d; color: #e9e7e1; }
+.search-selected-actions button:first-child:disabled { opacity: .7; }
 .search-empty-detail { padding-top: 28px; color: #787970; font-size: .72rem; line-height: 1.6; }
 .search-empty-detail > span { font-size: .56rem; letter-spacing: .2em; }
 button:focus-visible { outline: 2px solid #a8793d; outline-offset: 3px; }

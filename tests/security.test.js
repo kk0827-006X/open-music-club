@@ -162,6 +162,8 @@ describe('公网通信安全基线', () => {
     assert.equal(response.headers['x-content-type-options'], 'nosniff')
     assert.equal(response.headers['x-frame-options'], 'DENY')
     assert.match(response.headers['content-security-policy'], /default-src 'self'/)
+    assert.match(response.headers['content-security-policy'], /img-src 'self' data: https:\/\/\*\.music\.126\.net/)
+    assert.match(response.headers['content-security-policy'], /media-src 'self' https:\/\/\*\.music\.126\.net/)
     assert.match(response.headers['referrer-policy'], /no-referrer/)
     assert.match(response.headers['x-request-id'], /^[0-9a-f-]{36}$/)
   })

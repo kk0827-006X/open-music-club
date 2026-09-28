@@ -1,5 +1,6 @@
 import { demoAlbums, type DemoAlbum } from './album-data.ts'
 import { mountSearchPage } from './search-page.ts'
+import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
 import type { ArchiveScene } from './rhine/scene.ts'
 
@@ -14,6 +15,7 @@ const icons = {
   previous: icon('<path d="M6 5v14M18 6l-9 6 9 6z"/>'),
   next: icon('<path d="M18 5v14M6 6l9 6-9 6z"/>'),
   pause: icon('<path d="M8 5v14M16 5v14"/>'),
+  play: icon('<path d="m8 5 11 7-11 7z"/>'),
   volume: icon('<path d="M4 10v4h4l5 4V6l-5 4zM16 9a4 4 0 0 1 0 6"/>'),
 }
 
@@ -38,16 +40,16 @@ function durationOf(album: DemoAlbum) {
 
 function playerMarkup(album: DemoAlbum) {
   const track = album.tracks[0]
-  return `<footer class="global-player" data-global-player aria-label="全站播放器预览">
+  return `<footer class="global-player" data-global-player aria-label="全站播放器">
     <section class="player-track" data-player-track>
       <img src="${album.coverUrl}" alt="${album.title} 封面缩略图" />
       <div><strong>${track.title}</strong><span>${album.artist}&nbsp;&nbsp;/&nbsp;&nbsp;${album.title}</span></div>
       <b><i></i>LOCAL</b><button type="button" aria-label="收藏歌曲" aria-disabled="true">${icons.heart}</button>
     </section>
-    <section class="player-timeline" data-player-progress><time>1:27</time><div><i></i><b></b></div><time>${track.duration.replace(/^0/, '')}</time></section>
+    <section class="player-timeline" data-player-progress><time>0:00</time><button type="button" data-player-progress-bar aria-label="播放进度" disabled><i></i><b></b></button><time>${track.duration.replace(/^0/, '')}</time></section>
     <section class="player-controls" data-player-controls>
       <button type="button" aria-label="上一首" aria-disabled="true">${icons.previous}</button>
-      <button class="player-main-control" type="button" aria-label="暂停" aria-disabled="true">${icons.pause}</button>
+      <button class="player-main-control" type="button" data-player-toggle aria-label="播放" disabled>${icons.play}</button>
       <button type="button" aria-label="下一首" aria-disabled="true">${icons.next}</button>
     </section>
     <section class="player-volume" data-player-volume>${icons.volume}<div><i></i></div></section>
@@ -108,12 +110,84 @@ export function mountAlbumArchive(root: HTMLElement) {
   let detailIdleSince = 0
   let searchHideTimer = 0
   let searchController: ReturnType<typeof mountSearchPage> | null = null
+  let activeTrack: SearchItem | null = null
+  let playRequest = 0
+  let playbackController: AbortController | null = null
+  const audio = new Audio()
+  audio.preload = 'none'
   root.innerHTML = createAlbumArchiveMarkup(selectedIndex)
   const archive = root.querySelector<HTMLElement>('[data-album-archive]')!
   const detail = root.querySelector<HTMLElement>('[data-album-detail]')!
   const container = root.querySelector<HTMLElement>('[data-three-scene]')!
   const searchHost = root.querySelector<HTMLElement>('[data-search-host]')!
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+  const clock = (seconds: number) => Number.isFinite(seconds)
+    ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '0:00'
+
+  const updatePlayer = () => {
+    if (!activeTrack) return
+    const footer = archive.querySelector<HTMLElement>('[data-global-player]')
+    if (!footer) return
+    const track = footer.querySelector<HTMLElement>('[data-player-track]')!
+    const cover = track.querySelector<HTMLImageElement>('img')!
+    cover.src = activeTrack.coverUrl
+    cover.alt = `${activeTrack.title} 封面缩略图`
+    track.querySelector('strong')!.textContent = activeTrack.title
+    track.querySelector('span')!.textContent = `${activeTrack.artist} / ${activeTrack.album}`
+    track.querySelector('b')!.lastChild!.textContent = activeTrack.source === 'local' ? 'LOCAL' : 'NETEASE'
+    const progress = footer.querySelector<HTMLElement>('[data-player-progress]')!
+    const times = progress.querySelectorAll('time')
+    times[0].textContent = clock(audio.currentTime)
+    times[1].textContent = Number.isFinite(audio.duration) ? clock(audio.duration) : activeTrack.duration
+    const percent = Number.isFinite(audio.duration) && audio.duration > 0 ? `${Math.min(100, audio.currentTime / audio.duration * 100)}%` : '0%'
+    progress.querySelector<HTMLElement>('i')!.style.width = percent
+    progress.querySelector<HTMLElement>('b')!.style.left = percent
+    progress.querySelector<HTMLButtonElement>('[data-player-progress-bar]')!.disabled = !Number.isFinite(audio.duration)
+    const toggle = footer.querySelector<HTMLButtonElement>('[data-player-toggle]')!
+    toggle.disabled = false
+    toggle.setAttribute('aria-label', audio.paused ? '播放' : '暂停')
+    toggle.innerHTML = audio.paused ? icons.play : icons.pause
+  }
+
+  const playTrack = async (track: SearchItem) => {
+    playRequest += 1
+    const request = playRequest
+    playbackController?.abort()
+    playbackController = new AbortController()
+    const url = await resolvePlaybackUrl(track, undefined, playbackController.signal)
+    if (disposed || request !== playRequest) return
+    audio.pause()
+    audio.src = url
+    activeTrack = track
+    updatePlayer()
+    await audio.play()
+  }
+
+  audio.addEventListener('timeupdate', updatePlayer)
+  audio.addEventListener('loadedmetadata', updatePlayer)
+  audio.addEventListener('play', updatePlayer)
+  audio.addEventListener('pause', updatePlayer)
+  audio.addEventListener('ended', updatePlayer)
+  audio.addEventListener('error', () => {
+    audio.pause()
+    const message = archive.querySelector<HTMLElement>('[data-global-player] > p')
+    if (message) message.textContent = '音频加载失败，请重新选择歌曲。'
+  })
+
+  const onPlayerClick = (event: MouseEvent) => {
+    const target = event.target
+    if (!(target instanceof Element) || !activeTrack) return
+    if (target.closest('[data-player-toggle]')) {
+      if (audio.paused) void audio.play().catch(() => undefined)
+      else audio.pause()
+    } else if (target.closest('[data-player-progress-bar]') && Number.isFinite(audio.duration)) {
+      const bar = archive.querySelector<HTMLElement>('[data-player-progress-bar]')!
+      const bounds = bar.getBoundingClientRect()
+      audio.currentTime = Math.min(audio.duration, Math.max(0, (event.clientX - bounds.left) / bounds.width * audio.duration))
+    }
+  }
+  archive.addEventListener('click', onPlayerClick)
 
   const animate = (now: number) => {
     frame = 0
@@ -171,7 +245,8 @@ export function mountAlbumArchive(root: HTMLElement) {
       archive.dataset.mode = 'archive'
       scene?.setMode('archive')
     }
-    if (!searchController) searchController = mountSearchPage(searchHost)
+    if (!searchController) searchController = mountSearchPage(searchHost, playTrack)
+    else searchController.refresh()
     window.clearTimeout(searchHideTimer)
     const page = searchHost.querySelector<HTMLElement>('[data-search-page]')!
     view = 'search'
@@ -232,7 +307,7 @@ export function mountAlbumArchive(root: HTMLElement) {
       const information = root.querySelector<HTMLElement>('[data-album-information]')
       const player = root.querySelector<HTMLElement>('[data-global-player]')
       if (information) information.outerHTML = albumInformation(album, selectedIndex)
-      if (player) player.outerHTML = playerMarkup(album)
+      if (player && !activeTrack) player.outerHTML = playerMarkup(album)
       const counter = root.querySelector('[data-album-counter]')
       if (counter) counter.textContent = String(selectedIndex + 1).padStart(2, '0')
       root.querySelector('[data-open-selected]')?.addEventListener('click', openDetail)
@@ -308,6 +383,12 @@ export function mountAlbumArchive(root: HTMLElement) {
     disposed = true
     window.clearTimeout(searchHideTimer)
     searchController?.destroy()
+    playRequest += 1
+    playbackController?.abort()
+    audio.pause()
+    audio.removeAttribute('src')
+    audio.load()
+    archive.removeEventListener('click', onPlayerClick)
     cancelAnimationFrame(frame)
     if (sceneReady) scene?.dispose()
     window.removeEventListener('keydown', onKeydown)
