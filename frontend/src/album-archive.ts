@@ -2,6 +2,7 @@ import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts'
 import { mountSearchPage } from './search-page.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
+import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
 import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
 import type { ArchiveScene } from './rhine/scene.ts'
 
@@ -52,9 +53,9 @@ function durationOf(album: DemoAlbum) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-function playerMarkup(album: DemoAlbum, volume = 62) {
+function playerMarkup(album: DemoAlbum, volume = 62, visible = false) {
   const track = album.tracks[0]
-  return `<footer class="global-player" data-global-player aria-label="全站播放器">
+  return `<footer class="global-player${visible ? ' is-visible' : ''}" data-global-player aria-label="全站播放器">
     <section class="player-track" data-player-track>
       <img src="${album.coverUrl}" alt="${album.title} 封面缩略图" />
       <div><strong>${track.title}</strong><span>${album.artist}&nbsp;&nbsp;/&nbsp;&nbsp;${album.title}</span></div>
@@ -66,10 +67,22 @@ function playerMarkup(album: DemoAlbum, volume = 62) {
       <button class="player-main-control" type="button" data-player-toggle aria-label="播放">${icons.play}</button>
       <button type="button" data-player-next aria-label="下一首" disabled>${icons.next}</button>
     </section>
-    <section class="player-volume" data-player-volume>${icons.volume}<input type="range" min="0" max="100" value="${volume}" data-player-volume-input aria-label="音量" /></section>
+    <section class="player-volume" data-player-volume>${icons.volume}<input type="range" min="0" max="100" value="${volume}" style="--volume-percent:${volume}%" data-player-volume-input aria-label="音量" /></section>
     <button type="button" class="player-queue-summary" data-player-queue-toggle aria-expanded="false" aria-controls="player-queue-panel">${icons.queue}<span data-queue-count>00</span></button>
-    <p>GOOD MUSIC<br />FOR A BRIGHTER TOMORROW.</p>
+    <div class="player-tail"><p>GOOD MUSIC<br />FOR A BRIGHTER TOMORROW.</p><button type="button" class="player-open" data-player-open aria-label="展开播放器与歌词">展开歌词 <span>↗</span></button></div>
   </footer><aside id="player-queue-panel" class="player-queue-panel" data-player-queue-panel hidden aria-label="播放队列"><header><strong>PLAY QUEUE / 播放队列</strong><button type="button" data-queue-clear>清空</button></header><ol data-queue-items></ol><p data-queue-empty>队列为空。可从音乐库或搜索结果加入歌曲。</p></aside>`
+}
+
+function expandedPlayerMarkup() {
+  return `<div class="player-hotspot" data-player-hotspot aria-hidden="true"></div>
+    <section class="player-expanded" data-player-expanded role="dialog" aria-label="展开播放器与歌词" aria-hidden="true" inert>
+      <header class="player-expanded-header"><div><strong>OPEN MUSIC CLUB</strong><span>MUSIC ARCHIVE / NOW PLAYING</span></div><button type="button" data-player-close aria-label="收起播放器">收起播放器 <span>↓</span></button></header>
+      <div class="player-expanded-content">
+        <section class="player-expanded-track" aria-label="当前歌曲"><p>01 / NOW PLAYING</p><img data-expanded-cover src="/images/album-placeholder-01.svg" alt="当前歌曲封面" /><strong data-expanded-title>尚未播放歌曲</strong><span data-expanded-artist>请选择一首歌曲开始播放</span><small data-expanded-source>OPEN MUSIC CLUB</small></section>
+        <section class="player-expanded-lyrics" aria-label="歌词"><p>02 / LYRICS · 歌词</p><div class="player-lyrics-scroll" data-player-lyrics aria-live="off"><p class="player-lyrics-empty">播放音乐后将在这里显示歌词。</p></div></section>
+        <section class="player-expanded-queue" aria-label="播放队列"><p>03 / PLAY QUEUE · 播放队列</p><ol data-expanded-queue></ol><small data-expanded-queue-empty>队列为空</small></section>
+      </div>
+    </section>`
 }
 
 function albumInformation(album: DemoAlbum, index: number) {
@@ -95,6 +108,7 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
     ${albumInformation(selected, selectedIndex)}
     <section class="album-detail" data-album-detail hidden inert aria-hidden="true"></section>
     <div data-search-host></div>
+    ${expandedPlayerMarkup()}
     ${playerMarkup(selected)}
   </main>`
 }
@@ -128,6 +142,13 @@ export function mountAlbumArchive(root: HTMLElement) {
   let activeTrack: SearchItem | null = null
   let playRequest = 0
   let playbackController: AbortController | null = null
+  let lyricController: AbortController | null = null
+  let lyricRequest = 0
+  let lyricLines: LyricLine[] = []
+  let lyricPosition = -2
+  let playerVisible = false
+  let playerExpanded = false
+  let playerHideTimer = 0
   let albumController: AbortController | null = null
   const loadedAlbums = new Map<string, DemoAlbum>()
   const queue = new MusicQueue()
@@ -141,6 +162,104 @@ export function mountAlbumArchive(root: HTMLElement) {
   const searchHost = root.querySelector<HTMLElement>('[data-search-host]')!
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+  const setPlayerVisible = (visible: boolean) => {
+    playerVisible = visible
+    archive.querySelector<HTMLElement>('[data-global-player]')?.classList.toggle('is-visible', visible || playerExpanded)
+  }
+
+  const cancelPlayerHide = () => {
+    window.clearTimeout(playerHideTimer)
+    playerHideTimer = 0
+  }
+
+  const schedulePlayerHide = () => {
+    if (playerHideTimer || playerExpanded || !archive.querySelector<HTMLElement>('[data-player-queue-panel]')?.hidden) return
+    playerHideTimer = window.setTimeout(() => {
+      playerHideTimer = 0
+      if (!playerExpanded && archive.querySelector<HTMLElement>('[data-player-queue-panel]')?.hidden
+        && !(archive.querySelector<HTMLElement>('[data-global-player]')?.contains(document.activeElement)
+          && document.activeElement instanceof HTMLElement && document.activeElement.matches(':focus-visible'))) setPlayerVisible(false)
+    }, 320)
+  }
+
+  const setPlayerExpanded = (open: boolean, restoreFocus = false) => {
+    playerExpanded = open
+    const expanded = archive.querySelector<HTMLElement>('[data-player-expanded]')!
+    expanded.classList.toggle('is-open', open)
+    expanded.inert = !open
+    expanded.setAttribute('aria-hidden', String(!open))
+    if (open) {
+      archive.querySelector<HTMLElement>('[data-player-queue-panel]')!.hidden = true
+      archive.querySelector<HTMLButtonElement>('[data-player-queue-toggle]')!.setAttribute('aria-expanded', 'false')
+      cancelPlayerHide()
+      setPlayerVisible(true)
+      archive.querySelector<HTMLButtonElement>('[data-player-close]')?.focus()
+    } else {
+      if (restoreFocus) archive.querySelector<HTMLButtonElement>('[data-player-open]')?.focus()
+      else if (document.activeElement instanceof HTMLElement && expanded.contains(document.activeElement)) document.activeElement.blur()
+      schedulePlayerHide()
+      wakeScene()
+    }
+  }
+
+  const renderExpandedTrack = () => {
+    const track = activeTrack
+    const cover = archive.querySelector<HTMLImageElement>('[data-expanded-cover]')!
+    const coverUrl = track?.coverUrl ?? '/images/album-placeholder-01.svg'
+    if (cover.getAttribute('src') !== coverUrl) cover.src = coverUrl
+    cover.alt = track ? `${track.title} 封面` : '当前歌曲封面'
+    archive.querySelector<HTMLElement>('[data-expanded-title]')!.textContent = track?.title ?? '尚未播放歌曲'
+    archive.querySelector<HTMLElement>('[data-expanded-artist]')!.textContent = track ? `${track.artist} / ${track.album}` : '请选择一首歌曲开始播放'
+    archive.querySelector<HTMLElement>('[data-expanded-source]')!.textContent = track?.source === 'local' ? 'LOCAL / 社区音乐' : track ? 'NETEASE / 网易云音乐' : 'OPEN MUSIC CLUB'
+  }
+
+  const renderLyrics = (message?: string) => {
+    const host = archive.querySelector<HTMLElement>('[data-player-lyrics]')!
+    host.replaceChildren()
+    if (message || lyricLines.length === 0) {
+      const empty = document.createElement('p')
+      empty.className = 'player-lyrics-empty'
+      empty.textContent = message ?? '此歌曲暂无歌词。'
+      host.append(empty)
+      return
+    }
+    for (const line of lyricLines) {
+      const paragraph = document.createElement('p')
+      paragraph.textContent = line.text
+      host.append(paragraph)
+    }
+    lyricPosition = -2
+  }
+
+  const syncLyrics = () => {
+    if (lyricLines.length === 0) return
+    const index = currentLyricIndex(lyricLines, audio.currentTime)
+    if (index === lyricPosition) return
+    lyricPosition = index
+    const host = archive.querySelector<HTMLElement>('[data-player-lyrics]')!
+    host.querySelector('.is-current')?.classList.remove('is-current')
+    const line = host.children.item(index)
+    if (line) {
+      line.classList.add('is-current')
+      if (playerExpanded) line.scrollIntoView({ block: 'center', behavior: reduced ? 'instant' : 'smooth' })
+    }
+  }
+
+  const requestLyrics = (track: SearchItem) => {
+    lyricRequest += 1
+    const request = lyricRequest
+    lyricController?.abort()
+    lyricController = new AbortController()
+    lyricLines = []
+    renderLyrics(track.source === 'local' ? '本地音乐暂无歌词。' : '正在读取歌词…')
+    void loadTrackLyrics(track, undefined, lyricController.signal).then((lines) => {
+      if (disposed || request !== lyricRequest) return
+      lyricLines = lines
+      renderLyrics(lines.length ? undefined : '此歌曲暂无歌词。')
+      syncLyrics()
+    })
+  }
+
   const clock = (seconds: number) => Number.isFinite(seconds)
     ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '0:00'
 
@@ -152,6 +271,9 @@ export function mountAlbumArchive(root: HTMLElement) {
       <button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><img src="${escapeHtml(item.coverUrl)}" alt="" /><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button>
       <div><button type="button" data-queue-up="${escapeHtml(item.key)}" aria-label="上移 ${escapeHtml(item.title)}">↑</button><button type="button" data-queue-down="${escapeHtml(item.key)}" aria-label="下移 ${escapeHtml(item.title)}">↓</button><button type="button" data-queue-remove="${escapeHtml(item.key)}" aria-label="移除 ${escapeHtml(item.title)}">×</button></div>
     </li>`).join('')
+    const expandedQueue = archive.querySelector<HTMLOListElement>('[data-expanded-queue]')!
+    expandedQueue.innerHTML = queue.items.map((item, index) => `<li${item.key === activeTrack?.key ? ' class="is-active"' : ''}><button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button></li>`).join('')
+    archive.querySelector<HTMLElement>('[data-expanded-queue-empty]')!.hidden = queue.items.length > 0
     archive.querySelector<HTMLElement>('[data-queue-empty]')!.hidden = queue.items.length > 0
     archive.querySelector<HTMLButtonElement>('[data-queue-clear]')!.disabled = queue.items.length === 0
     archive.querySelector<HTMLButtonElement>('[data-player-queue-toggle]')!.setAttribute(
@@ -168,12 +290,19 @@ export function mountAlbumArchive(root: HTMLElement) {
 
   const resetPlayerPreview = () => {
     archive.querySelector<HTMLElement>('[data-global-player]')!.outerHTML =
-      playerMarkup(demoAlbums[selectedIndex], Math.round(audio.volume * 100))
+      playerMarkup(demoAlbums[selectedIndex], Math.round(audio.volume * 100), playerVisible || playerExpanded)
+    lyricRequest += 1
+    lyricController?.abort()
+    lyricLines = []
+    renderExpandedTrack()
+    renderLyrics('播放音乐后将在这里显示歌词。')
     updateQueue()
   }
 
   const updatePlayer = () => {
     if (!activeTrack) return
+    renderExpandedTrack()
+    syncLyrics()
     const footer = archive.querySelector<HTMLElement>('[data-global-player]')
     if (!footer) return
     const track = footer.querySelector<HTMLElement>('[data-player-track]')!
@@ -209,6 +338,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     activeTrack = track
     enqueueTrack(track)
     updatePlayer()
+    requestLyrics(track)
     await audio.play()
   }
 
@@ -223,17 +353,20 @@ export function mountAlbumArchive(root: HTMLElement) {
   })
   audio.addEventListener('error', () => {
     audio.pause()
-    const message = archive.querySelector<HTMLElement>('[data-global-player] > p')
-    if (message) message.textContent = '音频加载失败，请重新选择歌曲。'
+    renderLyrics('音频加载失败，请重新选择歌曲。')
   })
 
   const onPlayerClick = (event: MouseEvent) => {
     const target = event.target
     if (!(target instanceof Element)) return
+    if (target.closest('[data-player-close]')) { setPlayerExpanded(false); return }
+    if (target.closest('[data-player-open]')) { setPlayerExpanded(true); return }
     const queueToggle = target.closest<HTMLButtonElement>('[data-player-queue-toggle], [data-nav="queue"]')
     if (queueToggle) {
       const panel = archive.querySelector<HTMLElement>('[data-player-queue-panel]')!
       panel.hidden = !panel.hidden
+      setPlayerVisible(true)
+      if (panel.hidden) schedulePlayerHide()
       archive.querySelector<HTMLButtonElement>('[data-player-queue-toggle]')!.setAttribute('aria-expanded', String(!panel.hidden))
       return
     }
@@ -294,9 +427,29 @@ export function mountAlbumArchive(root: HTMLElement) {
       const bar = archive.querySelector<HTMLElement>('[data-player-progress-bar]')!
       const bounds = bar.getBoundingClientRect()
       audio.currentTime = Math.min(audio.duration, Math.max(0, (event.clientX - bounds.left) / bounds.width * audio.duration))
+    } else if (target.closest('[data-global-player]') && !target.closest('button, input')) {
+      setPlayerExpanded(true)
     }
   }
   archive.addEventListener('click', onPlayerClick)
+  const onPlayerPointerMove = (event: PointerEvent) => {
+    if (event.pointerType === 'touch' || playerExpanded) return
+    if (event.clientY >= window.innerHeight - 30 || (event.target instanceof Element && event.target.closest('[data-global-player], [data-player-queue-panel]'))) {
+      cancelPlayerHide()
+      setPlayerVisible(true)
+    } else if (playerVisible) schedulePlayerHide()
+  }
+  const onPlayerPointerOut = (event: PointerEvent) => {
+    if (!(event.target instanceof Element) || !event.target.closest('[data-global-player], [data-player-queue-panel]')) return
+    if (event.relatedTarget instanceof Element && event.relatedTarget.closest('[data-global-player], [data-player-queue-panel]')) return
+    schedulePlayerHide()
+  }
+  archive.addEventListener('pointermove', onPlayerPointerMove)
+  archive.addEventListener('pointerout', onPlayerPointerOut)
+  const onPlayerFocus = (event: FocusEvent) => {
+    if (event.target instanceof Element && event.target.closest('[data-global-player]')) setPlayerVisible(true)
+  }
+  archive.addEventListener('focusin', onPlayerFocus)
   const onCoverError = (event: Event) => {
     const target = event.target
     if (target instanceof HTMLImageElement && !target.src.endsWith('album-placeholder-01.svg')) {
@@ -308,13 +461,14 @@ export function mountAlbumArchive(root: HTMLElement) {
     const target = event.target
     if (target instanceof HTMLInputElement && target.matches('[data-player-volume-input]')) {
       audio.volume = Number(target.value) / 100
+      target.style.setProperty('--volume-percent', `${target.value}%`)
     }
   }
   archive.addEventListener('input', onVolumeInput)
 
   const animate = (now: number) => {
     frame = 0
-    if (disposed || document.hidden || view === 'search' || !scene) return
+    if (disposed || document.hidden || view === 'search' || playerExpanded || !scene) return
     scene.update(now / 1000)
     if (mode === 'detail') {
       const visibility = scene.detailVisibility
@@ -450,7 +604,7 @@ export function mountAlbumArchive(root: HTMLElement) {
       const player = root.querySelector<HTMLElement>('[data-global-player]')
       if (information) information.outerHTML = albumInformation(album, selectedIndex)
       if (player && !activeTrack) {
-        player.outerHTML = playerMarkup(album, Math.round(audio.volume * 100))
+        player.outerHTML = playerMarkup(album, Math.round(audio.volume * 100), playerVisible || playerExpanded)
         updateQueue()
       }
       const counter = root.querySelector('[data-album-counter]')
@@ -479,6 +633,10 @@ export function mountAlbumArchive(root: HTMLElement) {
     }
 
     const onKeydown = (event: KeyboardEvent) => {
+      if (playerExpanded) {
+        if (event.key === 'Escape') { event.preventDefault(); setPlayerExpanded(false, true) }
+        return
+      }
       if (view === 'search') {
         if (event.key === 'Escape') { event.preventDefault(); hideSearch() }
         else if (event.key === '/' && event.target !== searchHost.querySelector('[data-search-input]')) {
@@ -539,11 +697,16 @@ export function mountAlbumArchive(root: HTMLElement) {
     searchController?.destroy()
     playRequest += 1
     playbackController?.abort()
+    lyricController?.abort()
+    cancelPlayerHide()
     albumController?.abort()
     audio.pause()
     audio.removeAttribute('src')
     audio.load()
     archive.removeEventListener('click', onPlayerClick)
+    archive.removeEventListener('pointermove', onPlayerPointerMove)
+    archive.removeEventListener('pointerout', onPlayerPointerOut)
+    archive.removeEventListener('focusin', onPlayerFocus)
     archive.removeEventListener('error', onCoverError, true)
     archive.removeEventListener('input', onVolumeInput)
     cancelAnimationFrame(frame)
