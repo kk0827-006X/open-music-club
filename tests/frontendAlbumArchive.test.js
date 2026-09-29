@@ -12,12 +12,20 @@ function frontendModule(relativePath) {
 }
 
 describe('三维专辑档案 UI', () => {
-  it('提供 5 张静态专辑和可复用的本地占位封面', async () => {
+  it('提供 24 张真实网易云专辑，分三排且每排 8 张', async () => {
     const { demoAlbums } = await import(frontendModule('album-data.ts'))
+    const { archiveColumns, records, columnFiles } = await import(frontendModule('rhine/data.ts'))
 
-    assert.equal(demoAlbums.length, 5)
+    assert.equal(demoAlbums.length, 24)
+    assert.equal(archiveColumns.length, 3)
+    assert.equal(records.length, 24)
+    assert.equal(new Set(records.map((record) => record.albumIndex)).size, 24)
+    assert.deepEqual(archiveColumns.map((_, lane) => columnFiles(lane).length), [8, 8, 8])
     for (const album of demoAlbums) {
-      assert.match(album.coverUrl, /^\/images\/album-placeholder-0[1-5]\.svg$/)
+      assert.match(album.coverUrl, /^https:\/\/p[1-4]\.music\.126\.net\//)
+      assert.match(album.id, /^\d+$/)
+      assert.equal(album.tracks.length > 0, true)
+      assert.match(album.tracks[0].id, /^\d+$/)
       assert.equal(typeof album.title, 'string')
       assert.equal(typeof album.artist, 'string')
     }
@@ -34,6 +42,9 @@ describe('三维专辑档案 UI', () => {
     assert.match(markup, /ALBUM \/ SELECT/)
     assert.match(markup, /data-wave-field/)
     assert.match(markup, /data-album-information/)
+    assert.equal((markup.match(/data-album-tick=/g) || []).length, 8)
+    const secondRow = createAlbumArchiveMarkup(9)
+    assert.match(secondRow, /data-album-tick="1" aria-label="当前排第 2 张专辑" aria-current="true"/)
     assert.doesNotMatch(markup, /\/api\//)
     assert.doesNotMatch(markup, /<audio/i)
   })
@@ -55,6 +66,45 @@ describe('三维专辑档案 UI', () => {
       'dda42b9b3b471d11c69820a64084d254a64b27761287ab0e35dd8387ec0a0bed'
     )
     assert.equal(fs.existsSync(path.join(projectRoot, 'frontend/public/assets/archive-assembly.glb')), false)
+  })
+
+  it('三维档案模型先完成加载，远程封面只作为随后更新的贴图', () => {
+    const fs = require('node:fs')
+    const scene = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/scene.ts'), 'utf8')
+    const ready = scene.indexOf('this.loaded = true;')
+    const coverStart = scene.indexOf('this.startCoverLoading();')
+
+    assert.ok(ready > 0 && coverStart > ready, '档案墙必须先可渲染，再请求远程封面')
+    assert.doesNotMatch(scene, /this\.coverTextures\s*=\s*await Promise\.all/)
+    assert.match(scene, /this\.coverInstances\.push\(instances\)/)
+    assert.match(scene, /material\.map = texture/)
+  })
+
+  it('每张档案的封面平面位于实体正面，不会被原模型遮住', () => {
+    const fs = require('node:fs')
+    const scene = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/scene.ts'), 'utf8')
+    const model = fs.readFileSync(path.join(projectRoot, 'frontend/public/assets/archive-cassette.glb'))
+    const gltf = JSON.parse(model.subarray(20, 20 + model.readUInt32LE(12)).toString())
+    const front = Math.max(...gltf.meshes.flatMap((mesh) => mesh.primitives.map(
+      (primitive) => gltf.accessors[primitive.attributes.POSITION].max[2],
+    )))
+    const coverDepth = Number(scene.match(/coverGeometry\.translate\(0, 1\.85, ([\d.]+)\)/)?.[1])
+
+    assert.ok(coverDepth > front, '封面应在档案正面几何体之前')
+    assert.match(scene, /this\.coverInstances\[albumIndex\]\.setMatrixAt/)
+  })
+
+  it('将来的收藏与最近播放可决定档案墙排序，缺少偏好时仍使用静态目录', async () => {
+    const { demoAlbums } = await import(frontendModule('album-data.ts'))
+    const { rankArchiveAlbums } = await import(frontendModule('rhine/data.ts'))
+    const ordered = rankArchiveAlbums(demoAlbums, {
+      favoriteAlbumIds: [demoAlbums[4].id, demoAlbums[2].id],
+      recentAlbumIds: [demoAlbums[2].id, demoAlbums[7].id],
+    })
+
+    assert.deepEqual(ordered.slice(0, 3), [4, 2, 7])
+    assert.equal(new Set(ordered).size, demoAlbums.length)
+    assert.deepEqual(rankArchiveAlbums(demoAlbums), demoAlbums.map((_, index) => index))
   })
 
   it('顶部导航严格遵循设计文档的顺序、图标和激活状态', async () => {
@@ -85,7 +135,12 @@ describe('三维专辑档案 UI', () => {
     assert.match(markup, /data-player-volume/)
     assert.match(markup, /data-player-toggle/)
     assert.match(markup, /data-player-progress-bar/)
-    assert.match(markup, /LOCAL/)
+    assert.match(markup, /data-player-volume-input/)
+    assert.match(markup, /data-player-queue-panel/)
+    assert.match(markup, /data-queue-count>00/)
+    assert.match(markup, /data-player-previous/)
+    assert.match(markup, /data-player-next/)
+    assert.match(markup, /NETEASE/)
     assert.match(markup, /GOOD MUSIC/)
     assert.doesNotMatch(markup, /PLAYER \/ STANDBY/)
   })
@@ -108,9 +163,9 @@ describe('三维专辑档案 UI', () => {
   it('专辑选择沿用循环索引，首尾切换不会反向跳跃', async () => {
     const { wrapAlbumIndex } = await import(frontendModule('album-archive.ts'))
 
-    assert.equal(wrapAlbumIndex(-1), 4)
-    assert.equal(wrapAlbumIndex(5), 0)
-    assert.equal(wrapAlbumIndex(7), 2)
+    assert.equal(wrapAlbumIndex(-1), 23)
+    assert.equal(wrapAlbumIndex(24), 0)
+    assert.equal(wrapAlbumIndex(27), 3)
   })
 
   it('专辑详情包含封面、元数据、静态曲目列表和返回入口', async () => {
@@ -122,7 +177,9 @@ describe('三维专辑档案 UI', () => {
 
     assert.match(markup, /data-back-to-archive/)
     assert.match(markup, /ALBUM DETAIL/)
-    assert.match(markup, /曲目预览/)
+    assert.match(markup, /代表曲目/)
+    assert.match(markup, /data-album-play/)
+    assert.match(markup, /data-album-queue/)
     assert.match(markup, new RegExp(demoAlbums[0].title))
     assert.doesNotMatch(markup, /<audio/i)
   })

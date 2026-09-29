@@ -86,6 +86,9 @@ export class ArchiveScene {
     this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
     this.loaded = false;
+    this.fallbackCover?.dispose();
+    this.coverTextures = [];
+    this.coverInstances = [];
   }
   uiOnlyParallax = false;
   private theme = new ThemeWave();
@@ -124,6 +127,7 @@ export class ArchiveScene {
   private relayPoints = new Map<string, { cell: ArchiveCell; point: THREE.Vector3 }>();
   private relayActive = false;
   onRelayPick?: (key: string | null) => void;
+  onCoverUpdate?: () => void;
   setPlayfield(enabled: boolean, bands: MusicBands, strength: number, flatten: number, target: string | null, breathing = true) {
     this.playfield = { enabled, bands, strength, flatten, target, breathing };
   }
@@ -167,6 +171,8 @@ export class ArchiveScene {
   private coverInstances: THREE.InstancedMesh[] = [];
   private coverTextures: THREE.Texture[] = [];
   private selectedCover?: THREE.Mesh;
+  private fallbackCover?: THREE.Texture;
+  private selectedAlbumIndex = 0;
   private matrixUpdates?: InstanceUpdates;
   private themeUpdates?: InstanceUpdates;
   private renderState = new RenderState();
@@ -475,22 +481,10 @@ export class ArchiveScene {
     this.labelTexture.colorSpace = THREE.SRGBColorSpace;
     this.labelTexture.anisotropy =
       this.renderer.capabilities.getMaxAnisotropy();
-    this.coverTextures = await Promise.all(demoAlbums.map(async (album) => {
-      const source = await new THREE.TextureLoader().loadAsync(publicAsset(album.coverUrl));
-      const canvas = document.createElement('canvas');
-      canvas.width = 800;
-      canvas.height = 800;
-      const context = canvas.getContext('2d');
-      if (!context) throw new Error('专辑封面无法绘制');
-      context.drawImage(source.image, 0, 0, canvas.width, canvas.height);
-      source.dispose();
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-      return texture;
-    }));
+    this.fallbackCover = this.createFallbackCover();
+    this.coverTextures = demoAlbums.map(() => this.fallbackCover!);
     const coverGeometry = new THREE.PlaneGeometry(2.65, 2.65);
-    coverGeometry.translate(0, 1.85, 0.8);
+    coverGeometry.translate(0, 1.85, 0.34);
     for (const texture of this.coverTextures) {
       const instances = new THREE.InstancedMesh(
         coverGeometry,
@@ -524,6 +518,68 @@ export class ArchiveScene {
     this.scene.add(this.model);
     this.model.position.copy(this.cellPosition(poolCell(this.selectedSlot)));
     this.loaded = true;
+    this.startCoverLoading();
+  }
+
+  private createFallbackCover() {
+    const canvas = document.createElement("canvas");
+    canvas.width = 384;
+    canvas.height = 384;
+    const context = canvas.getContext("2d")!;
+    const paper = context.createLinearGradient(0, 0, 384, 384);
+    paper.addColorStop(0, "#ded7c9");
+    paper.addColorStop(1, "#ada696");
+    context.fillStyle = paper;
+    context.fillRect(0, 0, 384, 384);
+    context.strokeStyle = "rgba(40,39,35,.22)";
+    context.strokeRect(20, 20, 344, 344);
+    context.beginPath();
+    context.arc(192, 187, 86, 0, Math.PI * 2);
+    context.moveTo(106, 187);
+    context.lineTo(278, 187);
+    context.stroke();
+    context.fillStyle = "#34332f";
+    context.font = "bold 23px sans-serif";
+    context.textAlign = "center";
+    context.fillText("OPEN MUSIC CLUB", 192, 330);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  private startCoverLoading() {
+    const loader = new THREE.TextureLoader();
+    demoAlbums.forEach((album, index) => {
+      void loader.loadAsync(album.coverUrl).then((source) => {
+        try {
+          if (!this.loaded) return;
+          const canvas = document.createElement("canvas");
+          canvas.width = 384;
+          canvas.height = 384;
+          const context = canvas.getContext("2d");
+          if (!context) return;
+          context.drawImage(source.image as CanvasImageSource, 0, 0, 384, 384);
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+          this.coverTextures[index] = texture;
+          const material = this.coverInstances[index].material as THREE.MeshBasicMaterial;
+          material.map = texture;
+          material.needsUpdate = true;
+          if (index === this.selectedAlbumIndex && this.selectedCover) {
+            const selectedMaterial = this.selectedCover.material as THREE.MeshBasicMaterial;
+            selectedMaterial.map = texture;
+            selectedMaterial.needsUpdate = true;
+          }
+          this.renderState.invalidate();
+          this.onCoverUpdate?.();
+        } finally {
+          source.dispose();
+        }
+      }).catch(() => {
+        // 远程封面不可用时保留本地生成的占位贴图，不影响档案墙。
+      });
+    });
   }
 
   setMode(mode: "hidden" | "archive" | "detail") {
@@ -608,7 +664,7 @@ export class ArchiveScene {
     const shift = {
       lane:
         Math.abs(this.selectedCell.lane) > 2048
-          ? Math.round((this.selectedCell.lane - 2) / 5) * 5
+          ? Math.round((this.selectedCell.lane - 2) / 3) * 3
           : 0,
       row:
         Math.abs(this.selectedCell.row) > 2048
@@ -735,10 +791,11 @@ export class ArchiveScene {
     c.fillText("INFO", 830, 143);
     c.drawImage(this.labelMark, 790, 242, 210, 98);
     this.labelTexture.needsUpdate = true;
+    this.selectedAlbumIndex = records[index].albumIndex;
     if (this.selectedCover) {
-      const material = (this.selectedCover.material as THREE.MeshBasicMaterial).clone();
-      material.map = this.coverTextures[records[index].albumIndex];
-      this.selectedCover.material = material;
+      const material = this.selectedCover.material as THREE.MeshBasicMaterial;
+      material.map = this.coverTextures[this.selectedAlbumIndex];
+      material.needsUpdate = true;
     }
   }
   private ensureInstanceCapacity(required: number) {

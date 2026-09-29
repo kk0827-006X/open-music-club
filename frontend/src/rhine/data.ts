@@ -7,11 +7,38 @@ export interface ArchiveRecord {
   albumIndex: number
 }
 
-// 保持原档案墙的五列、每列八格循环布局，只替换格位承载的专辑素材。
-export const archiveColumns = Array.from({ length: 5 }, (_, lane) => `专辑列 ${lane + 1}`)
+export interface ArchiveAlbumPreferences {
+  favoriteAlbumIds?: readonly string[]
+  recentAlbumIds?: readonly string[]
+}
+
+// 排序只依赖专辑 ID；未来收藏和最近播放接入时，无需改动三维模型。
+export function rankArchiveAlbums(
+  albums: readonly { id: string }[],
+  preferences: ArchiveAlbumPreferences = {},
+): number[] {
+  const indexById = new Map(albums.map((album, index) => [album.id, index]))
+  const ranked: number[] = []
+  const seen = new Set<number>()
+  for (const id of [...(preferences.favoriteAlbumIds ?? []), ...(preferences.recentAlbumIds ?? [])]) {
+    const index = indexById.get(id)
+    if (index !== undefined && !seen.has(index)) {
+      ranked.push(index)
+      seen.add(index)
+    }
+  }
+  albums.forEach((_, index) => {
+    if (!seen.has(index)) ranked.push(index)
+  })
+  return ranked
+}
+
+// 保持原档案墙的循环交互，把 24 张专辑映射为三列、每列八格。
+export const archiveColumns = Array.from({ length: 3 }, (_, lane) => `专辑列 ${lane + 1}`)
+const albumOrder = rankArchiveAlbums(demoAlbums)
 export const records: ArchiveRecord[] = archiveColumns.flatMap((category, lane) =>
   Array.from({ length: 8 }, (_, row) => {
-    const albumIndex = (lane + row + 3) % demoAlbums.length
+    const albumIndex = albumOrder[((lane + 1) % 3) * 8 + row]
     return {
       id: `${lane + 1}-${row + 1}`,
       title: demoAlbums[albumIndex].title,

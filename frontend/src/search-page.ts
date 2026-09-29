@@ -25,7 +25,7 @@ function rowMarkup(item: SearchItem, index: number, selected: boolean) {
       <span><b class="search-source-tag" data-source="${item.source}">${sourceLabel(item.source)}</b></span>
       <time>${escapeHtml(item.duration)}</time>
     </button>
-    <span class="search-result-actions"><button type="button" data-search-play="${escapeHtml(item.key)}" aria-label="播放 ${title}"${item.kind === 'song' ? '' : ' disabled'}>▶</button><button type="button" aria-label="将 ${title} 加入队列（待接入）" disabled>＋</button></span>
+    <span class="search-result-actions"><button type="button" data-search-play="${escapeHtml(item.key)}" aria-label="播放 ${title}"${item.kind === 'song' ? '' : ' disabled'}>▶</button><button type="button" data-search-queue="${escapeHtml(item.key)}" aria-label="将 ${title} 加入队列"${item.kind === 'song' ? '' : ' disabled'}>＋</button></span>
   </li>`
 }
 
@@ -38,7 +38,7 @@ export function selectedMarkup(item: SearchItem | undefined) {
       <div><dt>来源</dt><dd><b class="search-source-tag" data-source="${item.source}">${sourceLabel(item.source)}</b></dd></div>
       <div><dt>类型</dt><dd>${kindLabel(item.kind)}</dd></div><div><dt>时长</dt><dd>${escapeHtml(item.duration)}</dd></div></dl>
     <p class="search-selected-description">${escapeHtml(item.description)}</p>
-    <div class="search-selected-actions"><button type="button" data-search-play="${escapeHtml(item.key)}"${item.kind === 'song' ? '' : ' disabled'}>▶&nbsp;&nbsp;播放</button><button type="button" disabled>＋&nbsp;&nbsp;加入队列</button></div>`
+    <div class="search-selected-actions"><button type="button" data-search-play="${escapeHtml(item.key)}"${item.kind === 'song' ? '' : ' disabled'}>▶&nbsp;&nbsp;播放</button><button type="button" data-search-queue="${escapeHtml(item.key)}"${item.kind === 'song' ? '' : ' disabled'}>＋&nbsp;&nbsp;加入队列</button></div>`
 }
 
 export function createSearchPageMarkup() {
@@ -65,7 +65,7 @@ export function createSearchPageMarkup() {
   </section>`
 }
 
-export function mountSearchPage(root: HTMLElement, onPlay: (item: SearchItem) => Promise<void> | void = () => undefined, fetcher: SearchFetcher = window.fetch.bind(window) as SearchFetcher) {
+export function mountSearchPage(root: HTMLElement, onPlay: (item: SearchItem) => Promise<void> | void = () => undefined, fetcher: SearchFetcher = window.fetch.bind(window) as SearchFetcher, onQueue: (item: SearchItem) => void = () => undefined) {
   root.innerHTML = createSearchPageMarkup()
   const controller = new AbortController()
   const options = { signal: controller.signal }
@@ -168,6 +168,7 @@ export function mountSearchPage(root: HTMLElement, onPlay: (item: SearchItem) =>
     const typeButton = target.closest<HTMLButtonElement>('[data-search-type]')
     const rowButton = target.closest<HTMLButtonElement>('[data-search-select]')
     const playButton = target.closest<HTMLButtonElement>('[data-search-play]')
+    const queueButton = target.closest<HTMLButtonElement>('[data-search-queue]')
     if (sourceButton) {
       source = sourceButton.dataset.searchSource as SourceFilter
       root.querySelectorAll('[data-search-source]').forEach((button) => button.setAttribute('aria-pressed', String(button === sourceButton)))
@@ -176,6 +177,10 @@ export function mountSearchPage(root: HTMLElement, onPlay: (item: SearchItem) =>
       kind = typeButton.dataset.searchType as SearchKind
       root.querySelectorAll('[data-search-type]').forEach((button) => button.setAttribute('aria-pressed', String(button === typeButton)))
       searchNetease(true)
+    } else if (queueButton && !queueButton.disabled) {
+      const item = filterSearchItems([...localItems, ...neteaseItems], input.value, source, kind)
+        .find((entry) => entry.key === queueButton.dataset.searchQueue)
+      if (item?.kind === 'song') { onQueue(item); status.textContent = '已加入播放队列' }
     } else if (playButton && !playButton.disabled) {
       const item = filterSearchItems([...localItems, ...neteaseItems], input.value, source, kind)
         .find((entry) => entry.key === playButton.dataset.searchPlay)
