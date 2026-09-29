@@ -94,6 +94,33 @@ describe('三维专辑档案 UI', () => {
     assert.match(scene, /this\.coverInstances\[albumIndex\]\.setMatrixAt/)
   })
 
+  it('选中档案的封面保持原色，不被档案场景的主题着色覆盖', () => {
+    const fs = require('node:fs')
+    const scene = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/scene.ts'), 'utf8')
+    const appearance = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/appearance.ts'), 'utf8')
+    assert.match(scene, /this\.selectedCover\.userData\.preserveArtwork = true/)
+    assert.match(appearance, /if \(mesh\.userData\.preserveArtwork\) continue/)
+  })
+
+  it('专辑详情加载完整曲目并逐首渲染可播放操作', async () => {
+    const { demoAlbums, fetchAlbumTracks } = await import(frontendModule('album-data.ts'))
+    const { createAlbumDetailMarkup } = await import(frontendModule('album-archive.ts'))
+    const album = demoAlbums[3]
+    const tracks = await fetchAlbumTracks(album.id, async (url, options) => {
+      assert.equal(url, `/api/netease/album?id=${album.id}`)
+      assert.equal(options.credentials, 'same-origin')
+      return { ok: true, json: async () => ({ code: 200, songs: [
+        { id: 67402, name: '黎喇', dt: 13000 },
+        { id: 67403, name: '第二首', dt: 241000 },
+      ] }) }
+    })
+    const markup = createAlbumDetailMarkup({ ...album, tracks, totalTracks: tracks.length })
+    assert.equal(tracks.length, 2)
+    assert.match(markup, /02.*第二首/s)
+    assert.match(markup, /data-album-play="67403"/)
+    assert.match(markup, /2 首/)
+  })
+
   it('将来的收藏与最近播放可决定档案墙排序，缺少偏好时仍使用静态目录', async () => {
     const { demoAlbums } = await import(frontendModule('album-data.ts'))
     const { rankArchiveAlbums } = await import(frontendModule('rhine/data.ts'))

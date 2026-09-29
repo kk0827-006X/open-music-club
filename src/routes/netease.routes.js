@@ -119,6 +119,13 @@ function createNeteaseRouter(neteaseService) {
     return callModule(res, 'playlistDetail', { id })
   })
 
+  router.get('/album', (req, res) => {
+    const id = readSingleQueryValue(req.query.id)
+    if (!isPositiveInteger(id)) return parameterError(res, 'id 必须是正整数')
+
+    return callModule(res, 'album', { id })
+  })
+
   router.use((req, res) => {
     return res.status(404).json({
       success: false,

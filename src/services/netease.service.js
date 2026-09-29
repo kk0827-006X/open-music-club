@@ -10,6 +10,7 @@ const DEFAULT_MODULES = Object.freeze({
   songUrlV1: require(`${VENDOR_PACKAGE}/module/song_url_v1`),
   lyric: require(`${VENDOR_PACKAGE}/module/lyric`),
   playlistDetail: require(`${VENDOR_PACKAGE}/module/playlist_detail`),
+  album: require(`${VENDOR_PACKAGE}/module/album`),
 })
 
 function loadVendorRequestClient() {

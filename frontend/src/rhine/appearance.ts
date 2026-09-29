@@ -22,6 +22,7 @@ export class CardAppearance {
   prepare(group: THREE.Group) {
     for (const child of group.children) {
       const mesh = child as THREE.Mesh;
+      if (mesh.userData.preserveArtwork) continue;
       const name = mesh.userData.surface as string;
       const palette = this.palettes.get(name);
       if (!palette) {
@@ -137,6 +138,7 @@ export class CardAppearance {
   apply(group: THREE.Group, value: number) {
     for (const child of group.children) {
       const mesh = child as THREE.Mesh;
+      if (mesh.userData.preserveArtwork) continue;
       const palette = this.palettes.get(mesh.userData.surface);
       if (!palette) {
         // The printed canvas belongs to this file, including returning copies.

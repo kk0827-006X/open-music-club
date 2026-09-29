@@ -1,4 +1,4 @@
-import { demoAlbums, type DemoAlbum } from './album-data.ts'
+import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts'
 import { mountSearchPage } from './search-page.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
@@ -99,14 +99,15 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
   </main>`
 }
 
-export function createAlbumDetailMarkup(album: DemoAlbum) {
+export function createAlbumDetailMarkup(album: DemoAlbum, trackState: 'ready' | 'loading' | 'unavailable' = 'ready') {
   const tracks = album.tracks.map((track, index) => `<li><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(track.title)}</strong><small>NETEASE</small><time>${track.duration}</time><button type="button" data-album-play="${track.id}">▶ 播放</button><button type="button" data-album-queue="${track.id}">＋ 队列</button></li>`).join('')
+  const trackHeading = trackState === 'loading' ? '正在获取专辑全部曲目…' : trackState === 'unavailable' ? '完整曲目暂时不可用 · 以下为代表曲目' : '专辑曲目'
   return `
     <button class="detail-back" type="button" data-back-to-archive>←&nbsp;&nbsp;返回专辑架 <kbd>ESC</kbd></button>
     <section class="detail-cover-frame"><div class="detail-cover"><img src="${album.coverUrl}" alt="${escapeHtml(album.title)} 封面" /></div><p>ALBUM / ${album.id}</p><small>网易云音乐 · 真实专辑封面</small></section>
     <article class="detail-information" data-detail-information><p>ALBUM DETAIL&nbsp;&nbsp;/&nbsp;&nbsp;MUSIC ARCHIVE</p><h2>${escapeHtml(album.title)}</h2><h3>${escapeHtml(album.artist)}</h3>
       <div class="detail-facts"><p><small>RELEASE / 发行年份</small>${album.year}</p><p><small>ARTIST / 艺术家</small>${escapeHtml(album.artist)}</p><p><small>GENRE / 流派</small>${album.genre}</p><p><small>SOURCE / 来源</small>NETEASE</p></div>
-      <p class="detail-description">${escapeHtml(album.description)}</p><section class="detail-track-preview"><header><b>01&nbsp;&nbsp;代表曲目</b><span>专辑共 ${album.totalTracks} 首</span></header><ol>${tracks}</ol></section>
+      <p class="detail-description">${escapeHtml(album.description)}</p><section class="detail-track-preview" aria-live="polite"><header><b>01&nbsp;&nbsp;${trackHeading}</b><span>专辑共 ${album.totalTracks} 首</span></header><ol>${trackState === 'loading' ? '' : tracks}</ol></section>
     </article>`
 }
 
@@ -127,6 +128,8 @@ export function mountAlbumArchive(root: HTMLElement) {
   let activeTrack: SearchItem | null = null
   let playRequest = 0
   let playbackController: AbortController | null = null
+  let albumController: AbortController | null = null
+  const loadedAlbums = new Map<string, DemoAlbum>()
   const queue = new MusicQueue()
   const audio = new Audio()
   audio.preload = 'none'
@@ -266,7 +269,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     const albumPlay = target.closest<HTMLButtonElement>('[data-album-play]')
     const albumQueue = target.closest<HTMLButtonElement>('[data-album-queue]')
     if (albumPlay || albumQueue) {
-      const album = demoAlbums[selectedIndex]
+      const album = loadedAlbums.get(demoAlbums[selectedIndex].id) ?? demoAlbums[selectedIndex]
       const track = album.tracks.find((entry) => entry.id === (albumPlay?.dataset.albumPlay ?? albumQueue?.dataset.albumQueue))
       if (!track) return
       const item = albumTrack(album, album.tracks.indexOf(track))
@@ -398,21 +401,40 @@ export function mountAlbumArchive(root: HTMLElement) {
     if (mode !== 'archive' || !scene) return
     mode = 'detail'
     detailIdleSince = 0
-    detail.innerHTML = createAlbumDetailMarkup(demoAlbums[selectedIndex])
+    const album = demoAlbums[selectedIndex]
+    const cached = loadedAlbums.get(album.id)
+    const renderDetail = (data: DemoAlbum, state: 'ready' | 'loading' | 'unavailable') => {
+      detail.innerHTML = createAlbumDetailMarkup(data, state)
+      detail.querySelector('[data-back-to-archive]')?.addEventListener('click', closeDetail)
+    }
+    renderDetail(cached ?? album, cached ? 'ready' : 'loading')
     detail.hidden = false
     detail.inert = false
     detail.setAttribute('aria-hidden', 'false')
     detail.style.setProperty('--detail-visibility', '0')
     detail.style.setProperty('--detail-offset', '18px')
-    detail.querySelector('[data-back-to-archive]')?.addEventListener('click', closeDetail)
     archive.dataset.mode = 'detail'
     scene.setMode('detail')
     wakeScene()
+    if (!cached) {
+      albumController?.abort()
+      albumController = new AbortController()
+      void fetchAlbumTracks(album.id, undefined, albumController.signal).then((tracks) => {
+        if (disposed || mode !== 'detail' || demoAlbums[selectedIndex].id !== album.id) return
+        const complete = { ...album, tracks, totalTracks: tracks.length }
+        loadedAlbums.set(album.id, complete)
+        renderDetail(complete, 'ready')
+      }).catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        if (!disposed && mode === 'detail' && demoAlbums[selectedIndex].id === album.id) renderDetail(album, 'unavailable')
+      })
+    }
   }
 
   const closeDetail = () => {
     if (mode !== 'detail') return
     mode = 'archive'
+    albumController?.abort()
     detailIdleSince = 0
     detail.inert = true
     detail.setAttribute('aria-hidden', 'true')
@@ -517,6 +539,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     searchController?.destroy()
     playRequest += 1
     playbackController?.abort()
+    albumController?.abort()
     audio.pause()
     audio.removeAttribute('src')
     audio.load()

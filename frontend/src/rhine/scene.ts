@@ -500,6 +500,7 @@ export class ArchiveScene {
       coverGeometry,
       new THREE.MeshBasicMaterial({ map: this.coverTextures[0], toneMapped: false, side: THREE.DoubleSide }),
     );
+    this.selectedCover.userData.preserveArtwork = true;
     this.model.add(this.selectedCover);
     const label = new THREE.Mesh(
       new THREE.PlaneGeometry(0.99, 0.46),

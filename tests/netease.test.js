@@ -73,13 +73,14 @@ describe('网易云 API 白名单', () => {
     return agent.post('/api/auth/login').send({ email, password: TEST_PASSWORD })
   }
 
-  it('五个白名单接口都拒绝未登录访问', async () => {
+  it('六个白名单接口都拒绝未登录访问', async () => {
     const paths = [
       '/api/netease/search?keywords=test',
       '/api/netease/song/detail?ids=1',
       '/api/netease/song/url/v1?id=1',
       '/api/netease/lyric?id=1',
       '/api/netease/playlist/detail?id=1',
+      '/api/netease/album?id=1',
     ]
 
     for (const routePath of paths) {
@@ -103,13 +104,14 @@ describe('网易云 API 白名单', () => {
     )
   })
 
-  it('五个接口映射到对应的白名单模块并原样返回上游 body', async () => {
+  it('六个接口映射到对应的白名单模块并原样返回上游 body', async () => {
     const routes = [
       ['/api/netease/search?keywords=歌曲', 'search'],
       ['/api/netease/song/detail?ids=1,2', 'songDetail'],
       ['/api/netease/song/url/v1?id=1&level=lossless', 'songUrlV1'],
       ['/api/netease/lyric?id=1', 'lyric'],
       ['/api/netease/playlist/detail?id=1', 'playlistDetail'],
+      ['/api/netease/album?id=1', 'album'],
     ]
 
     for (const [routePath, moduleName] of routes) {
@@ -135,6 +137,7 @@ describe('网易云 API 白名单', () => {
       '/api/netease/song/url/v1',
       '/api/netease/lyric',
       '/api/netease/playlist/detail',
+      '/api/netease/album',
     ]
 
     for (const routePath of paths) {
@@ -154,6 +157,7 @@ describe('网易云 API 白名单', () => {
       '/api/netease/song/url/v1?id=1&level=invalid',
       '/api/netease/lyric?id=1.5',
       '/api/netease/playlist/detail?id=abc',
+      '/api/netease/album?id=abc',
     ]
 
     for (const routePath of paths) {
@@ -238,6 +242,20 @@ describe('网易云 API 白名单', () => {
       })
     }
     assert.equal(calls.length, 0)
+  })
+
+  it('专辑详情只接受合法 id，登录后原样返回完整曲目', async () => {
+    assert.equal((await request(app).get('/api/netease/album?id=6590')).status, 401)
+    assert.equal((await memberAgent.get('/api/netease/album')).status, 400)
+    assert.equal((await memberAgent.get('/api/netease/album?id=invalid')).status, 400)
+    neteaseService.call = async (name, parameters) => {
+      calls.push({ moduleName: name, parameters })
+      return { code: 200, songs: [{ id: 1, name: '第一首' }, { id: 2, name: '第二首' }] }
+    }
+    const response = await memberAgent.get('/api/netease/album?id=6590&cookie=secret&unblock=true')
+    assert.equal(response.status, 200)
+    assert.equal(response.body.songs.length, 2)
+    assert.deepEqual(calls, [{ moduleName: 'album', parameters: { id: '6590' } }])
   })
 })
 
