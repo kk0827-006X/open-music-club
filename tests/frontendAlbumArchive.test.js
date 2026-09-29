@@ -144,8 +144,12 @@ describe('三维专辑档案 UI', () => {
     assert.match(markup, /data-nav="library"[^>]*aria-current="page"/)
     assert.ok(markup.indexOf('音乐库') < markup.indexOf('搜索'))
     assert.ok(markup.indexOf('搜索') < markup.indexOf('上传音乐'))
-    assert.ok(markup.indexOf('上传音乐') < markup.indexOf('队列'))
-    assert.ok(markup.indexOf('队列') < markup.indexOf('设置'))
+    const navigation = markup.match(/<nav class="archive-nav"[\s\S]*?<\/nav>/)?.[0]
+    assert.ok(navigation)
+    assert.ok(navigation.indexOf('上传音乐') < navigation.indexOf('用户'))
+    assert.ok(navigation.indexOf('用户') < navigation.indexOf('设置'))
+    assert.match(navigation, /data-nav="user"[^>]*disabled[^>]*>[^<]*<svg[\s\S]*?<span>用户<\/span>/)
+    assert.doesNotMatch(navigation, /data-nav="queue"/)
     assert.ok((markup.match(/<svg/g) || []).length >= 5)
   })
 

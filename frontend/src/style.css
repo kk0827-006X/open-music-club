@@ -872,7 +872,7 @@ button:focus-visible { outline: 2px solid #a8793d; outline-offset: 3px; }
   .player-tail { display: none; }
   .archive-nav { top: 82px; right: 18px; height: 32px; }
   .archive-nav button { height: 32px; padding: 0 8px; font-size: .61rem; }
-  .archive-nav button[data-nav="queue"], .archive-nav button[data-nav="settings"], .archive-nav > i { display: none; }
+  .archive-nav button[data-nav="settings"], .archive-nav > i { display: none; }
   .archive-brand { top: 28px; left: 24px; }
   .album-wave-stage { inset: 0; }
   .album-archive::before { background: linear-gradient(180deg, transparent 35%, rgba(238,236,231,.92) 72%, #eeece7 84%); }

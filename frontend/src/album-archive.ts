@@ -12,6 +12,7 @@ const icons = {
   library: icon('<path d="M3.5 6.5h6l1.7 2H20.5v9.5H3.5z"/><path d="M3.5 6.5v-2h6l1.7 2"/>'),
   search: icon('<circle cx="10.5" cy="10.5" r="5.8"/><path d="m15 15 5 5"/>'),
   upload: icon('<path d="M12 16V3m0 0L7.5 7.5M12 3l4.5 4.5M4 14v6h16v-6"/>'),
+  user: icon('<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20v-1.5a7.5 7.5 0 0 1 15 0V20z"/>'),
   queue: icon('<path d="M4 6h11M4 12h7M4 18h11"/><circle cx="18" cy="6" r="2"/><circle cx="14" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
   settings: icon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/>'),
   heart: icon('<path d="M20.8 4.7a5.2 5.2 0 0 0-7.4 0L12 6.1l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4L12 21l8.8-8.9a5.2 5.2 0 0 0 0-7.4Z"/>'),
@@ -40,7 +41,7 @@ function archiveNavigation() {
     <button type="button" data-nav="library" aria-current="page">${icons.library}<span>音乐库</span></button>
     <button type="button" data-nav="search">${icons.search}<span>搜索</span></button>
     <button type="button" data-nav="upload">${icons.upload}<span>上传音乐</span></button>
-    <button type="button" data-nav="queue">${icons.queue}<span>队列</span><small data-queue-count>00</small></button>
+    <button type="button" data-nav="user" disabled>${icons.user}<span>用户</span></button>
     <i aria-hidden="true"></i>
     <button type="button" data-nav="settings">${icons.settings}<span>设置</span></button>
   </nav>`
@@ -366,7 +367,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     if (!(target instanceof Element)) return
     if (target.closest('[data-player-close]')) { setPlayerExpanded(false); return }
     if (target.closest('[data-player-open]')) { setPlayerExpanded(true); return }
-    const queueToggle = target.closest<HTMLButtonElement>('[data-player-queue-toggle], [data-nav="queue"]')
+    const queueToggle = target.closest<HTMLButtonElement>('[data-player-queue-toggle]')
     if (queueToggle) {
       const panel = archive.querySelector<HTMLElement>('[data-player-queue-panel]')!
       panel.hidden = !panel.hidden
