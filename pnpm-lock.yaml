@@ -60,6 +60,9 @@ importers:
 
   frontend:
     dependencies:
+      music-metadata:
+        specifier: ^11.15.0
+        version: 11.15.0
       three:
         specifier: ^0.183.2
         version: 0.183.2

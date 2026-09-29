@@ -1,3 +1,6 @@
+import { uploadMusicFile, UploadError } from './upload-client.ts'
+import { readUploadMetadata } from './upload-metadata.ts'
+
 const MAX_PREVIEW_BYTES = 100 * 1024 * 1024
 const AUDIO_EXTENSIONS = new Set(['mp3', 'flac', 'wav', 'm4a', 'ogg'])
 
@@ -24,7 +27,8 @@ export function createUploadPageMarkup() {
     </section>
     <form class="upload-metadata" data-upload-form novalidate><header class="upload-panel-rail"><span>03&nbsp; METADATA</span><span>FILE INFORMATION</span></header>
       <div class="upload-metadata-body"><div class="upload-cover-column"><div class="upload-cover-frame"><img data-upload-cover src="/images/album-placeholder-01.svg" alt="专辑封面预览" /></div>
-        <button type="button" data-upload-cover-choose>＋&nbsp; 更换封面</button><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" data-upload-cover-file tabindex="-1" aria-hidden="true" /></div>
+        <button type="button" data-upload-cover-choose>＋&nbsp; 更换封面</button><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" data-upload-cover-file tabindex="-1" aria-hidden="true" />
+        <small class="upload-cover-note">自选封面仅供预览；当前服务保存音频内嵌封面。</small></div>
         <div class="upload-fields"><label>标题 <b>*</b><input type="text" maxlength="120" data-upload-title placeholder="输入歌曲标题" autocomplete="off" /></label>
           <label>歌手 <b>*</b><input type="text" maxlength="120" data-upload-artist placeholder="输入歌手名称" autocomplete="off" /></label>
           <label>专辑<input type="text" maxlength="120" data-upload-album placeholder="未命名专辑" autocomplete="off" /></label></div></div>
@@ -34,8 +38,8 @@ export function createUploadPageMarkup() {
         <div><dt>文件大小</dt><dd data-upload-size>—</dd></div><div><dt>比特率</dt><dd>上传后识别</dd></div>
       </dl></div>
       <button class="upload-submit" type="submit" data-upload-submit><span>确认上传</span><span>→</span></button>
-      <p class="upload-feedback" data-upload-feedback role="status" aria-live="polite">当前为界面预览：文件不会发送到服务器。</p>
-      <p class="upload-safety">◇&nbsp; 正式上传时会由服务器复核文件格式、完整性与元数据。</p>
+      <p class="upload-feedback" data-upload-feedback role="status" aria-live="polite">选择音频文件后填写资料，再确认上传。</p>
+      <p class="upload-safety">◇&nbsp; 服务器会复核文件格式、完整性与元数据。</p>
     </form>
   </section>`
 }
@@ -50,9 +54,26 @@ export function mountUploadPage(root: HTMLElement) {
   const feedback = root.querySelector<HTMLElement>('[data-upload-feedback]')!
   const title = root.querySelector<HTMLInputElement>('[data-upload-title]')!
   const artist = root.querySelector<HTMLInputElement>('[data-upload-artist]')!
+  const album = root.querySelector<HTMLInputElement>('[data-upload-album]')!
   const cover = root.querySelector<HTMLImageElement>('[data-upload-cover]')!
   let selectedFile: File | null = null
   let coverUrl: string | null = null
+  let requestController: AbortController | null = null
+  let isSubmitting = false
+  let isReadingMetadata = false
+  let metadataRequestId = 0
+
+  const setSubmitting = (value: boolean) => {
+    isSubmitting = value
+    fileInput.disabled = value
+    coverInput.disabled = value
+    root.querySelector<HTMLButtonElement>('[data-upload-choose]')!.disabled = value
+    root.querySelector<HTMLButtonElement>('[data-upload-cover-choose]')!.disabled = value
+    root.querySelector<HTMLButtonElement>('[data-upload-remove]')!.disabled = value || !selectedFile
+    root.querySelector<HTMLButtonElement>('[data-upload-submit]')!.disabled = value || isReadingMetadata || !selectedFile
+    root.querySelector('[data-upload-selected-row]')!.classList.toggle('is-uploading', value)
+    root.querySelector('[data-upload-form]')!.setAttribute('aria-busy', String(value))
+  }
 
   const showStatus = (message: string, state: 'neutral' | 'error' | 'ready' = 'neutral') => {
     feedback.textContent = message
@@ -67,8 +88,13 @@ export function mountUploadPage(root: HTMLElement) {
   }
 
   const clearFile = () => {
+    metadataRequestId += 1
+    isReadingMetadata = false
     selectedFile = null
     fileInput.value = ''
+    title.value = ''
+    artist.value = ''
+    album.value = ''
     root.querySelector('[data-upload-filename]')!.textContent = '尚未选择文件'
     root.querySelector('[data-upload-filesize]')!.textContent = '选择文件后将在此预览'
     root.querySelector('[data-upload-file-status]')!.textContent = '等待选择'
@@ -77,7 +103,9 @@ export function mountUploadPage(root: HTMLElement) {
     root.querySelector<HTMLButtonElement>('[data-upload-remove]')!.disabled = true
     root.querySelector('[data-upload-selected-row]')!.classList.remove('is-ready')
     clearCover()
-    showStatus('当前为界面预览：文件不会发送到服务器。')
+    root.querySelector('[data-upload-selected-row]')!.classList.remove('is-uploaded')
+    setSubmitting(false)
+    showStatus('选择音频文件后填写资料，再确认上传。')
   }
 
   const selectFile = (file?: File) => {
@@ -89,6 +117,16 @@ export function mountUploadPage(root: HTMLElement) {
       return
     }
     selectedFile = file
+    metadataRequestId += 1
+    const currentRequestId = metadataRequestId
+    isReadingMetadata = true
+    root.querySelector('[data-upload-selected-row]')!.classList.remove('is-uploaded')
+    clearCover()
+    const filenameTitle = file.name.replace(/\.[^.]+$/, '')
+    title.value = filenameTitle
+    artist.value = ''
+    album.value = ''
+    const initialValues = { title: title.value, artist: artist.value, album: album.value }
     const size = `${(file.size / 1024 / 1024).toFixed(1)} MB`
     root.querySelector('[data-upload-filename]')!.textContent = file.name
     root.querySelector('[data-upload-filesize]')!.textContent = `${extension.toUpperCase()} / ${size}`
@@ -97,8 +135,31 @@ export function mountUploadPage(root: HTMLElement) {
     root.querySelector('[data-upload-size]')!.textContent = size
     root.querySelector<HTMLButtonElement>('[data-upload-remove]')!.disabled = false
     root.querySelector('[data-upload-selected-row]')!.classList.add('is-ready')
-    if (!title.value.trim()) title.value = file.name.replace(/\.[^.]+$/, '')
-    showStatus('文件已选择，等待服务器验证；当前仅预览，不会上传。', 'ready')
+    setSubmitting(false)
+    showStatus('正在读取音频内嵌的歌曲资料…')
+    void readUploadMetadata(file).then((metadata) => {
+      if (currentRequestId !== metadataRequestId) return
+      if (metadata.title && title.value === initialValues.title) {
+        title.value = metadata.title
+      }
+      if (metadata.artist && artist.value === initialValues.artist) {
+        artist.value = metadata.artist
+      }
+      if (metadata.album && album.value === initialValues.album) {
+        album.value = metadata.album
+      }
+      if (metadata.cover && !coverInput.files?.length) {
+        coverUrl = URL.createObjectURL(metadata.cover)
+        cover.src = coverUrl
+      }
+      showStatus(metadata.title || metadata.artist || metadata.album || metadata.cover
+        ? '已读取音频内嵌资料；请核对后上传。'
+        : '未找到可用标签；请手动核对标题和歌手。', 'ready')
+    }).finally(() => {
+      if (currentRequestId !== metadataRequestId) return
+      isReadingMetadata = false
+      setSubmitting(false)
+    })
   }
 
   root.querySelector('[data-upload-choose]')!.addEventListener('click', () => fileInput.click(), options)
@@ -134,15 +195,37 @@ export function mountUploadPage(root: HTMLElement) {
     if (coverUrl) URL.revokeObjectURL(coverUrl)
     coverUrl = URL.createObjectURL(file)
     cover.src = coverUrl
-    showStatus('封面已在本机预览，尚未上传。', 'ready')
+    showStatus('封面仅在本机预览；服务器只保存音频内嵌封面。', 'ready')
   }, options)
 
   root.querySelector('[data-upload-form]')!.addEventListener('submit', (event) => {
     event.preventDefault()
+    if (isSubmitting || isReadingMetadata) return
     if (!selectedFile) showStatus('请先选择音频文件。', 'error')
     else if (!title.value.trim() || !artist.value.trim()) showStatus('请填写标题和歌手后再继续。', 'error')
-    else showStatus('预览已就绪；尚未接入上传接口，文件没有发送。', 'ready')
+    else {
+      const file = selectedFile
+      requestController = new AbortController()
+      setSubmitting(true)
+      root.querySelector('[data-upload-file-status]')!.textContent = '正在由服务器验证并保存…'
+      showStatus('正在上传，请保持页面打开。')
+      void uploadMusicFile(file, { title: title.value, artist: artist.value, album: album.value }, undefined, requestController.signal)
+        .then((track) => {
+          selectedFile = null
+          fileInput.value = ''
+          if (coverUrl) URL.revokeObjectURL(coverUrl)
+          coverUrl = null
+          cover.src = track.coverUrl || '/images/album-placeholder-01.svg'
+          root.querySelector('[data-upload-selected-row]')!.classList.add('is-uploaded')
+          root.querySelector('[data-upload-file-status]')!.textContent = '已安全入库'
+          showStatus('上传成功，已加入社区音乐库。可在搜索页查看。', 'ready')
+        }).catch((error: unknown) => {
+          if (error instanceof Error && error.name === 'AbortError') return
+          root.querySelector('[data-upload-file-status]')!.textContent = '上传未完成'
+          showStatus(error instanceof UploadError ? error.message : '上传暂时失败，请稍后重试。', 'error')
+        }).finally(() => { requestController = null; setSubmitting(false) })
+    }
   }, options)
 
-  return { destroy: () => { controller.abort(); clearCover() } }
+  return { destroy: () => { metadataRequestId += 1; controller.abort(); requestController?.abort(); clearCover() } }
 }

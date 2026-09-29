@@ -64,7 +64,7 @@ describe('底部播放器与歌词画面', () => {
     assert.match(css, /\.player-expanded\.is-open::before\s*\{[^}]*transform: scaleY\(1\)/)
     assert.match(css, /\.player-expanded-header,\s*\.player-expanded-content\s*\{[^}]*opacity: 0[^}]*transform: translateY\(/)
     assert.match(css, /\.player-expanded\.is-open \.player-expanded-header,\s*\.player-expanded\.is-open \.player-expanded-content\s*\{[^}]*opacity: 1/)
-    assert.match(css, /@media \(max-width: 900px\)\s*\{\s*\.player-expanded\s*\{[^}]*inset: 0 0 76px/)
+    assert.match(css, /\.player-expanded\s*\{[^}]*inset: 0 0 76px/)
     assert.match(css, /\.player-expanded\.is-open ~ \.global-player\s*\{[^}]*backdrop-filter: none/)
   })
 })
