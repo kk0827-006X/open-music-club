@@ -1,5 +1,6 @@
 import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts'
 import { mountSearchPage } from './search-page.ts'
+import { mountUploadPage } from './upload-page.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
 import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
@@ -108,6 +109,7 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
     ${albumInformation(selected, selectedIndex)}
     <section class="album-detail" data-album-detail hidden inert aria-hidden="true"></section>
     <div data-search-host></div>
+    <div data-upload-host></div>
     ${expandedPlayerMarkup()}
     ${playerMarkup(selected)}
   </main>`
@@ -135,10 +137,12 @@ export function mountAlbumArchive(root: HTMLElement) {
   let scene: ArchiveScene | null = null
   let sceneReady = false
   let mode: 'archive' | 'detail' = 'archive'
-  let view: 'archive' | 'search' = 'archive'
+  let view: 'archive' | 'search' | 'upload' = 'archive'
   let detailIdleSince = 0
   let searchHideTimer = 0
+  let uploadHideTimer = 0
   let searchController: ReturnType<typeof mountSearchPage> | null = null
+  let uploadController: ReturnType<typeof mountUploadPage> | null = null
   let activeTrack: SearchItem | null = null
   let playRequest = 0
   let playbackController: AbortController | null = null
@@ -160,6 +164,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   const detail = root.querySelector<HTMLElement>('[data-album-detail]')!
   const container = root.querySelector<HTMLElement>('[data-three-scene]')!
   const searchHost = root.querySelector<HTMLElement>('[data-search-host]')!
+  const uploadHost = root.querySelector<HTMLElement>('[data-upload-host]')!
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   const setPlayerVisible = (visible: boolean) => {
@@ -468,7 +473,7 @@ export function mountAlbumArchive(root: HTMLElement) {
 
   const animate = (now: number) => {
     frame = 0
-    if (disposed || document.hidden || view === 'search' || playerExpanded || !scene) return
+    if (disposed || document.hidden || view !== 'archive' || playerExpanded || !scene) return
     scene.update(now / 1000)
     if (mode === 'detail') {
       const visibility = scene.detailVisibility
@@ -498,8 +503,8 @@ export function mountAlbumArchive(root: HTMLElement) {
     if (!frame && scene && view === 'archive' && !disposed && !document.hidden) frame = requestAnimationFrame(animate)
   }
 
-  const setNavigation = (name: 'library' | 'search') => {
-    for (const button of archive.querySelectorAll<HTMLButtonElement>('[data-nav="library"], [data-nav="search"]')) {
+  const setNavigation = (name: 'library' | 'search' | 'upload') => {
+    for (const button of archive.querySelectorAll<HTMLButtonElement>('[data-nav="library"], [data-nav="search"], [data-nav="upload"]')) {
       if (button.dataset.nav === name) button.setAttribute('aria-current', 'page')
       else button.removeAttribute('aria-current')
     }
@@ -514,6 +519,7 @@ export function mountAlbumArchive(root: HTMLElement) {
 
   const showSearch = () => {
     if (view === 'search') { searchController?.focus(); return }
+    if (view === 'upload') hideUpload()
     if (mode === 'detail') {
       mode = 'archive'
       detail.hidden = true
@@ -547,7 +553,45 @@ export function mountAlbumArchive(root: HTMLElement) {
     page.inert = true
     setArchiveContentInert(false)
     window.clearTimeout(searchHideTimer)
-    searchHideTimer = window.setTimeout(() => { if (view === 'archive') page.hidden = true }, reduced ? 0 : 280)
+    searchHideTimer = window.setTimeout(() => { if (view !== 'search') page.hidden = true }, reduced ? 0 : 280)
+    wakeScene()
+  }
+
+  const showUpload = () => {
+    if (view === 'upload') return
+    if (view === 'search') hideSearch()
+    if (mode === 'detail') {
+      mode = 'archive'
+      detail.hidden = true
+      detail.inert = true
+      detail.setAttribute('aria-hidden', 'true')
+      archive.dataset.mode = 'archive'
+      scene?.setMode('archive')
+    }
+    if (!uploadController) uploadController = mountUploadPage(uploadHost)
+    window.clearTimeout(uploadHideTimer)
+    const page = uploadHost.querySelector<HTMLElement>('[data-upload-page]')!
+    view = 'upload'
+    cancelAnimationFrame(frame)
+    frame = 0
+    page.hidden = false
+    page.inert = false
+    setArchiveContentInert(true)
+    setNavigation('upload')
+    if (reduced) archive.dataset.view = 'upload'
+    else requestAnimationFrame(() => { if (!disposed && view === 'upload') archive.dataset.view = 'upload' })
+  }
+
+  const hideUpload = () => {
+    if (view !== 'upload') return
+    view = 'archive'
+    archive.dataset.view = 'archive'
+    setNavigation('library')
+    const page = uploadHost.querySelector<HTMLElement>('[data-upload-page]')!
+    page.inert = true
+    setArchiveContentInert(false)
+    window.clearTimeout(uploadHideTimer)
+    uploadHideTimer = window.setTimeout(() => { if (view !== 'upload') page.hidden = true }, reduced ? 0 : 300)
     wakeScene()
   }
 
@@ -644,6 +688,10 @@ export function mountAlbumArchive(root: HTMLElement) {
         }
         return
       }
+      if (view === 'upload') {
+        if (event.key === 'Escape') { event.preventDefault(); hideUpload() }
+        return
+      }
       if (mode === 'detail') {
         if (event.key === 'Escape') { event.preventDefault(); closeDetail() }
         return
@@ -664,7 +712,9 @@ export function mountAlbumArchive(root: HTMLElement) {
     }))
     root.querySelector('[data-open-selected]')?.addEventListener('click', openDetail)
     archive.querySelector('[data-nav="search"]')?.addEventListener('click', showSearch)
-    archive.querySelector('[data-nav="library"]')?.addEventListener('click', hideSearch)
+    archive.querySelector('[data-nav="upload"]')?.addEventListener('click', showUpload)
+    archive.querySelector('[data-nav="library"]')?.addEventListener('click', () => { hideSearch(); hideUpload() })
+    uploadHost.addEventListener('click', (event) => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) hideUpload() })
     window.addEventListener('keydown', onKeydown)
     const onResize = () => { scene?.resize(); wakeScene() }
     window.addEventListener('resize', onResize)
@@ -694,7 +744,9 @@ export function mountAlbumArchive(root: HTMLElement) {
   return () => {
     disposed = true
     window.clearTimeout(searchHideTimer)
+    window.clearTimeout(uploadHideTimer)
     searchController?.destroy()
+    uploadController?.destroy()
     playRequest += 1
     playbackController?.abort()
     lyricController?.abort()
