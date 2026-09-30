@@ -1,6 +1,7 @@
 import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts'
 import { mountSearchPage } from './search-page.ts'
 import { mountUploadPage } from './upload-page.ts'
+import { mountUserPage } from './user-page.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
 import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
@@ -41,7 +42,7 @@ function archiveNavigation() {
     <button type="button" data-nav="library" aria-current="page">${icons.library}<span>音乐库</span></button>
     <button type="button" data-nav="search">${icons.search}<span>搜索</span></button>
     <button type="button" data-nav="upload">${icons.upload}<span>上传音乐</span></button>
-    <button type="button" data-nav="user" disabled>${icons.user}<span>用户</span></button>
+    <button type="button" data-nav="user">${icons.user}<span>用户</span></button>
     <i aria-hidden="true"></i>
     <button type="button" data-nav="settings">${icons.settings}<span>设置</span></button>
   </nav>`
@@ -111,6 +112,7 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
     <section class="album-detail" data-album-detail hidden inert aria-hidden="true"></section>
     <div data-search-host></div>
     <div data-upload-host></div>
+    <div data-user-host></div>
     ${expandedPlayerMarkup()}
     ${playerMarkup(selected)}
   </main>`
@@ -138,12 +140,14 @@ export function mountAlbumArchive(root: HTMLElement) {
   let scene: ArchiveScene | null = null
   let sceneReady = false
   let mode: 'archive' | 'detail' = 'archive'
-  let view: 'archive' | 'search' | 'upload' = 'archive'
+  let view: 'archive' | 'search' | 'upload' | 'user' = 'archive'
   let detailIdleSince = 0
   let searchHideTimer = 0
   let uploadHideTimer = 0
+  let userHideTimer = 0
   let searchController: ReturnType<typeof mountSearchPage> | null = null
   let uploadController: ReturnType<typeof mountUploadPage> | null = null
+  let userController: ReturnType<typeof mountUserPage> | null = null
   let activeTrack: SearchItem | null = null
   let playRequest = 0
   let playbackController: AbortController | null = null
@@ -166,6 +170,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   const container = root.querySelector<HTMLElement>('[data-three-scene]')!
   const searchHost = root.querySelector<HTMLElement>('[data-search-host]')!
   const uploadHost = root.querySelector<HTMLElement>('[data-upload-host]')!
+  const userHost = root.querySelector<HTMLElement>('[data-user-host]')!
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   const setPlayerVisible = (visible: boolean) => {
@@ -504,8 +509,8 @@ export function mountAlbumArchive(root: HTMLElement) {
     if (!frame && scene && view === 'archive' && !disposed && !document.hidden) frame = requestAnimationFrame(animate)
   }
 
-  const setNavigation = (name: 'library' | 'search' | 'upload') => {
-    for (const button of archive.querySelectorAll<HTMLButtonElement>('[data-nav="library"], [data-nav="search"], [data-nav="upload"]')) {
+  const setNavigation = (name: 'library' | 'search' | 'upload' | 'user') => {
+    for (const button of archive.querySelectorAll<HTMLButtonElement>('[data-nav="library"], [data-nav="search"], [data-nav="upload"], [data-nav="user"]')) {
       if (button.dataset.nav === name) button.setAttribute('aria-current', 'page')
       else button.removeAttribute('aria-current')
     }
@@ -521,6 +526,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   const showSearch = () => {
     if (view === 'search') { searchController?.focus(); return }
     if (view === 'upload') hideUpload()
+    if (view === 'user') hideUser()
     if (mode === 'detail') {
       mode = 'archive'
       detail.hidden = true
@@ -561,6 +567,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   const showUpload = () => {
     if (view === 'upload') return
     if (view === 'search') hideSearch()
+    if (view === 'user') hideUser()
     if (mode === 'detail') {
       mode = 'archive'
       detail.hidden = true
@@ -593,6 +600,45 @@ export function mountAlbumArchive(root: HTMLElement) {
     setArchiveContentInert(false)
     window.clearTimeout(uploadHideTimer)
     uploadHideTimer = window.setTimeout(() => { if (view !== 'upload') page.hidden = true }, reduced ? 0 : 300)
+    wakeScene()
+  }
+
+  const showUser = () => {
+    if (view === 'user') return
+    if (view === 'search') hideSearch()
+    if (view === 'upload') hideUpload()
+    if (mode === 'detail') {
+      mode = 'archive'
+      detail.hidden = true
+      detail.inert = true
+      detail.setAttribute('aria-hidden', 'true')
+      archive.dataset.mode = 'archive'
+      scene?.setMode('archive')
+    }
+    if (!userController) userController = mountUserPage(userHost)
+    window.clearTimeout(userHideTimer)
+    const page = userHost.querySelector<HTMLElement>('[data-user-page]')!
+    view = 'user'
+    cancelAnimationFrame(frame)
+    frame = 0
+    page.hidden = false
+    page.inert = false
+    setArchiveContentInert(true)
+    setNavigation('user')
+    if (reduced) archive.dataset.view = 'user'
+    else requestAnimationFrame(() => { if (!disposed && view === 'user') archive.dataset.view = 'user' })
+  }
+
+  const hideUser = () => {
+    if (view !== 'user') return
+    view = 'archive'
+    archive.dataset.view = 'archive'
+    setNavigation('library')
+    const page = userHost.querySelector<HTMLElement>('[data-user-page]')!
+    page.inert = true
+    setArchiveContentInert(false)
+    window.clearTimeout(userHideTimer)
+    userHideTimer = window.setTimeout(() => { if (view !== 'user') page.hidden = true }, reduced ? 0 : 300)
     wakeScene()
   }
 
@@ -693,6 +739,10 @@ export function mountAlbumArchive(root: HTMLElement) {
         if (event.key === 'Escape') { event.preventDefault(); hideUpload() }
         return
       }
+      if (view === 'user') {
+        if (event.key === 'Escape' && !userHost.querySelector<HTMLDialogElement>('[data-user-dialog]')?.open) { event.preventDefault(); hideUser() }
+        return
+      }
       if (mode === 'detail') {
         if (event.key === 'Escape') { event.preventDefault(); closeDetail() }
         return
@@ -714,7 +764,8 @@ export function mountAlbumArchive(root: HTMLElement) {
     root.querySelector('[data-open-selected]')?.addEventListener('click', openDetail)
     archive.querySelector('[data-nav="search"]')?.addEventListener('click', showSearch)
     archive.querySelector('[data-nav="upload"]')?.addEventListener('click', showUpload)
-    archive.querySelector('[data-nav="library"]')?.addEventListener('click', () => { hideSearch(); hideUpload() })
+    archive.querySelector('[data-nav="user"]')?.addEventListener('click', showUser)
+    archive.querySelector('[data-nav="library"]')?.addEventListener('click', () => { hideSearch(); hideUpload(); hideUser() })
     uploadHost.addEventListener('click', (event) => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) hideUpload() })
     window.addEventListener('keydown', onKeydown)
     const onResize = () => { scene?.resize(); wakeScene() }
@@ -746,8 +797,10 @@ export function mountAlbumArchive(root: HTMLElement) {
     disposed = true
     window.clearTimeout(searchHideTimer)
     window.clearTimeout(uploadHideTimer)
+    window.clearTimeout(userHideTimer)
     searchController?.destroy()
     uploadController?.destroy()
+    userController?.destroy()
     playRequest += 1
     playbackController?.abort()
     lyricController?.abort()
