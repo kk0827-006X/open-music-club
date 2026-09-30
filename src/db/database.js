@@ -101,6 +101,45 @@ function initializeSchema(database) {
 
     CREATE INDEX IF NOT EXISTS index_download_logs_user_downloaded_at
       ON download_logs(user_id, downloaded_at DESC);
+
+    CREATE TABLE IF NOT EXISTS user_playlists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_user_id INTEGER NOT NULL,
+      name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
+      description TEXT CHECK (description IS NULL OR length(description) <= 500),
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS index_user_playlists_owner_created
+      ON user_playlists(owner_user_id, created_at DESC, id DESC);
+
+    CREATE TABLE IF NOT EXISTS user_playlist_tracks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      playlist_id INTEGER NOT NULL,
+      source TEXT NOT NULL CHECK (source IN ('local', 'netease')),
+      source_id TEXT NOT NULL,
+      position INTEGER NOT NULL CHECK (position >= 0),
+      added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (playlist_id) REFERENCES user_playlists(id) ON DELETE CASCADE,
+      UNIQUE (playlist_id, source, source_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS index_user_playlist_tracks_order
+      ON user_playlist_tracks(playlist_id, position, id);
+
+    CREATE TABLE IF NOT EXISTS user_liked_tracks (
+      user_id INTEGER NOT NULL,
+      source TEXT NOT NULL CHECK (source IN ('local', 'netease')),
+      source_id TEXT NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, source, source_id),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS index_user_liked_tracks_created
+      ON user_liked_tracks(user_id, created_at DESC);
   `)
 }
 

@@ -143,6 +143,18 @@ function createRateLimiters(config, createStore) {
       byIp,
       createStore?.('netease'),
     ),
+    personalLibrary: rateLimit({
+      windowMs: config.rateLimits.personalLibrary.windowMs,
+      limit: config.rateLimits.personalLibrary.limit,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false,
+      keyGenerator: (req) => `user:${req.user.id}`,
+      skip: (req) => !UNSAFE_METHODS.has(req.method),
+      ...(createStore ? { store: createStore('personalLibrary') } : {}),
+      handler(req, res) {
+        return sendSecurityError(res, 429, '请求过于频繁，请稍后再试')
+      },
+    }),
   }
 }
 
