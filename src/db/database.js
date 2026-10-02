@@ -41,6 +41,13 @@ function initializeSchema(database) {
       WHERE id = OLD.id;
     END;
 
+    CREATE TABLE IF NOT EXISTS user_profiles (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      avatar_data BLOB NOT NULL CHECK (length(avatar_data) BETWEEN 1 AND 262144),
+      avatar_version TEXT NOT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS access_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL COLLATE NOCASE,

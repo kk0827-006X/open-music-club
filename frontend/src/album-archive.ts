@@ -2,6 +2,7 @@ import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts'
 import { mountSearchPage } from './search-page.ts'
 import { mountUploadPage } from './upload-page.ts'
 import { mountUserPage } from './user-page.ts'
+import { createPersonalLibraryClient } from './personal-library-client.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
 import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
@@ -62,7 +63,7 @@ function playerMarkup(album: DemoAlbum, volume = 62, visible = false) {
     <section class="player-track" data-player-track>
       <img src="${album.coverUrl}" alt="${album.title} 封面缩略图" />
       <div><strong>${track.title}</strong><span>${album.artist}&nbsp;&nbsp;/&nbsp;&nbsp;${album.title}</span></div>
-      <b><i></i>NETEASE</b><button type="button" aria-label="收藏歌曲" aria-disabled="true">${icons.heart}</button>
+      <b><i></i>NETEASE</b><button type="button" data-player-like aria-label="收藏歌曲" aria-pressed="false" disabled>${icons.heart}</button>
     </section>
     <section class="player-timeline" data-player-progress><time>0:00</time><button type="button" data-player-progress-bar aria-label="播放进度" disabled><i></i><b></b></button><time>${track.duration.replace(/^0/, '')}</time></section>
     <section class="player-controls" data-player-controls>
@@ -172,6 +173,71 @@ export function mountAlbumArchive(root: HTMLElement) {
   const uploadHost = root.querySelector<HTMLElement>('[data-upload-host]')!
   const userHost = root.querySelector<HTMLElement>('[data-user-host]')!
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const personalLibrary = createPersonalLibraryClient()
+  let likeRequest = 0
+  let collectionBusy = false
+  let collectionTimer = 0
+  let playlistCandidate: SearchItem | null = null
+  archive.insertAdjacentHTML('beforeend', `<p class="collection-feedback" data-collection-feedback role="status" hidden></p><dialog class="user-create-dialog" data-collection-dialog aria-label="将歌曲加入歌单"><form data-collection-form><header><span>ADD TO PLAYLIST / 加入歌单</span><button type="button" data-collection-close aria-label="关闭歌单选择">×</button></header><h2>加入歌单</h2><p data-collection-message role="status"></p><label for="collection-playlist">选择自己的歌单</label><select id="collection-playlist" name="playlist" required></select><div class="user-dialog-actions"><button type="button" data-collection-close>取消</button><button type="submit">保存到歌单 →</button></div></form></dialog>`)
+  const collectionDialog = archive.querySelector<HTMLDialogElement>('[data-collection-dialog]')!
+  const collectionForm = archive.querySelector<HTMLFormElement>('[data-collection-form]')!
+  const collectionNotice = (message: string) => {
+    if (disposed) return
+    const notice = archive.querySelector<HTMLElement>('[data-collection-feedback]')!
+    notice.textContent = message; notice.hidden = false
+    window.clearTimeout(collectionTimer)
+    collectionTimer = window.setTimeout(() => { notice.hidden = true }, 5000)
+  }
+  const syncLiked = async () => {
+    const track = activeTrack
+    const current = ++likeRequest
+    const button = archive.querySelector<HTMLButtonElement>('[data-player-like]')!
+    button.disabled = true
+    if (!track) return
+    try {
+      const liked = await personalLibrary.isLiked(track)
+      if (disposed || current !== likeRequest) return
+      button.setAttribute('aria-pressed', String(liked))
+      button.setAttribute('aria-label', liked ? '取消收藏歌曲' : '收藏歌曲')
+      button.disabled = false
+    } catch (error) {
+      if (!disposed && current === likeRequest) { button.disabled = false; collectionNotice(error instanceof Error ? error.message : '收藏状态读取失败') }
+    }
+  }
+  const choosePlaylist = async (song: SearchItem) => {
+    if (collectionBusy) return
+    collectionBusy = true
+    playlistCandidate = song
+    const message = archive.querySelector<HTMLElement>('[data-collection-message]')!
+    const select = collectionForm.querySelector<HTMLSelectElement>('select')!
+    const submit = collectionForm.querySelector<HTMLButtonElement>('[type="submit"]')!
+    message.textContent = '正在读取歌单…'; select.innerHTML = ''; submit.disabled = true
+    if (!collectionDialog.open) collectionDialog.showModal()
+    try {
+      const playlists = await personalLibrary.playlists()
+      if (disposed) return
+      select.innerHTML = playlists.map((list) => `<option value="${list.id}">${escapeHtml(list.name)}</option>`).join('')
+      message.textContent = playlists.length ? `将「${song.title}」保存到歌单。` : '还没有歌单，请先到用户页面新建。'
+      submit.disabled = playlists.length === 0
+    } catch (error) { if (!disposed) message.textContent = error instanceof Error ? error.message : '歌单读取失败' }
+    finally { collectionBusy = false }
+  }
+  const onCollectionSubmit = async (event: SubmitEvent) => {
+    event.preventDefault()
+    const id = Number(new FormData(collectionForm).get('playlist'))
+    if (!playlistCandidate || !id || collectionBusy) return
+    collectionBusy = true
+    const submit = collectionForm.querySelector<HTMLButtonElement>('[type="submit"]')!
+    submit.disabled = true
+    try {
+      await personalLibrary.addTrack(id, playlistCandidate)
+      if (disposed) return
+      collectionDialog.close(); collectionNotice('歌曲已保存到歌单')
+      if (view === 'user') void userController?.refresh()
+    } catch (error) { if (!disposed) archive.querySelector<HTMLElement>('[data-collection-message]')!.textContent = error instanceof Error ? error.message : '保存失败' }
+    finally { collectionBusy = false; submit.disabled = false }
+  }
+  collectionForm.addEventListener('submit', onCollectionSubmit)
 
   const setPlayerVisible = (visible: boolean) => {
     playerVisible = visible
@@ -280,7 +346,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     const list = archive.querySelector<HTMLOListElement>('[data-queue-items]')!
     list.innerHTML = queue.items.map((item, index) => `<li${item.key === activeTrack?.key ? ' class="is-active"' : ''}>
       <button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><img src="${escapeHtml(item.coverUrl)}" alt="" /><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button>
-      <div><button type="button" data-queue-up="${escapeHtml(item.key)}" aria-label="上移 ${escapeHtml(item.title)}">↑</button><button type="button" data-queue-down="${escapeHtml(item.key)}" aria-label="下移 ${escapeHtml(item.title)}">↓</button><button type="button" data-queue-remove="${escapeHtml(item.key)}" aria-label="移除 ${escapeHtml(item.title)}">×</button></div>
+      <div><button type="button" data-queue-save="${escapeHtml(item.key)}" aria-label="将 ${escapeHtml(item.title)} 加入歌单">＋歌单</button><button type="button" data-queue-like="${escapeHtml(item.key)}" aria-label="喜爱 ${escapeHtml(item.title)}">♡</button><button type="button" data-queue-up="${escapeHtml(item.key)}" aria-label="上移 ${escapeHtml(item.title)}">↑</button><button type="button" data-queue-down="${escapeHtml(item.key)}" aria-label="下移 ${escapeHtml(item.title)}">↓</button><button type="button" data-queue-remove="${escapeHtml(item.key)}" aria-label="移除 ${escapeHtml(item.title)}">×</button></div>
     </li>`).join('')
     const expandedQueue = archive.querySelector<HTMLOListElement>('[data-expanded-queue]')!
     expandedQueue.innerHTML = queue.items.map((item, index) => `<li${item.key === activeTrack?.key ? ' class="is-active"' : ''}><button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button></li>`).join('')
@@ -300,6 +366,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   }
 
   const resetPlayerPreview = () => {
+    likeRequest += 1
     archive.querySelector<HTMLElement>('[data-global-player]')!.outerHTML =
       playerMarkup(demoAlbums[selectedIndex], Math.round(audio.volume * 100), playerVisible || playerExpanded)
     lyricRequest += 1
@@ -347,6 +414,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     audio.pause()
     audio.src = url
     activeTrack = track
+    void syncLiked()
     enqueueTrack(track)
     updatePlayer()
     requestLyrics(track)
@@ -370,6 +438,27 @@ export function mountAlbumArchive(root: HTMLElement) {
   const onPlayerClick = (event: MouseEvent) => {
     const target = event.target
     if (!(target instanceof Element)) return
+    if (target.closest('[data-collection-close]')) { collectionDialog.close(); return }
+    const save = target.closest<HTMLButtonElement>('[data-queue-save]')
+    if (save) {
+      const item = queue.items.find((entry) => entry.key === save.dataset.queueSave)
+      if (item) void choosePlaylist(item)
+      return
+    }
+    const heart = target.closest<HTMLButtonElement>('[data-player-like], [data-queue-like]')
+    if (heart) {
+      const item = heart.hasAttribute('data-player-like') ? activeTrack : queue.items.find((entry) => entry.key === heart.dataset.queueLike)
+      if (!item || heart.disabled) return
+      heart.disabled = true
+      void personalLibrary.isLiked(item).then(async (liked) => {
+        await personalLibrary.setLiked(item, !liked)
+        collectionNotice(liked ? '已取消喜爱' : '已保存到喜爱')
+        if (view === 'user') void userController?.refresh()
+        void syncLiked()
+      }).catch((error) => collectionNotice(error instanceof Error ? error.message : '收藏保存失败'))
+        .finally(() => { if (!disposed) heart.disabled = false })
+      return
+    }
     if (target.closest('[data-player-close]')) { setPlayerExpanded(false); return }
     if (target.closest('[data-player-open]')) { setPlayerExpanded(true); return }
     const queueToggle = target.closest<HTMLButtonElement>('[data-player-queue-toggle]')
@@ -615,7 +704,11 @@ export function mountAlbumArchive(root: HTMLElement) {
       archive.dataset.mode = 'archive'
       scene?.setMode('archive')
     }
-    if (!userController) userController = mountUserPage(userHost)
+    if (!userController) userController = mountUserPage(userHost, {
+      client: personalLibrary, play: playTrack, enqueue: enqueueTrack,
+      choosePlaylist: (song) => { void choosePlaylist(song) }, changed: () => { void syncLiked() },
+    })
+    void userController.refresh()
     window.clearTimeout(userHideTimer)
     const page = userHost.querySelector<HTMLElement>('[data-user-page]')!
     view = 'user'
@@ -795,6 +888,10 @@ export function mountAlbumArchive(root: HTMLElement) {
     })
   return () => {
     disposed = true
+    likeRequest += 1
+    window.clearTimeout(collectionTimer)
+    collectionForm.removeEventListener('submit', onCollectionSubmit)
+    if (collectionDialog.open) collectionDialog.close()
     window.clearTimeout(searchHideTimer)
     window.clearTimeout(uploadHideTimer)
     window.clearTimeout(userHideTimer)

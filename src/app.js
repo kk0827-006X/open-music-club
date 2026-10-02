@@ -18,6 +18,7 @@ const { createNeteaseService } = require('./services/netease.service')
 const { createLocalMusicConfig } = require('./config/localMusic')
 const { createLocalMusicRouter } = require('./routes/localMusic.routes')
 const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes')
+const { createUserProfileRouter } = require('./routes/userProfile.routes')
 const {
   createCsrfProtection,
   createHttpsEnforcement,
@@ -129,10 +130,12 @@ function createApp({
   )
   if (rateLimiters) app.use('/api/netease', rateLimiters.netease)
   app.use('/api/netease', requireLogin, createNeteaseRouter(neteaseService))
+  if (rateLimiters) app.put('/api/me/avatar', requireLogin, rateLimiters.upload)
   app.use(
     '/api/me',
     requireLogin,
     ...(rateLimiters ? [rateLimiters.personalLibrary] : []),
+    createUserProfileRouter(database),
     createPersonalLibraryRouter({ database, neteaseService }),
   )
   if (rateLimiters) {

@@ -86,7 +86,10 @@ function createPersonalLibraryRouter({ database, neteaseService }) {
     if (!playlist) return undefined
     try {
       const tracks = await service.hydrate(repository.listPlaylistTracks(database, playlist.id))
-      return res.json({ success: true, playlist: toPlaylist(playlist), tracks })
+      const liked = database.prepare('SELECT 1 FROM user_liked_tracks WHERE user_id = ? AND source = ? AND source_id = ?')
+      return res.json({ success: true, playlist: toPlaylist(playlist), tracks: tracks.map((track) => ({
+        ...track, liked: Boolean(liked.get(req.user.id, track.source, track.sourceId)),
+      })) })
     } catch (error) { return next(error) }
   })
 
@@ -149,6 +152,12 @@ function createPersonalLibraryRouter({ database, neteaseService }) {
       return errorResponse(res, 400, '曲目顺序与歌单不一致')
     }
     return res.json({ success: true })
+  })
+
+  router.get('/likes/:source/:sourceId', (req, res) => {
+    const reference = readReference(req.params.source, req.params.sourceId)
+    if (!reference) return errorResponse(res, 400, '歌曲来源或标识无效')
+    return res.json({ success: true, liked: repository.hasLike(database, req.user.id, reference.source, reference.sourceId) })
   })
 
   router.get('/likes', async (req, res, next) => {

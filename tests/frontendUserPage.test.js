@@ -6,8 +6,8 @@ const { pathToFileURL } = require('node:url')
 
 const frontend = (name) => path.resolve(__dirname, '../frontend/src', name)
 
-describe('用户页面静态界面', () => {
-  it('提供四个个人音乐入口、歌单预览与清楚的非持久化提示', async () => {
+describe('用户页面真实数据界面', () => {
+  it('提供四个个人音乐入口及持久化状态，不再显示静态预览提示', async () => {
     const { createUserPageMarkup } = await import(pathToFileURL(frontend('user-page.ts')).href)
     const markup = createUserPageMarkup()
     for (const section of ['playlists', 'favorites', 'recent', 'uploads']) {
@@ -15,7 +15,8 @@ describe('用户页面静态界面', () => {
     }
     assert.match(markup, /data-user-create/)
     assert.match(markup, /data-user-content/)
-    assert.match(markup, /仅供界面预览/)
+    assert.match(markup, /data-user-feedback/)
+    assert.doesNotMatch(markup, /仅供界面预览|刷新后不会保留/)
     assert.doesNotMatch(markup, /UI PREVIEW|user-preview-tag/)
     assert.doesNotMatch(markup, /音乐成员/)
     assert.doesNotMatch(markup.match(/<nav class="user-section-nav"[\s\S]*?<\/nav>/)?.[0] ?? '', /<span>0[1-4]<\/span>/)
@@ -37,10 +38,11 @@ describe('用户页面静态界面', () => {
     assert.equal((archive.match(/\$\{playerMarkup\(selected\)\}/g) || []).length, 1)
   })
 
-  it('用户页不请求后端或修改播放器业务逻辑', () => {
+  it('用户页通过个人音乐库适配层接入，不重新创建播放器', () => {
     const source = fs.readFileSync(frontend('user-page.ts'), 'utf8')
     assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|\/api\//)
     assert.doesNotMatch(source, /new Audio\s*\(/)
+    assert.match(source, /personal-library-client/)
   })
 
   it('头像仅接受不超过 5 MB 的 JPG、PNG 和 WebP 图片', async () => {
