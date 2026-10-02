@@ -1,11 +1,12 @@
 import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts'
-import { uiIcons as icons } from './ui-icons.ts'
+import { uiIcon, uiIcons as icons } from './ui-icons.ts'
 import { mountSearchPage } from './search-page.ts'
 import { mountUploadPage } from './upload-page.ts'
 import { mountUserPage } from './user-page.ts'
 import { createPersonalLibraryClient } from './personal-library-client.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
+import { createQueuePanelMarkup, createQueueItemsMarkup, mountQueuePanel } from './player-queue-panel.ts'
 import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
 import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
 import type { ArchiveScene } from './rhine/scene.ts'
@@ -42,7 +43,7 @@ function durationOf(album: DemoAlbum) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-function playerMarkup(album: DemoAlbum, volume = 62, visible = false) {
+export function createPlayerMarkup(album: DemoAlbum, volume = 62, visible = false) {
   const track = album.tracks[0]
   return `<footer class="global-player${visible ? ' is-visible' : ''}" data-global-player aria-label="全站播放器">
     <section class="player-track" data-player-track>
@@ -59,7 +60,7 @@ function playerMarkup(album: DemoAlbum, volume = 62, visible = false) {
     <section class="player-volume" data-player-volume>${icons.volume}<input type="range" min="0" max="100" value="${volume}" style="--volume-percent:${volume}%" data-player-volume-input aria-label="音量" /></section>
     <button type="button" class="player-queue-summary" data-player-queue-toggle aria-expanded="false" aria-controls="player-queue-panel">${icons.queue}<span data-queue-count>00</span></button>
     <div class="player-tail"><p>GOOD MUSIC<br />FOR A BRIGHTER TOMORROW.</p><button type="button" class="player-open" data-player-open aria-label="展开播放器与歌词">展开歌词 <span>${icons.open}</span></button></div>
-  </footer><aside id="player-queue-panel" class="player-queue-panel" data-player-queue-panel hidden aria-label="播放队列"><header><strong>PLAY QUEUE / 播放队列</strong><button type="button" data-queue-clear>清空</button></header><ol data-queue-items></ol><p data-queue-empty>队列为空。可从音乐库或搜索结果加入歌曲。</p></aside>`
+  </footer>`
 }
 
 function expandedPlayerMarkup() {
@@ -100,7 +101,8 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
     <div data-upload-host></div>
     <div data-user-host></div>
     ${expandedPlayerMarkup()}
-    ${playerMarkup(selected)}
+    ${createPlayerMarkup(selected)}
+    ${createQueuePanelMarkup()}
   </main>`
 }
 
@@ -159,6 +161,9 @@ export function mountAlbumArchive(root: HTMLElement) {
   const userHost = root.querySelector<HTMLElement>('[data-user-host]')!
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const personalLibrary = createPersonalLibraryClient()
+  const queuePanel = archive.querySelector<HTMLElement>('[data-player-queue-panel]')!
+  const queueLikes = new Map<string, boolean>()
+  const pendingQueueLikes = new Set<string>()
   let likeRequest = 0
   let collectionBusy = false
   let collectionTimer = 0
@@ -244,6 +249,14 @@ export function mountAlbumArchive(root: HTMLElement) {
     }, 320)
   }
 
+  const setQueueOpen = (open: boolean) => {
+    if (!open) queueInteraction.cancelDrag()
+    queuePanel.hidden = !open
+    archive.querySelector<HTMLButtonElement>('[data-player-queue-toggle]')!.setAttribute('aria-expanded', String(open))
+    if (open) { cancelPlayerHide(); setPlayerVisible(true); syncQueueLikes(true) }
+    else schedulePlayerHide()
+  }
+
   const setPlayerExpanded = (open: boolean, restoreFocus = false) => {
     playerExpanded = open
     const expanded = archive.querySelector<HTMLElement>('[data-player-expanded]')!
@@ -251,8 +264,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     expanded.inert = !open
     expanded.setAttribute('aria-hidden', String(!open))
     if (open) {
-      archive.querySelector<HTMLElement>('[data-player-queue-panel]')!.hidden = true
-      archive.querySelector<HTMLButtonElement>('[data-player-queue-toggle]')!.setAttribute('aria-expanded', 'false')
+      setQueueOpen(false)
       cancelPlayerHide()
       setPlayerVisible(true)
       archive.querySelector<HTMLButtonElement>('[data-player-close]')?.focus()
@@ -326,13 +338,11 @@ export function mountAlbumArchive(root: HTMLElement) {
     ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '0:00'
 
   const updateQueue = () => {
+    queueInteraction.cancelDrag()
     const count = String(queue.items.length).padStart(2, '0')
     archive.querySelectorAll('[data-queue-count]').forEach((element) => { element.textContent = count })
     const list = archive.querySelector<HTMLOListElement>('[data-queue-items]')!
-    list.innerHTML = queue.items.map((item, index) => `<li${item.key === activeTrack?.key ? ' class="is-active"' : ''}>
-      <button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><img src="${escapeHtml(item.coverUrl)}" alt="" /><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button>
-      <div><button type="button" data-queue-save="${escapeHtml(item.key)}" aria-label="将 ${escapeHtml(item.title)} 加入歌单">${icons.plus}歌单</button><button type="button" data-queue-like="${escapeHtml(item.key)}" aria-label="喜爱 ${escapeHtml(item.title)}">${icons.heart}</button><button type="button" data-queue-up="${escapeHtml(item.key)}" aria-label="上移 ${escapeHtml(item.title)}">${icons.up}</button><button type="button" data-queue-down="${escapeHtml(item.key)}" aria-label="下移 ${escapeHtml(item.title)}">${icons.down}</button><button type="button" data-queue-remove="${escapeHtml(item.key)}" aria-label="移除 ${escapeHtml(item.title)}">${icons.close}</button></div>
-    </li>`).join('')
+    list.innerHTML = createQueueItemsMarkup(queue.items, activeTrack?.key, queueLikes)
     const expandedQueue = archive.querySelector<HTMLOListElement>('[data-expanded-queue]')!
     expandedQueue.innerHTML = queue.items.map((item, index) => `<li${item.key === activeTrack?.key ? ' class="is-active"' : ''}><button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button></li>`).join('')
     archive.querySelector<HTMLElement>('[data-expanded-queue-empty]')!.hidden = queue.items.length > 0
@@ -343,6 +353,42 @@ export function mountAlbumArchive(root: HTMLElement) {
     )
     archive.querySelector<HTMLButtonElement>('[data-player-previous]')!.disabled = !activeTrack || !queue.previous(activeTrack.key)
     archive.querySelector<HTMLButtonElement>('[data-player-next]')!.disabled = !activeTrack || !queue.next(activeTrack.key)
+    if (!queuePanel.hidden) syncQueueLikes()
+  }
+
+  const queueInteraction = mountQueuePanel(queuePanel, {
+    reduced, toggle: () => archive.querySelector('[data-player-queue-toggle]'), close: () => setQueueOpen(false),
+    reorder(key, index) {
+      let current = queue.items.findIndex(item => item.key === key)
+      if (current < 0) return
+      while (current !== index) { const direction = index > current ? 1 : -1; queue.move(key, direction); current += direction }
+      updateQueue()
+      queuePanel.querySelector<HTMLElement>('[data-queue-order-status]')!.textContent = `歌曲已移动到第 ${index + 1} 位`
+    },
+  })
+
+  const renderQueueLikes = () => {
+    queuePanel.querySelectorAll<HTMLButtonElement>('[data-queue-like]').forEach(button => {
+      const key = button.dataset.queueLike!
+      const item = queue.items.find(entry => entry.key === key)
+      if (!item || !queueLikes.has(key)) return
+      const liked = queueLikes.get(key) === true
+      button.setAttribute('aria-pressed', String(liked))
+      button.setAttribute('aria-label', `${liked ? '取消收藏' : '收藏'} ${item.title}`)
+      button.title = liked ? '取消收藏' : '收藏'
+      button.innerHTML = uiIcon('heart', liked)
+      button.disabled = pendingQueueLikes.has(key)
+    })
+  }
+  const syncQueueLikes = (refresh = false) => {
+    for (const item of queue.items) {
+      if (pendingQueueLikes.has(item.key) || (!refresh && queueLikes.has(item.key))) continue
+      pendingQueueLikes.add(item.key)
+      void personalLibrary.isLiked(item).then(liked => { if (!disposed) queueLikes.set(item.key, liked) })
+        .catch(error => collectionNotice(error instanceof Error ? error.message : '收藏状态读取失败'))
+        .finally(() => { pendingQueueLikes.delete(item.key); if (!disposed) renderQueueLikes() })
+    }
+    renderQueueLikes()
   }
 
   const enqueueTrack = (track: SearchItem) => {
@@ -353,7 +399,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   const resetPlayerPreview = () => {
     likeRequest += 1
     archive.querySelector<HTMLElement>('[data-global-player]')!.outerHTML =
-      playerMarkup(demoAlbums[selectedIndex], Math.round(audio.volume * 100), playerVisible || playerExpanded)
+      createPlayerMarkup(demoAlbums[selectedIndex], Math.round(audio.volume * 100), playerVisible || playerExpanded)
     lyricRequest += 1
     lyricController?.abort()
     lyricLines = []
@@ -434,36 +480,36 @@ export function mountAlbumArchive(root: HTMLElement) {
     if (heart) {
       const item = heart.hasAttribute('data-player-like') ? activeTrack : queue.items.find((entry) => entry.key === heart.dataset.queueLike)
       if (!item || heart.disabled) return
+      if (pendingQueueLikes.has(item.key)) return
+      pendingQueueLikes.add(item.key)
       heart.disabled = true
+      renderQueueLikes()
       void personalLibrary.isLiked(item).then(async (liked) => {
         await personalLibrary.setLiked(item, !liked)
+        queueLikes.set(item.key, !liked)
         collectionNotice(liked ? '已取消喜爱' : '已保存到喜爱')
         if (view === 'user') void userController?.refresh()
         void syncLiked()
       }).catch((error) => collectionNotice(error instanceof Error ? error.message : '收藏保存失败'))
-        .finally(() => { if (!disposed) heart.disabled = false })
+        .finally(() => { pendingQueueLikes.delete(item.key); if (!disposed) { heart.disabled = false; renderQueueLikes() } })
       return
     }
     if (target.closest('[data-player-close]')) { setPlayerExpanded(false); return }
     if (target.closest('[data-player-open]')) { setPlayerExpanded(true); return }
     const queueToggle = target.closest<HTMLButtonElement>('[data-player-queue-toggle]')
     if (queueToggle) {
-      const panel = archive.querySelector<HTMLElement>('[data-player-queue-panel]')!
-      panel.hidden = !panel.hidden
-      setPlayerVisible(true)
-      if (panel.hidden) schedulePlayerHide()
-      archive.querySelector<HTMLButtonElement>('[data-player-queue-toggle]')!.setAttribute('aria-expanded', String(!panel.hidden))
+      setQueueOpen(queuePanel.hidden)
       return
     }
-    const queueAction = target.closest<HTMLButtonElement>('[data-queue-play], [data-queue-up], [data-queue-down], [data-queue-remove]')
+    const queueAction = target.closest<HTMLButtonElement>('[data-queue-play], [data-queue-remove]')
     if (queueAction) {
       const key = Object.values(queueAction.dataset).find((value) => value?.includes(':'))
       if (!key) return
-      if (queueAction.hasAttribute('data-queue-up')) queue.move(key, -1)
-      else if (queueAction.hasAttribute('data-queue-down')) queue.move(key, 1)
-      else if (queueAction.hasAttribute('data-queue-remove')) {
+      if (queueAction.hasAttribute('data-queue-remove')) {
         queue.remove(key)
         if (activeTrack?.key === key) {
+          playRequest += 1
+          playbackController?.abort()
           audio.pause()
           audio.removeAttribute('src')
           activeTrack = null
@@ -478,10 +524,13 @@ export function mountAlbumArchive(root: HTMLElement) {
     }
     if (target.closest('[data-queue-clear]')) {
       queue.clear()
+      playRequest += 1
+      playbackController?.abort()
       audio.pause()
       audio.removeAttribute('src')
       activeTrack = null
       resetPlayerPreview()
+      setQueueOpen(false)
       return
     }
     const albumPlay = target.closest<HTMLButtonElement>('[data-album-play]')
@@ -773,7 +822,7 @@ export function mountAlbumArchive(root: HTMLElement) {
       const player = root.querySelector<HTMLElement>('[data-global-player]')
       if (information) information.outerHTML = albumInformation(album, selectedIndex)
       if (player && !activeTrack) {
-        player.outerHTML = playerMarkup(album, Math.round(audio.volume * 100), playerVisible || playerExpanded)
+        player.outerHTML = createPlayerMarkup(album, Math.round(audio.volume * 100), playerVisible || playerExpanded)
         updateQueue()
       }
       const counter = root.querySelector('[data-album-counter]')
@@ -873,6 +922,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     })
   return () => {
     disposed = true
+    queueInteraction.destroy()
     likeRequest += 1
     window.clearTimeout(collectionTimer)
     collectionForm.removeEventListener('submit', onCollectionSubmit)

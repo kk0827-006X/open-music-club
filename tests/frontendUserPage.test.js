@@ -35,7 +35,7 @@ describe('用户页面真实数据界面', () => {
     assert.match(archive, /\[data-nav="user"\]'\)\?\.addEventListener\('click', showUser\)/)
     assert.match(css, /\.user-page\s*\{[^}]*grid-template-columns/)
     assert.match(css, /\.album-archive\[data-view="user"\] \.user-page/)
-    assert.equal((archive.match(/\$\{playerMarkup\(selected\)\}/g) || []).length, 1)
+    assert.equal((archive.match(/\$\{createPlayerMarkup\(selected\)\}/g) || []).length, 1)
   })
 
   it('用户页通过个人音乐库适配层接入，不重新创建播放器', () => {
