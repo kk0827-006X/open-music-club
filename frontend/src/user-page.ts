@@ -3,12 +3,20 @@ import { demoAlbums } from './album-data.ts'
 type Section = 'playlists' | 'favorites' | 'recent' | 'uploads'
 type PreviewList = { id: number; title: string; note: string; cover: string }
 
-const sections: { id: Section; number: string; label: string; english: string }[] = [
-  { id: 'playlists', number: '01', label: '歌单', english: 'PLAYLISTS' },
-  { id: 'favorites', number: '02', label: '喜爱', english: 'FAVORITES' },
-  { id: 'recent', number: '03', label: '最近播放', english: 'RECENTLY PLAYED' },
-  { id: 'uploads', number: '04', label: '我的上传', english: 'MY UPLOADS' },
+const sections: { id: Section; label: string; english: string }[] = [
+  { id: 'playlists', label: '歌单', english: 'PLAYLISTS' },
+  { id: 'favorites', label: '喜爱', english: 'FAVORITES' },
+  { id: 'recent', label: '最近播放', english: 'RECENTLY PLAYED' },
+  { id: 'uploads', label: '我的上传', english: 'MY UPLOADS' },
 ]
+
+const LISTS_PER_PAGE = 3
+
+export function validateAvatarFile(file: Pick<File, 'type' | 'size'>): string | null {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return '请选择 JPG、PNG 或 WebP 图片。'
+  if (file.size === 0 || file.size > 5 * 1024 * 1024) return '请选择大小不超过 5 MB 的有效图片。'
+  return null
+}
 
 const initialLists: PreviewList[] = [
   { id: 1, title: '深夜留声', note: '静下来，听见夜晚的形状', cover: demoAlbums[1].coverUrl },
@@ -25,16 +33,17 @@ export function createUserPageMarkup() {
     <aside class="user-sidebar">
       <p class="user-eyebrow">MEMBER ARCHIVE / 个人音乐空间</p>
       <div class="user-profile">
-        <div class="user-avatar" aria-label="默认用户头像"><span>OMC</span><i></i></div>
-        <div><small>REGISTERED MEMBER / 社区成员</small><h2>音乐成员</h2><p>让喜欢的声音，在这里留下痕迹。</p></div>
+        <button type="button" class="user-avatar" data-user-avatar-choose aria-label="选择本地图片作为头像"><span data-user-avatar-placeholder>OMC</span><img data-user-avatar-image hidden alt="用户头像" /><b>更换头像</b><i></i></button>
+        <input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" data-user-avatar-file aria-label="选择头像图片" tabindex="-1" />
       </div>
-      <nav class="user-section-nav" aria-label="个人音乐分类">${sections.map(({ id, number, label, english }, index) => `
-        <button type="button" data-user-tab="${id}"${index === 0 ? ' aria-current="page"' : ''}><span>${number}</span><strong>${label}</strong><small>${english}</small><b aria-hidden="true">↗</b></button>`).join('')}
+      <div class="user-identity"><small>REGISTERED MEMBER / 社区成员</small><p data-user-avatar-feedback role="status">点击头像更换图片</p></div>
+      <nav class="user-section-nav" aria-label="个人音乐分类">${sections.map(({ id, label, english }, index) => `
+        <button type="button" data-user-tab="${id}"${index === 0 ? ' aria-current="page"' : ''}><strong>${label}</strong><small>${english}</small><b aria-hidden="true">↗</b></button>`).join('')}
       </nav>
       <p class="user-sidebar-foot"><i></i> YOUR MUSIC, YOUR ARCHIVE<br />音乐从这里开始归档</p>
     </aside>
     <div class="user-content-shell">
-      <header class="user-content-header"><div><p>PERSONAL COLLECTION / 个人收藏</p><h2 data-user-heading>我的歌单</h2><span data-user-subtitle>把喜欢的音乐，收进自己的档案。</span></div><span class="user-preview-tag">UI PREVIEW / 界面预览</span></header>
+      <header class="user-content-header"><div><p>PERSONAL COLLECTION / 个人收藏</p><h2 data-user-heading>我的歌单</h2><span data-user-subtitle>把喜欢的音乐，收进自己的档案。</span></div></header>
       <div class="user-content" data-user-content aria-live="polite"></div>
       <p class="user-preview-note">仅供界面预览 · 本页尚未接入个人音乐数据，所有新建与编辑操作刷新后不会保留。</p>
     </div>
@@ -44,13 +53,15 @@ export function createUserPageMarkup() {
   </section>`
 }
 
-function renderPlaylists(lists: PreviewList[], selectedId: number | null) {
+function renderPlaylists(lists: PreviewList[], selectedId: number | null, pageIndex: number) {
   if (selectedId !== null) {
     const list = lists.find((item) => item.id === selectedId)
     if (!list) return ''
     return `<div class="user-list-detail"><button class="user-back" type="button" data-user-back>← 返回歌单</button><div class="user-list-detail-main"><img src="${list.cover}" alt="${escapeHtml(list.title)} 的示意封面" /><div><small>PLAYLIST / PERSONAL ARCHIVE</small><h3>${escapeHtml(list.title)}</h3><p>${escapeHtml(list.note)}</p><span>界面示例 · 暂无已保存歌曲</span><div class="user-list-detail-actions"><button type="button" data-user-rename="${list.id}">重命名</button><button type="button" data-user-delete="${list.id}">删除预览</button></div></div></div><div class="user-list-empty"><span>01 / TRACKS</span><p>歌单还是空的。接入个人音乐数据后，可以从歌曲或播放队列添加。</p></div></div>`
   }
-  return `<div class="user-collection-intro"><span>01 / MY PLAYLISTS</span><strong>${String(lists.length).padStart(2, '0')} <small>份声音档案示意</small></strong></div><div class="user-playlist-grid">${lists.map((list, index) => `<button type="button" class="user-playlist-card${index === 0 ? ' is-featured' : ''}" data-user-list="${list.id}"><span class="user-playlist-art"><img src="${list.cover}" alt="" loading="lazy" /><i>PREVIEW / ${String(index + 1).padStart(2, '0')}</i></span><span class="user-playlist-meta"><strong>${escapeHtml(list.title)}</strong><small>${escapeHtml(list.note)}</small><b aria-hidden="true">↗</b></span></button>`).join('')}<button type="button" class="user-new-card" data-user-create><span>＋</span><strong>新建歌单</strong><small>CREATE A NEW ARCHIVE</small></button></div>`
+  const pageCount = Math.max(1, Math.ceil(lists.length / LISTS_PER_PAGE))
+  const visibleLists = lists.slice(pageIndex * LISTS_PER_PAGE, (pageIndex + 1) * LISTS_PER_PAGE)
+  return `<div class="user-collection-intro"><span>MY PLAYLISTS</span><strong>${String(lists.length).padStart(2, '0')} <small>份声音档案示意</small></strong></div><div class="user-playlist-grid">${visibleLists.map((list, index) => `<button type="button" class="user-playlist-card${index === 0 ? ' is-featured' : ''}" data-user-list="${list.id}"><span class="user-playlist-art"><img src="${list.cover}" alt="" loading="lazy" /><i>PREVIEW</i></span><span class="user-playlist-meta"><strong>${escapeHtml(list.title)}</strong><small>${escapeHtml(list.note)}</small><b aria-hidden="true">↗</b></span></button>`).join('')}<button type="button" class="user-new-card" data-user-create><span>＋</span><strong>新建歌单</strong><small>CREATE A NEW ARCHIVE</small></button></div><nav class="user-pagination" aria-label="歌单翻页"><button type="button" data-user-page-step="-1" aria-label="上一页歌单"${pageIndex === 0 ? ' disabled' : ''}>←</button><span>${pageIndex + 1} / ${pageCount}</span><button type="button" data-user-page-step="1" aria-label="下一页歌单"${pageIndex + 1 === pageCount ? ' disabled' : ''}>→</button></nav>`
 }
 
 function renderEmpty(section: Exclude<Section, 'playlists'>) {
@@ -68,12 +79,19 @@ export function mountUserPage(host: HTMLElement) {
   const content = page.querySelector<HTMLElement>('[data-user-content]')!
   const dialog = page.querySelector<HTMLDialogElement>('[data-user-dialog]')!
   const form = page.querySelector<HTMLFormElement>('[data-user-create-form]')!
+  const avatarInput = page.querySelector<HTMLInputElement>('[data-user-avatar-file]')!
+  const avatarImage = page.querySelector<HTMLImageElement>('[data-user-avatar-image]')!
+  const avatarFeedback = page.querySelector<HTMLElement>('[data-user-avatar-feedback]')!
   let section: Section = 'playlists'
   let selectedId: number | null = null
   let lists = [...initialLists]
   let nextId = 4
   let editingId: number | null = null
   let changeTimer = 0
+  let pageIndex = 0
+  let avatarUrl: string | null = null
+  let avatarRequest = 0
+  const pendingAvatarUrls = new Set<string>()
 
   const render = () => {
     const active = sections.find((item) => item.id === section)!
@@ -84,11 +102,15 @@ export function mountUserPage(host: HTMLElement) {
       else button.removeAttribute('aria-current')
     })
     content.classList.remove('is-changing')
-    content.innerHTML = section === 'playlists' ? renderPlaylists(lists, selectedId) : renderEmpty(section)
+    pageIndex = Math.min(pageIndex, Math.max(0, Math.ceil(lists.length / LISTS_PER_PAGE) - 1))
+    content.innerHTML = section === 'playlists' ? renderPlaylists(lists, selectedId, pageIndex) : renderEmpty(section)
   }
 
   const onClick = (event: MouseEvent) => {
     const target = event.target instanceof Element ? event.target : null
+    if (target?.closest('[data-user-avatar-choose]')) { avatarInput.click(); return }
+    const pageStep = target?.closest<HTMLButtonElement>('[data-user-page-step]')
+    if (pageStep && !pageStep.disabled) { pageIndex += Number(pageStep.dataset.userPageStep); render(); return }
     const tab = target?.closest<HTMLButtonElement>('[data-user-tab]')
     if (tab) {
       const next = tab.dataset.userTab as Section
@@ -96,6 +118,7 @@ export function mountUserPage(host: HTMLElement) {
       content.classList.add('is-changing')
       section = next
       selectedId = null
+      pageIndex = 0
       window.clearTimeout(changeTimer)
       changeTimer = window.setTimeout(render, 130)
       return
@@ -128,6 +151,33 @@ export function mountUserPage(host: HTMLElement) {
     const remove = target?.closest<HTMLButtonElement>('[data-user-delete]')
     if (remove) { lists = lists.filter((entry) => entry.id !== Number(remove.dataset.userDelete)); selectedId = null; render() }
   }
+  const onAvatarChange = async () => {
+    const file = avatarInput.files?.[0]
+    avatarInput.value = ''
+    if (!file) return
+    const request = ++avatarRequest
+    const error = validateAvatarFile(file)
+    if (error) { avatarFeedback.textContent = error; return }
+    const candidateUrl = URL.createObjectURL(file)
+    pendingAvatarUrls.add(candidateUrl)
+    try {
+      const image = new Image()
+      image.src = candidateUrl
+      await image.decode()
+      if (request !== avatarRequest) return
+      if (avatarUrl) URL.revokeObjectURL(avatarUrl)
+      avatarUrl = candidateUrl
+      pendingAvatarUrls.delete(candidateUrl)
+      avatarImage.src = candidateUrl
+      avatarImage.hidden = false
+      page.querySelector<HTMLElement>('[data-user-avatar-placeholder]')!.hidden = true
+      avatarFeedback.textContent = '头像已更新 · 仅本次页面有效'
+    } catch {
+      if (request === avatarRequest) avatarFeedback.textContent = '图片无法读取，请选择其他图片。'
+    } finally {
+      if (pendingAvatarUrls.delete(candidateUrl)) URL.revokeObjectURL(candidateUrl)
+    }
+  }
   const onSubmit = (event: SubmitEvent) => {
     event.preventDefault()
     const name = new FormData(form).get('name')?.toString().trim()
@@ -144,10 +194,23 @@ export function mountUserPage(host: HTMLElement) {
     form.reset()
     editingId = null
     section = 'playlists'
+    pageIndex = 0
     render()
   }
   page.addEventListener('click', onClick)
   form.addEventListener('submit', onSubmit)
+  avatarInput.addEventListener('change', onAvatarChange)
   render()
-  return { destroy: () => { window.clearTimeout(changeTimer); page.removeEventListener('click', onClick); form.removeEventListener('submit', onSubmit); if (dialog.open) dialog.close(); host.innerHTML = '' } }
+  return { destroy: () => {
+    window.clearTimeout(changeTimer)
+    avatarRequest += 1
+    if (avatarUrl) URL.revokeObjectURL(avatarUrl)
+    for (const url of pendingAvatarUrls) URL.revokeObjectURL(url)
+    pendingAvatarUrls.clear()
+    page.removeEventListener('click', onClick)
+    form.removeEventListener('submit', onSubmit)
+    avatarInput.removeEventListener('change', onAvatarChange)
+    if (dialog.open) dialog.close()
+    host.innerHTML = ''
+  } }
 }

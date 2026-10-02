@@ -16,6 +16,11 @@ describe('用户页面静态界面', () => {
     assert.match(markup, /data-user-create/)
     assert.match(markup, /data-user-content/)
     assert.match(markup, /仅供界面预览/)
+    assert.doesNotMatch(markup, /UI PREVIEW|user-preview-tag/)
+    assert.doesNotMatch(markup, /音乐成员/)
+    assert.doesNotMatch(markup.match(/<nav class="user-section-nav"[\s\S]*?<\/nav>/)?.[0] ?? '', /<span>0[1-4]<\/span>/)
+    assert.match(markup, /data-user-avatar-choose/)
+    assert.match(markup, /type="file"[^>]*data-user-avatar-file/)
     assert.doesNotMatch(markup, /<audio|data-global-player/)
   })
 
@@ -36,5 +41,15 @@ describe('用户页面静态界面', () => {
     const source = fs.readFileSync(frontend('user-page.ts'), 'utf8')
     assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|\/api\//)
     assert.doesNotMatch(source, /new Audio\s*\(/)
+  })
+
+  it('头像仅接受不超过 5 MB 的 JPG、PNG 和 WebP 图片', async () => {
+    const { validateAvatarFile } = await import(pathToFileURL(frontend('user-page.ts')).href)
+    for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
+      assert.equal(validateAvatarFile({ type, size: 5 * 1024 * 1024 }), null)
+    }
+    assert.match(validateAvatarFile({ type: 'image/svg+xml', size: 100 }), /JPG、PNG 或 WebP/)
+    assert.match(validateAvatarFile({ type: 'image/png', size: 5 * 1024 * 1024 + 1 }), /5 MB/)
+    assert.match(validateAvatarFile({ type: 'image/png', size: 0 }), /有效图片/)
   })
 })
