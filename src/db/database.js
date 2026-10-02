@@ -147,6 +147,11 @@ function initializeSchema(database) {
 
     CREATE INDEX IF NOT EXISTS index_user_liked_tracks_created
       ON user_liked_tracks(user_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS user_playback_queues (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      tracks_json TEXT NOT NULL CHECK (json_valid(tracks_json) AND length(tracks_json) <= 12000)
+    );
   `)
 }
 

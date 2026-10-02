@@ -3,9 +3,10 @@ import { uiIcon, uiIcons as icons } from './ui-icons.ts'
 import { mountSearchPage } from './search-page.ts'
 import { mountUploadPage } from './upload-page.ts'
 import { mountUserPage } from './user-page.ts'
-import { createPersonalLibraryClient } from './personal-library-client.ts'
+import { createPersonalLibraryClient, toPersonalSong } from './personal-library-client.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
+import { createQueuePersistence } from './queue-persistence.ts'
 import { createQueuePanelMarkup, createQueueItemsMarkup, mountQueuePanel } from './player-queue-panel.ts'
 import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
 import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
@@ -338,6 +339,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '0:00'
 
   const updateQueue = () => {
+    queuePersistence.changed()
     queueInteraction.cancelDrag()
     const count = String(queue.items.length).padStart(2, '0')
     archive.querySelectorAll('[data-queue-count]').forEach((element) => { element.textContent = count })
@@ -392,9 +394,26 @@ export function mountAlbumArchive(root: HTMLElement) {
   }
 
   const enqueueTrack = (track: SearchItem) => {
+    if (queue.items.length >= 500 && !queue.items.some(item => item.key === track.key)) {
+      collectionNotice('播放队列最多保存 500 首，请先移除部分歌曲')
+      return
+    }
     queue.add(track)
     updateQueue()
   }
+
+  const queuePersistence = createQueuePersistence({
+    read: () => queue.items,
+    load: async () => (await personalLibrary.queue()).map(toPersonalSong),
+    save: tracks => personalLibrary.saveQueue(tracks),
+    restore: tracks => { queue.restore(tracks); updateQueue() },
+    notice: collectionNotice,
+  })
+  const retryQueue = () => { void queuePersistence.retry() }
+  const flushQueue = () => { void queuePersistence.flush() }
+  window.addEventListener('online', retryQueue)
+  window.addEventListener('pagehide', flushQueue)
+  void queuePersistence.start()
 
   const resetPlayerPreview = () => {
     likeRequest += 1
@@ -922,6 +941,9 @@ export function mountAlbumArchive(root: HTMLElement) {
     })
   return () => {
     disposed = true
+    queuePersistence.destroy()
+    window.removeEventListener('online', retryQueue)
+    window.removeEventListener('pagehide', flushQueue)
     queueInteraction.destroy()
     likeRequest += 1
     window.clearTimeout(collectionTimer)

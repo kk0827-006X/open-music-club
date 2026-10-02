@@ -1,5 +1,6 @@
 const express = require('express')
 const repository = require('../db/personalLibrary')
+const playbackQueue = require('../db/playbackQueue')
 const { createPersonalLibraryService, SourceLookupError } = require('../services/personalLibrary.service')
 
 function parseId(value) {
@@ -49,6 +50,25 @@ function toPlaylist(row) {
 function createPersonalLibraryRouter({ database, neteaseService }) {
   const router = express.Router()
   const service = createPersonalLibraryService({ database, neteaseService })
+
+  router.get('/queue', async (req, res, next) => {
+    try {
+      const tracks = await service.hydrate(playbackQueue.readQueue(database, req.user.id))
+      res.set('Cache-Control', 'no-store')
+      return res.json({ success: true, tracks })
+    } catch (error) { return next(error) }
+  })
+
+  router.put('/queue', (req, res) => {
+    const input = req.body?.tracks
+    if (!Array.isArray(input) || input.length > 500) return errorResponse(res, 400, '播放队列无效，最多保存 500 首')
+    const tracks = input.map(track => readReference(track?.source, track?.sourceId))
+    if (tracks.some(track => !track) || new Set(tracks.map(track => `${track.source}:${track.sourceId}`)).size !== tracks.length) {
+      return errorResponse(res, 400, '歌曲来源、ID 或队列顺序无效')
+    }
+    playbackQueue.saveQueue(database, req.user.id, tracks)
+    return res.json({ success: true })
+  })
 
   function ownedPlaylist(req, res) {
     const id = parseId(req.params.id)

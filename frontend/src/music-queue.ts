@@ -6,7 +6,7 @@ export class MusicQueue {
   get items(): readonly SearchItem[] { return this.entries }
 
   add(item: SearchItem) {
-    if (item.kind !== 'song' || this.entries.some((entry) => entry.key === item.key)) return
+    if (item.kind !== 'song' || this.entries.length >= 500 || this.entries.some((entry) => entry.key === item.key)) return
     this.entries.push(item)
   }
 
@@ -32,4 +32,9 @@ export class MusicQueue {
   }
 
   clear() { this.entries = [] }
+
+  restore(items: readonly SearchItem[]) {
+    this.entries = []
+    items.forEach(item => this.add(item))
+  }
 }

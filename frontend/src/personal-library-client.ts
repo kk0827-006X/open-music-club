@@ -21,11 +21,13 @@ export function toPersonalSong(track: PersonalTrack): SearchItem {
 }
 
 export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.bind(globalThis)) {
-  const request = async <T>(url: string, method = 'GET', body?: object | FormData): Promise<T> => {
+  let queueCsrfToken: string | undefined
+  const request = async <T>(url: string, method = 'GET', body?: object | FormData, keepalive = false, preparedToken?: string): Promise<T> => {
     const headers: Record<string, string> = {}
     if (method !== 'GET') {
-      // 每次写操作获取当前 Session 的令牌，登录重建会话后不复用旧令牌。
-      const token = await request<{ csrfToken: string }>('/api/security/csrf-token')
+      // 普通写操作读取当前会话令牌；队列使用预取令牌，失效后重新获取。
+      const token = preparedToken ? { csrfToken: preparedToken }
+        : await request<{ csrfToken: string }>('/api/security/csrf-token', 'GET', undefined, keepalive)
       if (!token.csrfToken) throw new Error('无法建立安全会话，请重新登录')
       headers['X-CSRF-Token'] = token.csrfToken
     }
@@ -34,6 +36,7 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
     let response
     try {
       response = await fetcher(url, { method, credentials: 'same-origin', cache: 'no-store', headers,
+        ...(keepalive ? { keepalive: true } : {}),
         ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}) })
     } catch { throw new Error('无法连接服务器，请稍后重试') }
     if (!response.ok) {
@@ -45,7 +48,29 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
     }
     try { return await response.json() as T } catch { throw new Error('服务器响应异常，请稍后重试') }
   }
+  const prepareQueueToken = async () => {
+    queueCsrfToken = (await request<{ csrfToken: string }>('/api/security/csrf-token', 'GET', undefined, true)).csrfToken
+    if (!queueCsrfToken) throw new Error('无法建立安全会话，请重新登录')
+    return queueCsrfToken
+  }
   return {
+    queue: async () => {
+      // 登录后的客户端只保留本会话令牌；提前准备，关页时无需先等另一个请求。
+      const [queue] = await Promise.all([request<{ tracks: PersonalTrack[] }>('/api/me/queue'), prepareQueueToken()])
+      return queue.tracks
+    },
+    saveQueue: async (tracks: readonly TrackReference[]) => {
+      const token = queueCsrfToken || await prepareQueueToken()
+      try {
+        return await request('/api/me/queue', 'PUT', {
+          tracks: tracks.map(track => ({ source: track.source, sourceId: track.sourceId })),
+        }, true, token)
+      } catch (error) {
+        // 认证会话变更时弃用旧令牌；由队列同步器提示并在下一次重试重新获取。
+        if (error instanceof PersonalLibraryError && [401, 403].includes(error.status)) queueCsrfToken = undefined
+        throw error
+      }
+    },
     profile: async () => (await request<{ profile: UserProfile }>('/api/me/profile')).profile,
     uploadAvatar: async (file: File) => {
       const data = new FormData()
