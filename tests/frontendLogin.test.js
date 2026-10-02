@@ -59,4 +59,14 @@ describe('静态登录页面', () => {
       'M 100 60 A 40 40 0 0 1 100 140',
     )
   })
+
+  it('密码框提供真实眼睛图标及可识别的保持登录复选框', async () => {
+    const { createLoginMarkup, passwordEyeMarkup } = await import(frontendModule('login-page.ts'))
+    const markup = createLoginMarkup()
+    assert.match(markup, /data-remember-me/)
+    assert.match(markup, /aria-pressed="false"/)
+    assert.match(passwordEyeMarkup(false), /<svg/)
+    assert.notEqual(passwordEyeMarkup(false), passwordEyeMarkup(true))
+    assert.doesNotMatch(markup, />◉<\/button>/)
+  })
 })

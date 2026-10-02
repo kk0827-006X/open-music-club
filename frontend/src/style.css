@@ -193,7 +193,11 @@ p, h1, h2 { margin: 0; }
   color: #77776f;
   cursor: pointer;
   opacity: .65;
+  display: grid;
+  place-items: center;
+  transition: color .2s ease, opacity .2s ease;
 }
+.reveal-password:hover, .reveal-password:focus-visible { opacity: 1; }
 .reveal-password.is-visible { color: var(--amber); opacity: 1; }
 
 .form-options {

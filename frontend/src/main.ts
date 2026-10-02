@@ -1,5 +1,5 @@
 import './style.css'
-import { loginAndVerify } from './auth-client.ts'
+import { loginAndVerify, restoreSession } from './auth-client.ts'
 import { mountAlbumArchive } from './album-archive.ts'
 import { mountAuthorizedSequence } from './authorized-sequence.ts'
 import { mountEntryPage } from './entry-page.ts'
@@ -9,20 +9,29 @@ const app = document.querySelector<HTMLElement>('#app')
 
 if (app) {
   let cleanup: () => void = () => undefined
+  const showAuthorized = (role: 'admin' | 'user') => {
+    cleanup()
+    cleanup = mountAuthorizedSequence(app, role, () => {
+      cleanup()
+      cleanup = mountAlbumArchive(app)
+    })
+  }
   const showLogin = () => {
     cleanup()
     cleanup = mountLoginPage(app, async (credentials) => {
       const result = await loginAndVerify(credentials)
       window.setTimeout(() => {
-        cleanup()
-        cleanup = mountAuthorizedSequence(app, result.user.role, () => {
-          cleanup()
-          cleanup = mountAlbumArchive(app)
-        })
+        showAuthorized(result.user.role)
       }, 1_150)
       return { role: result.user.role }
     })
   }
-  cleanup = mountEntryPage(app, showLogin)
+  cleanup = mountEntryPage(app, () => {
+    // 保留点击进入及原版授权动画；仅有效会话可以跳过密码表单。
+    void restoreSession().then((user) => {
+      if (user) showAuthorized(user.role)
+      else showLogin()
+    })
+  })
   app.dataset.ready = 'true'
 }

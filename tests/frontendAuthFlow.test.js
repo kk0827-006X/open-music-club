@@ -57,6 +57,7 @@ describe('前端真实登录与启动流程', () => {
     assert.deepEqual(JSON.parse(calls[1].options.body), {
       email: 'admin@example.com',
       password: 'secret-password',
+      rememberMe: false,
     })
   })
 
@@ -121,5 +122,48 @@ describe('前端真实登录与启动流程', () => {
     assert.equal(sampleAuthorizedSequence(0).step, 'scan')
     assert.equal(sampleAuthorizedSequence(3300).step, 'welcome')
     assert.equal(sampleAuthorizedSequence(7600).complete, true)
+  })
+
+  it('前端将保持登录选项发送给现有登录接口', async () => {
+    const { loginAndVerify } = await import(frontendModule('auth-client.ts'))
+    let loginBody
+    await loginAndVerify({ email: 'member@example.com', password: 'test', rememberMe: true }, async (url, options) => {
+      if (url.includes('csrf-token')) return jsonResponse(200, { csrfToken: 'token' })
+      if (url.endsWith('/login')) {
+        loginBody = JSON.parse(options.body)
+        return jsonResponse(200, { success: true })
+      }
+      return jsonResponse(200, { authenticated: true, user: { id: 2, email: 'member@example.com', role: 'user' } })
+    })
+    assert.equal(loginBody.rememberMe, true)
+  })
+
+  it('再次进入网站仅请求 me 确认身份，不重发密码', async () => {
+    const { restoreSession } = await import(frontendModule('auth-client.ts'))
+    const calls = []
+    const user = { id: 1, email: 'admin@example.com', role: 'admin' }
+    const restored = await restoreSession(async (url, options) => {
+      calls.push({ url, options })
+      return jsonResponse(200, { authenticated: true, user })
+    })
+    assert.deepEqual(restored, user)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].url, '/api/auth/me')
+    assert.equal(calls[0].options.credentials, 'same-origin')
+    assert.equal(calls[0].options.cache, 'no-store')
+    assert.equal(calls[0].options.body, undefined)
+  })
+
+  it('会话未登录、非法身份或网络异常不自动放行', async () => {
+    const { restoreSession } = await import(frontendModule('auth-client.ts'))
+    for (const body of [
+      { authenticated: false, user: null },
+      { authenticated: true, user: { id: 1, email: 'a', role: 'invalid' } },
+      { authenticated: true, user: { id: '1', email: 'a', role: 'admin' } },
+    ]) {
+      assert.equal(await restoreSession(async () => jsonResponse(200, body)), null)
+    }
+    assert.equal(await restoreSession(async () => jsonResponse(500, {})), null)
+    assert.equal(await restoreSession(async () => { throw new Error('内部信息') }), null)
   })
 })

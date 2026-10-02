@@ -239,4 +239,101 @@ describe('登录与认证 API', () => {
     })
     assert.equal(secondLogoutResponse.status, 200)
   })
+
+  it('勾选保持登录生成 30 天 Cookie，Session 不保存密码', async () => {
+    const app = buildApp()
+    const startedAt = Date.now()
+    const response = await request(app).post('/api/auth/login').send({
+      email: 'admin@example.com', password: TEST_PASSWORD, rememberMe: true,
+    })
+    assert.equal(response.status, 200)
+    const cookie = response.headers['set-cookie'][0]
+    assert.match(cookie, /Expires=/)
+    assert.match(cookie, /HttpOnly/)
+    assert.match(cookie, /SameSite=Lax/)
+    const expires = Date.parse(cookie.match(/Expires=([^;]+)/)[1])
+    const duration = 30 * 24 * 60 * 60 * 1000
+    assert.ok(Math.abs(expires - startedAt - duration) < 5000)
+    const sessions = await new Promise((resolve, reject) => {
+      app.locals.sessionStore.all((error, values) => error ? reject(error) : resolve(values))
+    })
+    const saved = Object.values(sessions)[0]
+    assert.equal(saved.userId, 1)
+    assert.ok(saved.rememberUntil >= startedAt + duration)
+    assert.equal(JSON.stringify(saved).includes(TEST_PASSWORD), false)
+    assert.equal(JSON.stringify(saved).includes('password'), false)
+    assert.equal(response.body.user.role, 'admin')
+  })
+
+  it('未勾选保持登录仍使用原本的临时 Cookie', async () => {
+    const response = await request(buildApp()).post('/api/auth/login').send({
+      email: 'member@example.com', password: TEST_PASSWORD, rememberMe: false,
+    })
+    assert.equal(response.status, 200)
+    assert.doesNotMatch(response.headers['set-cookie'][0], /Expires=|Max-Age=/)
+  })
+
+  it('保持登录参数只能为布尔值', async () => {
+    const app = buildApp()
+    for (const rememberMe of ['true', 1, null, {}]) {
+      const response = await request(app).post('/api/auth/login').send({
+        email: 'member@example.com', password: TEST_PASSWORD, rememberMe,
+      })
+      assert.equal(response.status, 400)
+    }
+  })
+
+  it('重新打开客户端及重建应用实例后可用持久 Store 恢复保持登录身份', async () => {
+    const app = buildApp()
+    const response = await request(app).post('/api/auth/login').send({
+      email: 'admin@example.com', password: TEST_PASSWORD, rememberMe: true,
+    })
+    const cookie = response.headers['set-cookie'][0].split(';')[0]
+    const secondApp = buildApp(app.locals.sessionStore)
+    const me = await request(secondApp).get('/api/auth/me').set('Cookie', cookie)
+    assert.equal(me.body.authenticated, true)
+    assert.equal(me.body.user.role, 'admin')
+    assert.equal(me.headers['cache-control'], 'no-store')
+  })
+
+  it('保持登录有固定截止时间，访问不会无限延长期限，过期后所有接口拒绝身份', async () => {
+    const app = buildApp()
+    const response = await request(app).post('/api/auth/login').send({
+      email: 'member@example.com', password: TEST_PASSWORD, rememberMe: true,
+    })
+    const cookie = response.headers['set-cookie'][0].split(';')[0]
+    const store = app.locals.sessionStore
+    const sessions = await new Promise((resolve) => store.all((error, values) => resolve(values)))
+    const [sid, saved] = Object.entries(sessions)[0]
+    const deadline = Date.now() + 60_000
+    saved.rememberUntil = deadline
+    await new Promise((resolve) => store.set(sid, saved, resolve))
+    const active = await request(app).get('/api/auth/me').set('Cookie', cookie)
+    assert.equal(active.body.authenticated, true)
+    const refreshed = await new Promise((resolve) => store.get(sid, (error, value) => resolve(value)))
+    assert.ok(Date.parse(refreshed.cookie.expires) <= deadline + 100)
+    refreshed.rememberUntil = Date.now() - 1
+    await new Promise((resolve) => store.set(sid, refreshed, resolve))
+    const protectedResponse = await request(app).get('/api/protected').set('Cookie', cookie)
+    assert.equal(protectedResponse.status, 401)
+    const me = await request(app).get('/api/auth/me').set('Cookie', cookie)
+    assert.equal(me.body.authenticated, false)
+  })
+
+  it('保持登录也受退出与账号禁用控制，不能复用旧 Cookie', async () => {
+    const app = buildApp()
+    const response = await request(app).post('/api/auth/login').send({
+      email: 'member@example.com', password: TEST_PASSWORD, rememberMe: true,
+    })
+    const cookie = response.headers['set-cookie'][0].split(';')[0]
+    assert.equal((await request(app).post('/api/auth/logout').set('Cookie', cookie)).status, 200)
+    assert.equal((await request(app).get('/api/protected').set('Cookie', cookie)).status, 401)
+    const relogin = await request(app).post('/api/auth/login').send({
+      email: 'member@example.com', password: TEST_PASSWORD, rememberMe: true,
+    })
+    app.locals.database.prepare("UPDATE users SET status = 'disabled' WHERE id = 2").run()
+    const disabled = await request(app).get('/api/auth/me')
+      .set('Cookie', relogin.headers['set-cookie'][0].split(';')[0])
+    assert.equal(disabled.body.authenticated, false)
+  })
 })

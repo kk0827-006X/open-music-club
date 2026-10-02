@@ -1,4 +1,13 @@
 import { describeArc, sampleLoginMotion } from './login-motion.ts'
+import type { LoginCredentials } from './auth-client.ts'
+
+export function passwordEyeMarkup(visible: boolean) {
+  return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/>
+    <circle cx="12" cy="12" r="3"/>
+    ${visible ? '' : '<path d="m3 3 18 18"/>'}
+  </svg>`
+}
 
 export function createLoginMarkup() {
   return `
@@ -30,11 +39,11 @@ export function createLoginMarkup() {
                 <span>密码&nbsp;&nbsp;<small>PASSWORD</small><b>*</b></span>
                 <span class="password-field">
                   <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" />
-                  <button type="button" class="reveal-password" data-reveal-password aria-label="显示密码">◉</button>
+                  <button type="button" class="reveal-password" data-reveal-password aria-label="显示密码" aria-pressed="false">${passwordEyeMarkup(false)}</button>
                 </span>
               </label>
               <div class="form-options">
-                <label><input type="checkbox" /> <span>保持登录状态</span></label>
+                <label><input type="checkbox" name="rememberMe" data-remember-me /> <span>保持登录状态</span></label>
                 <button type="button" class="text-action" data-static-action>忘记密码？</button>
               </div>
               <button class="primary-action" type="submit">
@@ -133,7 +142,7 @@ function runStatusPreview(shell: HTMLElement) {
 
 export function mountLoginPage(
   root: HTMLElement,
-  onAuthenticate?: (credentials: { email: string; password: string }) => Promise<{ role: 'admin' | 'user' }>,
+  onAuthenticate?: (credentials: LoginCredentials) => Promise<{ role: 'admin' | 'user' }>,
 ) {
   root.innerHTML = createLoginMarkup()
   const shell = root.querySelector<HTMLElement>('[data-login-shell]')
@@ -151,6 +160,13 @@ export function mountLoginPage(
   const form = shell.querySelector<HTMLFormElement>('[data-login-form]')
   const password = shell.querySelector<HTMLInputElement>('#password')
   const reveal = shell.querySelector<HTMLButtonElement>('[data-reveal-password]')
+  const remember = shell.querySelector<HTMLInputElement>('[data-remember-me]')
+  if (onAuthenticate) {
+    const label = shell.querySelector<HTMLElement>('[data-submit-label]')
+    const status = shell.querySelector<HTMLElement>('[data-preview-status]')
+    if (label) label.textContent = '验证身份'
+    if (status) status.textContent = '勾选保持登录后，下次进入将自动确认身份'
+  }
   form?.addEventListener('submit', async (event) => {
     event.preventDefault()
     const email = shell.querySelector<HTMLInputElement>('#email')
@@ -170,7 +186,9 @@ export function mountLoginPage(
     if (status) status.textContent = '正在建立安全会话…'
     status?.classList.add('is-running')
     try {
-      const result = await onAuthenticate({ email: email.value, password: password.value })
+      const result = await onAuthenticate({
+        email: email.value, password: password.value, rememberMe: remember?.checked === true,
+      })
       password.value = ''
       runStatusPreview(shell)
       if (status) status.textContent = result.role === 'admin'
@@ -188,7 +206,9 @@ export function mountLoginPage(
     if (!password) return
     const shouldReveal = password.type === 'password'
     password.type = shouldReveal ? 'text' : 'password'
+    reveal.innerHTML = passwordEyeMarkup(shouldReveal)
     reveal.setAttribute('aria-label', shouldReveal ? '隐藏密码' : '显示密码')
+    reveal.setAttribute('aria-pressed', String(shouldReveal))
     reveal.classList.toggle('is-visible', shouldReveal)
   })
   shell.querySelectorAll<HTMLButtonElement>('[data-static-action]').forEach((button) => {

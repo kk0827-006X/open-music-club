@@ -9,6 +9,7 @@ export interface AuthenticatedUser {
 export interface LoginCredentials {
   email: string
   password: string
+  rememberMe?: boolean
 }
 
 type FetchResponse = {
@@ -24,6 +25,7 @@ type Fetcher = (
     credentials?: 'same-origin'
     headers?: Record<string, string>
     body?: string
+    cache?: 'no-store'
   },
 ) => Promise<FetchResponse>
 
@@ -55,6 +57,29 @@ async function safeJson(response: FetchResponse) {
   }
 }
 
+function verifiedUser(body: unknown): AuthenticatedUser | null {
+  const user = isObject(body) && body.authenticated === true && isObject(body.user)
+    ? body.user : null
+  if (!user || !Number.isSafeInteger(user.id) || Number(user.id) <= 0
+    || typeof user.email !== 'string'
+    || (user.role !== 'admin' && user.role !== 'user')) return null
+  return user as unknown as AuthenticatedUser
+}
+
+// 自动恢复只读取 HttpOnly Session 对应的实时身份，浏览器不保存或重发密码。
+export async function restoreSession(
+  fetcher: Fetcher = window.fetch.bind(window) as Fetcher,
+): Promise<AuthenticatedUser | null> {
+  try {
+    const response = await fetcher('/api/auth/me', {
+      credentials: 'same-origin', cache: 'no-store',
+    })
+    return response.ok ? verifiedUser(await safeJson(response)) : null
+  } catch {
+    return null
+  }
+}
+
 export async function loginAndVerify(
   credentials: LoginCredentials,
   fetcher: Fetcher = window.fetch.bind(window) as Fetcher,
@@ -79,6 +104,7 @@ export async function loginAndVerify(
       body: JSON.stringify({
         email: credentials.email.trim().toLowerCase(),
         password: credentials.password,
+        rememberMe: credentials.rememberMe === true,
       }),
     })
     const loginBody = await safeJson(loginResponse)
@@ -90,22 +116,14 @@ export async function loginAndVerify(
     }
 
     // 登录成功后只以服务端 Session 的实时身份为准，避免相信陈旧响应。
-    const meResponse = await fetcher('/api/auth/me', { credentials: 'same-origin' })
+    const meResponse = await fetcher('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
     const meBody = await safeJson(meResponse)
-    const user = isObject(meBody) && meBody.authenticated === true && isObject(meBody.user)
-      ? meBody.user
-      : null
-    if (
-      !meResponse.ok
-      || !user
-      || typeof user.id !== 'number'
-      || typeof user.email !== 'string'
-      || (user.role !== 'admin' && user.role !== 'user')
-    ) {
+    const user = verifiedUser(meBody)
+    if (!meResponse.ok || !user) {
       throw new AuthFlowError('SESSION_UNVERIFIED', '登录会话未能通过服务器确认', meResponse.status)
     }
 
-    return { user: user as unknown as AuthenticatedUser }
+    return { user }
   } catch (error) {
     if (error instanceof AuthFlowError) throw error
     throw new AuthFlowError('NETWORK_ERROR', '无法连接服务器，请稍后重试')

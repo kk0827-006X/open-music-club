@@ -243,6 +243,30 @@ describe('公网通信安全基线', () => {
     assert.doesNotMatch(cookie, /Domain=/)
   })
 
+  it('保持登录沿用安全 Cookie，公网管理员有效期不超过原有短时策略', async () => {
+    for (const role of ['user', 'admin']) {
+      const app = buildApp()
+      const member = await createMember(app)
+      app.locals.database.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, member.id)
+      const csrf = await getCsrfSession(app)
+      const startedAt = Date.now()
+      const response = await asHttps(request(app).post('/api/auth/login')
+        .set('Cookie', csrf.cookie).set('X-CSRF-Token', csrf.token)
+        .send({ email: 'member@example.com', password: TEST_PASSWORD, rememberMe: true }))
+      assert.equal(response.status, 200)
+      const cookie = response.headers['set-cookie'][0]
+      assert.match(cookie, /^__Host-open_music_club\.sid=/)
+      assert.match(cookie, /; Secure(?:;|$)/)
+      assert.match(cookie, /; HttpOnly(?:;|$)/)
+      assert.match(cookie, /; SameSite=Lax(?:;|$)/)
+      const expires = Date.parse(cookie.match(/Expires=([^;]+)/)[1])
+      const duration = role === 'admin'
+        ? app.locals.security.sessionIdleTimeoutMinutes * 60 * 1000
+        : 30 * 24 * 60 * 60 * 1000
+      assert.ok(Math.abs(expires - startedAt - duration) < 5000)
+    }
+  })
+
   it('登录成功重新生成 Session 后旧 CSRF Token 不能继续使用', async () => {
     const app = buildApp()
     await createMember(app)

@@ -2,6 +2,7 @@ const express = require('express')
 const bcrypt = require('bcrypt')
 const { findUserByEmail, findUserById, toSafeUser } = require('../db/users')
 const { clearSessionCookie } = require('../middleware/requireLogin')
+const { REMEMBER_LOGIN_MAX_AGE_MS } = require('../config/session')
 
 function destroySession(req, res, next, callback) {
   req.session.destroy((error) => {
@@ -13,10 +14,17 @@ function destroySession(req, res, next, callback) {
 
 function createAuthRouter() {
   const router = express.Router()
+  router.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store')
+    next()
+  })
 
   router.post('/login', async (req, res, next) => {
     try {
-      const { email, password } = req.body || {}
+      const { email, password, rememberMe = false } = req.body || {}
+      if (typeof rememberMe !== 'boolean') {
+        return res.status(400).json({ success: false, message: '保持登录参数必须为布尔值' })
+      }
       if (
         typeof email !== 'string' ||
         email.trim() === '' ||
@@ -50,6 +58,15 @@ function createAuthRouter() {
 
         req.session.userId = user.id
         req.session.role = user.role
+        if (rememberMe) {
+          const security = req.app.locals.security
+          // 公网管理员不因勾选保持登录而放宽原有的短时会话策略。
+          const duration = security.production && user.role === 'admin'
+            ? Math.min(REMEMBER_LOGIN_MAX_AGE_MS, security.sessionIdleTimeoutMinutes * 60 * 1000)
+            : REMEMBER_LOGIN_MAX_AGE_MS
+          req.session.rememberUntil = Date.now() + duration
+          req.session.cookie.maxAge = duration
+        }
         return req.session.save((saveError) => {
           if (saveError) return next(saveError)
           return res.json({ success: true, user: toSafeUser(user) })
