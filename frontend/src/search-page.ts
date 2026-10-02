@@ -1,3 +1,4 @@
+import { uiIcons } from './ui-icons.ts'
 import {
   fetchLocalSearchItems,
   fetchNeteaseSearchItems,
@@ -25,7 +26,7 @@ function rowMarkup(item: SearchItem, index: number, selected: boolean) {
       <span><b class="search-source-tag" data-source="${item.source}">${sourceLabel(item.source)}</b></span>
       <time>${escapeHtml(item.duration)}</time>
     </button>
-    <span class="search-result-actions"><button type="button" data-search-play="${escapeHtml(item.key)}" aria-label="播放 ${title}"${item.kind === 'song' ? '' : ' disabled'}>▶</button><button type="button" data-search-queue="${escapeHtml(item.key)}" aria-label="将 ${title} 加入队列"${item.kind === 'song' ? '' : ' disabled'}>＋</button></span>
+    <span class="search-result-actions"><button type="button" data-search-play="${escapeHtml(item.key)}" aria-label="播放 ${title}"${item.kind === 'song' ? '' : ' disabled'}>${uiIcons.play}</button><button type="button" data-search-queue="${escapeHtml(item.key)}" aria-label="将 ${title} 加入队列"${item.kind === 'song' ? '' : ' disabled'}>${uiIcons.plus}</button></span>
   </li>`
 }
 
@@ -38,7 +39,7 @@ export function selectedMarkup(item: SearchItem | undefined) {
       <div><dt>来源</dt><dd><b class="search-source-tag" data-source="${item.source}">${sourceLabel(item.source)}</b></dd></div>
       <div><dt>类型</dt><dd>${kindLabel(item.kind)}</dd></div><div><dt>时长</dt><dd>${escapeHtml(item.duration)}</dd></div></dl>
     <p class="search-selected-description">${escapeHtml(item.description)}</p>
-    <div class="search-selected-actions"><button type="button" data-search-play="${escapeHtml(item.key)}"${item.kind === 'song' ? '' : ' disabled'}>▶&nbsp;&nbsp;播放</button><button type="button" data-search-queue="${escapeHtml(item.key)}"${item.kind === 'song' ? '' : ' disabled'}>＋&nbsp;&nbsp;加入队列</button></div>`
+    <div class="search-selected-actions"><button type="button" data-search-play="${escapeHtml(item.key)}"${item.kind === 'song' ? '' : ' disabled'}>${uiIcons.play}&nbsp;&nbsp;播放</button><button type="button" data-search-queue="${escapeHtml(item.key)}"${item.kind === 'song' ? '' : ' disabled'}>${uiIcons.plus}&nbsp;&nbsp;加入队列</button></div>`
 }
 
 export function createSearchPageMarkup() {
@@ -46,7 +47,7 @@ export function createSearchPageMarkup() {
     <div class="search-heading"><p>SEARCH / INDEX 001</p><h2>SEARCH <span>/</span> 音乐检索</h2><small>检索社区音乐与网易云的歌曲、专辑和歌手</small></div>
     <form class="search-input-line" data-search-form role="search"><label for="music-search" class="sr-only">搜索音乐</label>
       <input id="music-search" type="search" data-search-input placeholder="输入歌名、专辑或艺术家" autocomplete="off" spellcheck="false" />
-      <button type="submit" aria-label="提交搜索">⌕</button><kbd>/</kbd></form>
+      <button type="submit" aria-label="提交搜索">${uiIcons.search}</button><kbd>/</kbd></form>
     <div class="search-filters"><div role="group" aria-label="来源筛选"><span>来源</span>
       <button type="button" data-search-source="all" aria-pressed="true">全部</button>
       <button type="button" data-search-source="local" aria-pressed="false">本地音乐</button>

@@ -1,12 +1,13 @@
 import { uploadMusicFile, UploadError } from './upload-client.ts'
 import { readUploadMetadata } from './upload-metadata.ts'
+import { uiIcons } from './ui-icons.ts'
 
 const MAX_PREVIEW_BYTES = 100 * 1024 * 1024
 const AUDIO_EXTENSIONS = new Set(['mp3', 'flac', 'wav', 'm4a', 'ogg'])
 
 export function createUploadPageMarkup() {
   return `<section class="upload-page" data-upload-page hidden inert aria-label="本地音乐入库">
-    <div class="upload-heading"><button type="button" data-upload-back>←&nbsp; 返回音乐库</button>
+    <div class="upload-heading"><button type="button" data-upload-back>${uiIcons.left}&nbsp; 返回音乐库</button>
       <p>COMMUNITY ARCHIVE / 001</p><h2>UPLOAD <span>/</span> 本地音乐入库</h2>
       <small>将你的音乐加入社区，保存并与更多人分享</small></div>
     <section class="upload-workspace" aria-label="选择音频文件">
@@ -14,7 +15,7 @@ export function createUploadPageMarkup() {
       <div class="upload-dropzone" data-upload-dropzone tabindex="0" role="button" aria-label="选择或拖放音频文件">
         <span class="upload-corner upload-corner--top-left">＋</span><span class="upload-corner upload-corner--top-right">＋</span>
         <div class="upload-file-icon" aria-hidden="true">♫</div><strong>拖放音频文件到此处</strong>
-        <button type="button" data-upload-choose>＋&nbsp; 选择文件</button>
+        <button type="button" data-upload-choose>${uiIcons.plus}&nbsp; 选择文件</button>
         <p>支持格式：MP3 · FLAC · WAV · M4A · OGG</p><small>单个文件最大 100 MB</small>
         <span class="upload-corner upload-corner--bottom-left">＋</span><span class="upload-corner upload-corner--bottom-right">＋</span>
       </div>
@@ -23,11 +24,11 @@ export function createUploadPageMarkup() {
         <div class="upload-selected-row" data-upload-selected-row><span class="upload-selected-icon" aria-hidden="true">♫</span>
           <span class="upload-selected-name"><strong data-upload-filename>尚未选择文件</strong><small data-upload-filesize>选择文件后将在此预览</small></span>
           <span class="upload-selected-progress"><i></i><small data-upload-file-status>等待选择</small></span>
-          <button type="button" data-upload-remove aria-label="移除所选文件" disabled>×</button></div></div>
+          <button type="button" data-upload-remove aria-label="移除所选文件" disabled>${uiIcons.close}</button></div></div>
     </section>
     <form class="upload-metadata" data-upload-form novalidate><header class="upload-panel-rail"><span>03&nbsp; METADATA</span><span>FILE INFORMATION</span></header>
       <div class="upload-metadata-body"><div class="upload-cover-column"><div class="upload-cover-frame"><img data-upload-cover src="/images/album-placeholder-01.svg" alt="专辑封面预览" /></div>
-        <button type="button" data-upload-cover-choose>＋&nbsp; 更换封面</button><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" data-upload-cover-file tabindex="-1" aria-hidden="true" />
+        <button type="button" data-upload-cover-choose>${uiIcons.plus}&nbsp; 更换封面</button><input class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" data-upload-cover-file tabindex="-1" aria-hidden="true" />
         <small class="upload-cover-note">自选封面仅供预览；当前服务保存音频内嵌封面。</small></div>
         <div class="upload-fields"><label>标题 <b>*</b><input type="text" maxlength="120" data-upload-title placeholder="输入歌曲标题" autocomplete="off" /></label>
           <label>歌手 <b>*</b><input type="text" maxlength="120" data-upload-artist placeholder="输入歌手名称" autocomplete="off" /></label>
@@ -37,7 +38,7 @@ export function createUploadPageMarkup() {
         <div><dt>时长</dt><dd>上传后识别</dd></div><div><dt>采样率</dt><dd>上传后识别</dd></div>
         <div><dt>文件大小</dt><dd data-upload-size>—</dd></div><div><dt>比特率</dt><dd>上传后识别</dd></div>
       </dl></div>
-      <button class="upload-submit" type="submit" data-upload-submit><span>确认上传</span><span>→</span></button>
+      <button class="upload-submit" type="submit" data-upload-submit><span>确认上传</span><span>${uiIcons.right}</span></button>
       <p class="upload-feedback" data-upload-feedback role="status" aria-live="polite">选择音频文件后填写资料，再确认上传。</p>
       <p class="upload-safety">◇&nbsp; 服务器会复核文件格式、完整性与元数据。</p>
     </form>

@@ -1,4 +1,5 @@
 import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts'
+import { uiIcons as icons } from './ui-icons.ts'
 import { mountSearchPage } from './search-page.ts'
 import { mountUploadPage } from './upload-page.ts'
 import { mountUserPage } from './user-page.ts'
@@ -8,22 +9,6 @@ import { MusicQueue } from './music-queue.ts'
 import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
 import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
 import type { ArchiveScene } from './rhine/scene.ts'
-
-const icon = (content: string) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${content}</svg>`
-const icons = {
-  library: icon('<path d="M3.5 6.5h6l1.7 2H20.5v9.5H3.5z"/><path d="M3.5 6.5v-2h6l1.7 2"/>'),
-  search: icon('<circle cx="10.5" cy="10.5" r="5.8"/><path d="m15 15 5 5"/>'),
-  upload: icon('<path d="M12 16V3m0 0L7.5 7.5M12 3l4.5 4.5M4 14v6h16v-6"/>'),
-  user: icon('<circle cx="12" cy="8" r="3.5"/><path d="M4.5 20v-1.5a7.5 7.5 0 0 1 15 0V20z"/>'),
-  queue: icon('<path d="M4 6h11M4 12h7M4 18h11"/><circle cx="18" cy="6" r="2"/><circle cx="14" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
-  settings: icon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/>'),
-  heart: icon('<path d="M20.8 4.7a5.2 5.2 0 0 0-7.4 0L12 6.1l-1.4-1.4a5.2 5.2 0 0 0-7.4 7.4L12 21l8.8-8.9a5.2 5.2 0 0 0 0-7.4Z"/>'),
-  previous: icon('<path d="M6 5v14M18 6l-9 6 9 6z"/>'),
-  next: icon('<path d="M18 5v14M6 6l9 6-9 6z"/>'),
-  pause: icon('<path d="M8 5v14M16 5v14"/>'),
-  play: icon('<path d="m8 5 11 7-11 7z"/>'),
-  volume: icon('<path d="M4 10v4h4l5 4V6l-5 4zM16 9a4 4 0 0 1 0 6"/>'),
-}
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -73,14 +58,14 @@ function playerMarkup(album: DemoAlbum, volume = 62, visible = false) {
     </section>
     <section class="player-volume" data-player-volume>${icons.volume}<input type="range" min="0" max="100" value="${volume}" style="--volume-percent:${volume}%" data-player-volume-input aria-label="音量" /></section>
     <button type="button" class="player-queue-summary" data-player-queue-toggle aria-expanded="false" aria-controls="player-queue-panel">${icons.queue}<span data-queue-count>00</span></button>
-    <div class="player-tail"><p>GOOD MUSIC<br />FOR A BRIGHTER TOMORROW.</p><button type="button" class="player-open" data-player-open aria-label="展开播放器与歌词">展开歌词 <span>↗</span></button></div>
+    <div class="player-tail"><p>GOOD MUSIC<br />FOR A BRIGHTER TOMORROW.</p><button type="button" class="player-open" data-player-open aria-label="展开播放器与歌词">展开歌词 <span>${icons.open}</span></button></div>
   </footer><aside id="player-queue-panel" class="player-queue-panel" data-player-queue-panel hidden aria-label="播放队列"><header><strong>PLAY QUEUE / 播放队列</strong><button type="button" data-queue-clear>清空</button></header><ol data-queue-items></ol><p data-queue-empty>队列为空。可从音乐库或搜索结果加入歌曲。</p></aside>`
 }
 
 function expandedPlayerMarkup() {
   return `<div class="player-hotspot" data-player-hotspot aria-hidden="true"></div>
     <section class="player-expanded" data-player-expanded role="dialog" aria-label="展开播放器与歌词" aria-hidden="true" inert>
-      <header class="player-expanded-header"><div><strong>OPEN MUSIC CLUB</strong><span>MUSIC ARCHIVE / NOW PLAYING</span></div><button type="button" data-player-close aria-label="收起播放器">收起播放器 <span>↓</span></button></header>
+      <header class="player-expanded-header"><div><strong>OPEN MUSIC CLUB</strong><span>MUSIC ARCHIVE / NOW PLAYING</span></div><button type="button" data-player-close aria-label="收起播放器">收起播放器 <span>${icons.down}</span></button></header>
       <div class="player-expanded-content">
         <section class="player-expanded-track" aria-label="当前歌曲"><p>01 / NOW PLAYING</p><img data-expanded-cover src="/images/album-placeholder-01.svg" alt="当前歌曲封面" /><strong data-expanded-title>尚未播放歌曲</strong><span data-expanded-artist>请选择一首歌曲开始播放</span><small data-expanded-source>OPEN MUSIC CLUB</small></section>
         <section class="player-expanded-lyrics" aria-label="歌词"><p>02 / LYRICS · 歌词</p><div class="player-lyrics-scroll" data-player-lyrics aria-live="off"><p class="player-lyrics-empty">播放音乐后将在这里显示歌词。</p></div></section>
@@ -97,7 +82,7 @@ function albumInformation(album: DemoAlbum, index: number) {
       <div><dt>GENRE / 流派</dt><dd>${album.genre}</dd></div><div><dt>SOURCE / 来源</dt><dd><b><i></i>NETEASE</b></dd></div>
       <div><dt>TRACKS / 曲目数量</dt><dd>${album.totalTracks} 首</dd></div><div><dt>FORMAT / 播放形式</dt><dd>在线音源</dd></div>
       <div><dt>PREVIEW / 代表曲目</dt><dd>${durationOf(album)}</dd></div><div><dt>CATALOG / 目录</dt><dd>网易云音乐</dd></div>
-    </dl><button type="button" data-open-selected>打开专辑 <span>↗</span></button>
+    </dl><button type="button" data-open-selected>打开专辑 <span>${icons.open}</span></button>
   </aside>`
 }
 
@@ -108,7 +93,7 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
     ${archiveNavigation()}
     <section class="album-wave-stage" data-wave-field aria-label="三维专辑档案选择"><div class="archive-three-scene" data-three-scene></div></section>
     <aside class="archive-callout"><p>ALBUM / SELECT</p><strong data-album-counter>${String(selectedIndex + 1).padStart(2, '0')}</strong><span>/ 24</span></aside>
-    <div class="archive-switcher" aria-label="当前排专辑位置"><button type="button" data-album-previous aria-label="上一张专辑">↑</button><div class="archive-position-ticks">${Array.from({ length: 8 }, (_, index) => `<button type="button" data-album-tick="${index}" aria-label="当前排第 ${index + 1} 张专辑"${index === selectedIndex % 8 ? ' aria-current="true"' : ''}></button>`).join('')}</div><button type="button" data-album-next aria-label="下一张专辑">↓</button></div>
+    <div class="archive-switcher" aria-label="当前排专辑位置"><button type="button" data-album-previous aria-label="上一张专辑">${icons.up}</button><div class="archive-position-ticks">${Array.from({ length: 8 }, (_, index) => `<button type="button" data-album-tick="${index}" aria-label="当前排第 ${index + 1} 张专辑"${index === selectedIndex % 8 ? ' aria-current="true"' : ''}></button>`).join('')}</div><button type="button" data-album-next aria-label="下一张专辑">${icons.down}</button></div>
     ${albumInformation(selected, selectedIndex)}
     <section class="album-detail" data-album-detail hidden inert aria-hidden="true"></section>
     <div data-search-host></div>
@@ -120,10 +105,10 @@ export function createAlbumArchiveMarkup(selectedIndex = 0) {
 }
 
 export function createAlbumDetailMarkup(album: DemoAlbum, trackState: 'ready' | 'loading' | 'unavailable' = 'ready') {
-  const tracks = album.tracks.map((track, index) => `<li><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(track.title)}</strong><small>NETEASE</small><time>${track.duration}</time><button type="button" data-album-play="${track.id}">▶ 播放</button><button type="button" data-album-queue="${track.id}">＋ 队列</button></li>`).join('')
+  const tracks = album.tracks.map((track, index) => `<li><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(track.title)}</strong><small>NETEASE</small><time>${track.duration}</time><button type="button" data-album-play="${track.id}">${icons.play} 播放</button><button type="button" data-album-queue="${track.id}">${icons.plus} 队列</button></li>`).join('')
   const trackHeading = trackState === 'loading' ? '正在获取专辑全部曲目…' : trackState === 'unavailable' ? '完整曲目暂时不可用 · 以下为代表曲目' : '专辑曲目'
   return `
-    <button class="detail-back" type="button" data-back-to-archive>←&nbsp;&nbsp;返回专辑架 <kbd>ESC</kbd></button>
+    <button class="detail-back" type="button" data-back-to-archive>${icons.left}&nbsp;&nbsp;返回专辑架 <kbd>ESC</kbd></button>
     <section class="detail-cover-frame"><div class="detail-cover"><img src="${album.coverUrl}" alt="${escapeHtml(album.title)} 封面" /></div><p>ALBUM / ${album.id}</p><small>网易云音乐 · 真实专辑封面</small></section>
     <article class="detail-information" data-detail-information><p>ALBUM DETAIL&nbsp;&nbsp;/&nbsp;&nbsp;MUSIC ARCHIVE</p><h2>${escapeHtml(album.title)}</h2><h3>${escapeHtml(album.artist)}</h3>
       <div class="detail-facts"><p><small>RELEASE / 发行年份</small>${album.year}</p><p><small>ARTIST / 艺术家</small>${escapeHtml(album.artist)}</p><p><small>GENRE / 流派</small>${album.genre}</p><p><small>SOURCE / 来源</small>NETEASE</p></div>
@@ -178,7 +163,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   let collectionBusy = false
   let collectionTimer = 0
   let playlistCandidate: SearchItem | null = null
-  archive.insertAdjacentHTML('beforeend', `<p class="collection-feedback" data-collection-feedback role="status" hidden></p><dialog class="user-create-dialog" data-collection-dialog aria-label="将歌曲加入歌单"><form data-collection-form><header><span>ADD TO PLAYLIST / 加入歌单</span><button type="button" data-collection-close aria-label="关闭歌单选择">×</button></header><h2>加入歌单</h2><p data-collection-message role="status"></p><label for="collection-playlist">选择自己的歌单</label><select id="collection-playlist" name="playlist" required></select><div class="user-dialog-actions"><button type="button" data-collection-close>取消</button><button type="submit">保存到歌单 →</button></div></form></dialog>`)
+  archive.insertAdjacentHTML('beforeend', `<p class="collection-feedback" data-collection-feedback role="status" hidden></p><dialog class="user-create-dialog" data-collection-dialog aria-label="将歌曲加入歌单"><form data-collection-form><header><span>ADD TO PLAYLIST / 加入歌单</span><button type="button" data-collection-close aria-label="关闭歌单选择">${icons.close}</button></header><h2>加入歌单</h2><p data-collection-message role="status"></p><label for="collection-playlist">选择自己的歌单</label><select id="collection-playlist" name="playlist" required></select><div class="user-dialog-actions"><button type="button" data-collection-close>取消</button><button type="submit">保存到歌单 ${icons.right}</button></div></form></dialog>`)
   const collectionDialog = archive.querySelector<HTMLDialogElement>('[data-collection-dialog]')!
   const collectionForm = archive.querySelector<HTMLFormElement>('[data-collection-form]')!
   const collectionNotice = (message: string) => {
@@ -346,7 +331,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     const list = archive.querySelector<HTMLOListElement>('[data-queue-items]')!
     list.innerHTML = queue.items.map((item, index) => `<li${item.key === activeTrack?.key ? ' class="is-active"' : ''}>
       <button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><img src="${escapeHtml(item.coverUrl)}" alt="" /><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button>
-      <div><button type="button" data-queue-save="${escapeHtml(item.key)}" aria-label="将 ${escapeHtml(item.title)} 加入歌单">＋歌单</button><button type="button" data-queue-like="${escapeHtml(item.key)}" aria-label="喜爱 ${escapeHtml(item.title)}">♡</button><button type="button" data-queue-up="${escapeHtml(item.key)}" aria-label="上移 ${escapeHtml(item.title)}">↑</button><button type="button" data-queue-down="${escapeHtml(item.key)}" aria-label="下移 ${escapeHtml(item.title)}">↓</button><button type="button" data-queue-remove="${escapeHtml(item.key)}" aria-label="移除 ${escapeHtml(item.title)}">×</button></div>
+      <div><button type="button" data-queue-save="${escapeHtml(item.key)}" aria-label="将 ${escapeHtml(item.title)} 加入歌单">${icons.plus}歌单</button><button type="button" data-queue-like="${escapeHtml(item.key)}" aria-label="喜爱 ${escapeHtml(item.title)}">${icons.heart}</button><button type="button" data-queue-up="${escapeHtml(item.key)}" aria-label="上移 ${escapeHtml(item.title)}">${icons.up}</button><button type="button" data-queue-down="${escapeHtml(item.key)}" aria-label="下移 ${escapeHtml(item.title)}">${icons.down}</button><button type="button" data-queue-remove="${escapeHtml(item.key)}" aria-label="移除 ${escapeHtml(item.title)}">${icons.close}</button></div>
     </li>`).join('')
     const expandedQueue = archive.querySelector<HTMLOListElement>('[data-expanded-queue]')!
     expandedQueue.innerHTML = queue.items.map((item, index) => `<li${item.key === activeTrack?.key ? ' class="is-active"' : ''}><button type="button" data-queue-play="${escapeHtml(item.key)}"><span>${String(index + 1).padStart(2, '0')}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.artist)}</small></button></li>`).join('')

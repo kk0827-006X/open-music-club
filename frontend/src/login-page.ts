@@ -1,12 +1,9 @@
 import { describeArc, sampleLoginMotion } from './login-motion.ts'
 import type { LoginCredentials } from './auth-client.ts'
+import { uiIcons } from './ui-icons.ts'
 
 export function passwordEyeMarkup(visible: boolean) {
-  return `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/>
-    <circle cx="12" cy="12" r="3"/>
-    ${visible ? '' : '<path d="m3 3 18 18"/>'}
-  </svg>`
+  return visible ? uiIcons.eye : uiIcons.eyeOff
 }
 
 export function createLoginMarkup() {
@@ -49,7 +46,7 @@ export function createLoginMarkup() {
               <button class="primary-action" type="submit">
                 <span data-submit-label>预览验证动效</span><span aria-hidden="true">→</span>
               </button>
-              <p class="form-footnote">没有账户？ <button type="button" class="text-action strong" data-static-action>申请访问&nbsp;→</button></p>
+              <p class="form-footnote">没有账户？ <button type="button" class="text-action strong" data-static-action>申请访问&nbsp;${uiIcons.right}</button></p>
               <p class="preview-notice" role="status" data-preview-status>静态视觉预览 · 当前不会发送登录请求</p>
             </div>
           </form>

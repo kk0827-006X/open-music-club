@@ -1,3 +1,5 @@
+import { uiIcons } from './ui-icons.ts'
+
 const openMusicMark = `
   <svg viewBox="0 0 310 185" role="img" aria-label="Open Music Club">
     <path d="M156 75C127 48 103 15 70 15C37 15 15 39 15 70S38 128 70 128C103 128 127 96 176 52M155 75C182 99 208 128 240 128C273 128 295 105 295 73S273 15 240 15C221 15 207 23 192 38" fill="none" stroke="currentColor" stroke-width="26"/>
@@ -12,7 +14,7 @@ export function createEntryMarkup() {
       <h1 id="entry-title" class="sr-only">OPEN MUSIC CLUB</h1>
       <p>OPEN MUSIC CLUB / READY</p>
       <i aria-hidden="true"></i>
-      <button type="button" data-entry-start>点击进入&nbsp;&nbsp;→</button>
+      <button type="button" data-entry-start>点击进入&nbsp;&nbsp;${uiIcons.right}</button>
       <small>轻触屏幕或按 Enter 开始</small>
     </main>`
 }
