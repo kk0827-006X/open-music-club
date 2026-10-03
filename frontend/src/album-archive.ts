@@ -7,6 +7,7 @@ import { createPersonalLibraryClient, toPersonalSong } from './personal-library-
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
 import { createQueuePersistence } from './queue-persistence.ts'
+import { mountQueueAddAnimation } from './queue-add-animation.ts'
 import { createQueuePanelMarkup, createQueueItemsMarkup, mountQueuePanel } from './player-queue-panel.ts'
 import { currentLyricIndex, loadTrackLyrics, type LyricLine } from './player-lyrics.ts'
 import { archiveColumns, columnFiles, fileLocation, records } from './rhine/data.ts'
@@ -241,6 +242,7 @@ export function mountAlbumArchive(root: HTMLElement) {
   }
 
   const schedulePlayerHide = () => {
+    if (queueAddAnimation.active) return
     if (playerHideTimer || playerExpanded || !archive.querySelector<HTMLElement>('[data-player-queue-panel]')?.hidden) return
     playerHideTimer = window.setTimeout(() => {
       playerHideTimer = 0
@@ -249,6 +251,12 @@ export function mountAlbumArchive(root: HTMLElement) {
           && document.activeElement instanceof HTMLElement && document.activeElement.matches(':focus-visible'))) setPlayerVisible(false)
     }, 320)
   }
+
+  const queueAddAnimation = mountQueueAddAnimation(archive, {
+    reduced,
+    reveal: () => { cancelPlayerHide(); setPlayerVisible(true) },
+    finish: schedulePlayerHide,
+  })
 
   const setQueueOpen = (open: boolean) => {
     if (!open) queueInteraction.cancelDrag()
@@ -400,6 +408,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     }
     queue.add(track)
     updateQueue()
+    queueAddAnimation.added()
   }
 
   const queuePersistence = createQueuePersistence({
@@ -941,6 +950,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     })
   return () => {
     disposed = true
+    queueAddAnimation.destroy()
     queuePersistence.destroy()
     window.removeEventListener('online', retryQueue)
     window.removeEventListener('pagehide', flushQueue)

@@ -1142,3 +1142,35 @@ button:focus-visible { outline: 2px solid #a8793d; outline-offset: 3px; }
   .search-result-actions button:first-child { display: none; }
   .search-result-foot span:last-child { display: none; }
 }
+.login-layout-spacer { visibility: hidden; pointer-events: none; }
+
+/* 所有页面共用悬停和键盘聚焦反馈，不改变禁用按钮。 */
+body button:not(:disabled):not([aria-disabled="true"]):is(:hover, :focus-visible) {
+  color: var(--button-hover-color, var(--amber));
+  border-color: currentColor;
+}
+button:has([data-ui-icon="close"]), button:has([data-ui-icon="trash"]) {
+  --button-hover-color: #a34832;
+}
+.primary-action, .upload-submit { --button-hover-color: var(--ink); }
+.upload-dropzone > button, .user-dialog-actions button[type="submit"] {
+  --button-hover-color: var(--ink);
+}
+body button:not(:disabled):not([aria-disabled="true"]) {
+  /* 保留各页面已有过渡属性，只统一悬停配色。 */
+  cursor: pointer;
+}
+body button[aria-pressed="true"]:has([data-ui-icon="heart"]) { --button-hover-color: #865315; }
+.archive-ticks button:hover:not(:disabled) { background-color: var(--amber); }
+.queue-add-flight {
+  position: fixed;
+  z-index: 200;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  color: var(--amber);
+  will-change: transform, opacity;
+}
+.queue-add-flight .ui-icon { width: 28px; height: 28px; }

@@ -1,4 +1,4 @@
-import { describeArc, sampleLoginMotion } from './login-motion.ts'
+import { sampleLoginMotion } from './login-motion.ts'
 import type { LoginCredentials } from './auth-client.ts'
 import { uiIcons } from './ui-icons.ts'
 
@@ -9,7 +9,7 @@ export function passwordEyeMarkup(visible: boolean) {
 export function createLoginMarkup() {
   return `
     <div class="login-shell" data-login-shell>
-      <header class="brand-lockup" data-motion="brand">
+      <header class="brand-lockup login-layout-spacer" aria-hidden="true" inert>
         <p class="brand-name">OPEN MUSIC CLUB</p>
         <p class="brand-subtitle">MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p>
         <p class="brand-note"><span></span>音乐连接彼此&nbsp;&nbsp;&nbsp;记录此刻与未来</p>
@@ -41,13 +41,12 @@ export function createLoginMarkup() {
               </label>
               <div class="form-options">
                 <label><input type="checkbox" name="rememberMe" data-remember-me /> <span>保持登录状态</span></label>
-                <button type="button" class="text-action" data-static-action>忘记密码？</button>
               </div>
               <button class="primary-action" type="submit">
-                <span data-submit-label>预览验证动效</span><span aria-hidden="true">→</span>
+                <span data-submit-label>验证身份</span>${uiIcons.right}
               </button>
-              <p class="form-footnote">没有账户？ <button type="button" class="text-action strong" data-static-action>申请访问&nbsp;${uiIcons.right}</button></p>
-              <p class="preview-notice" role="status" data-preview-status>静态视觉预览 · 当前不会发送登录请求</p>
+              <p class="form-footnote login-layout-spacer" aria-hidden="true">&nbsp;</p>
+              <p class="preview-notice" role="status" data-preview-status>勾选保持登录后，下次进入将自动确认身份</p>
             </div>
           </form>
 
@@ -64,77 +63,14 @@ export function createLoginMarkup() {
           </section>
         </section>
 
-        <section class="protocol-visual" aria-label="认证协议可视化" data-motion="protocol">
-          <p><span>AUTHENTICATION PROTOCOL</span></p>
-          <svg viewBox="0 0 320 320" role="img" aria-label="安全认证动画">
-            <circle class="orbit-guide orbit-guide--outer" cx="160" cy="160" r="120" />
-            <circle class="orbit-guide" cx="160" cy="160" r="93" />
-            <circle class="orbit-guide" cx="160" cy="160" r="68" />
-            <path class="orbit-active" data-orbit-path />
-            <g class="orbit-axis"><path d="M160 24V296M24 160H296" /><path d="M154 36H166M154 284H166M36 154V166M284 154V166" /></g>
-            <g class="orbit-core">
-              <rect x="149" y="151" width="22" height="20" rx="1" /><path d="M153 151V143A7 7 0 0 1 167 143V151" />
-              <text x="160" y="192">SECURE</text><text x="160" y="205">ACCESS</text>
-            </g>
-            <circle class="orbit-node" data-orbit-node cx="160" cy="40" r="5" />
-          </svg>
-          <p class="protocol-caption">ENCRYPTED SESSION / 01</p>
-        </section>
-
-        <aside class="system-status" data-motion="status" aria-labelledby="system-status-title">
-          <p id="system-status-title">SYSTEM STATUS&nbsp;&nbsp;/&nbsp;&nbsp;系统状态</p>
-          <ol>
-            <li class="is-active"><i></i><span><b>连接服务器</b><small>ESTABLISHING CONNECTIVITY</small></span></li>
-            <li><i></i><span><b>验证账户信息</b><small>VERIFYING CREDENTIALS</small></span></li>
-            <li><i></i><span><b>验证两步验证码</b><small>CHECKING AUTHENTICATOR</small></span></li>
-            <li><i></i><span><b>初始化会话</b><small>INITIALIZING SESSION</small></span></li>
-          </ol>
-          <div class="status-manifesto"><p>A SECURE GATEWAY<br />TO INDEPENDENT MUSIC</p><p>一个属于创作者与听众的音乐档案馆<br />安全连接，探索更多可能</p></div>
-        </aside>
       </main>
-
-      <footer class="access-footer">
-        <p><span class="lock-mark" aria-hidden="true">▣</span> SECURE SESSION&nbsp;&nbsp;/&nbsp;&nbsp;LOCAL PREVIEW <i></i> 视觉预览</p>
-        <p><span></span> WELCOME SEQUENCE READY <b aria-hidden="true">→</b></p>
-      </footer>
     </div>
   `
 }
 
 function applyMotion(shell: HTMLElement, elapsedMs: number, reduced: boolean) {
   const frame = sampleLoginMotion(elapsedMs, reduced)
-  shell.style.setProperty('--brand-progress', String(frame.brand))
   shell.style.setProperty('--panel-progress', String(frame.panel))
-  shell.style.setProperty('--protocol-progress', String(frame.protocol))
-  shell.style.setProperty('--status-progress', String(frame.status))
-  shell.style.setProperty('--orbit-angle', `${frame.orbit}rad`)
-  shell.style.setProperty('--pulse', String(frame.pulse))
-  shell.querySelector<SVGPathElement>('[data-orbit-path]')?.setAttribute('d', describeArc(160, 160, 93, -90, -90 + frame.protocol * 148))
-}
-
-function runStatusPreview(shell: HTMLElement) {
-  const items = [...shell.querySelectorAll<HTMLElement>('.system-status li')]
-  const status = shell.querySelector<HTMLElement>('[data-preview-status]')
-  const label = shell.querySelector<HTMLElement>('[data-submit-label]')
-  items.forEach((item) => item.classList.remove('is-active', 'is-complete'))
-  status?.classList.add('is-running')
-  if (label) label.textContent = '正在预览协议'
-  if (status) status.textContent = '演示模式 · 模拟安全认证流程'
-  items.forEach((item, index) => {
-    window.setTimeout(() => {
-      items.forEach((entry, entryIndex) => {
-        entry.classList.toggle('is-complete', entryIndex < index)
-        entry.classList.toggle('is-active', entryIndex === index)
-      })
-    }, index * 650)
-  })
-  window.setTimeout(() => {
-    items.forEach((item) => item.classList.remove('is-active', 'is-complete'))
-    items[0]?.classList.add('is-active')
-    status?.classList.remove('is-running')
-    if (label) label.textContent = '预览验证动效'
-    if (status) status.textContent = '静态视觉预览 · 当前不会发送登录请求'
-  }, items.length * 650 + 650)
 }
 
 export function mountLoginPage(
@@ -187,7 +123,8 @@ export function mountLoginPage(
         email: email.value, password: password.value, rememberMe: remember?.checked === true,
       })
       password.value = ''
-      runStatusPreview(shell)
+      status?.classList.remove('is-running')
+      if (label) label.textContent = '认证通过'
       if (status) status.textContent = result.role === 'admin'
         ? '管理员身份已由服务器确认'
         : '成员身份已由服务器确认'
@@ -207,12 +144,6 @@ export function mountLoginPage(
     reveal.setAttribute('aria-label', shouldReveal ? '隐藏密码' : '显示密码')
     reveal.setAttribute('aria-pressed', String(shouldReveal))
     reveal.classList.toggle('is-visible', shouldReveal)
-  })
-  shell.querySelectorAll<HTMLButtonElement>('[data-static-action]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const status = shell.querySelector<HTMLElement>('[data-preview-status]')
-      if (status) status.textContent = '当前阶段仅实现登录页视觉与动效'
-    })
   })
   return () => window.cancelAnimationFrame(animationFrame)
 }
