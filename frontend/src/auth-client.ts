@@ -80,6 +80,16 @@ export async function restoreSession(
   }
 }
 
+export async function logoutSession(fetcher: Fetcher = window.fetch.bind(window) as Fetcher) {
+  try {
+    const response = await fetcher('/api/security/csrf-token', { credentials: 'same-origin', cache: 'no-store' })
+    const body = await safeJson(response)
+    if (!response.ok || !isObject(body) || typeof body.csrfToken !== 'string' || !body.csrfToken) throw new Error('无法验证退出请求')
+    const logout = await fetcher('/api/auth/logout', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': body.csrfToken } })
+    if (!logout.ok) throw new Error('退出未成功')
+  } catch { throw new Error('退出失败，请稍后重试') }
+}
+
 export async function loginAndVerify(
   credentials: LoginCredentials,
   fetcher: Fetcher = window.fetch.bind(window) as Fetcher,

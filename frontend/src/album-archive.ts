@@ -6,6 +6,7 @@ import { mountUserPage } from './user-page.ts'
 import { createPersonalLibraryClient, toPersonalSong } from './personal-library-client.ts'
 import { resolvePlaybackUrl, type SearchItem } from './music-search.ts'
 import { MusicQueue } from './music-queue.ts'
+import { mountSettingsDialog } from './settings-dialog.ts'
 import { createQueuePersistence } from './queue-persistence.ts'
 import { mountQueueAddAnimation } from './queue-add-animation.ts'
 import { createQueuePanelMarkup, createQueueItemsMarkup, mountQueuePanel } from './player-queue-panel.ts'
@@ -122,7 +123,7 @@ export function createAlbumDetailMarkup(album: DemoAlbum, trackState: 'ready' | 
 
 export const wrapAlbumIndex = (value: number, count = demoAlbums.length) => ((value % count) + count) % count
 
-export function mountAlbumArchive(root: HTMLElement) {
+export function mountAlbumArchive(root: HTMLElement, options: { onLogout?: () => Promise<void> } = {}) {
   let frame = 0
   let selectedIndex = 0
   let recordIndex = 16
@@ -630,7 +631,7 @@ export function mountAlbumArchive(root: HTMLElement) {
 
   const animate = (now: number) => {
     frame = 0
-    if (disposed || document.hidden || view !== 'archive' || playerExpanded || !scene) return
+    if (disposed || document.hidden || view !== 'archive' || playerExpanded || settingsDialog.open || !scene) return
     scene.update(now / 1000)
     if (mode === 'detail') {
       const visibility = scene.detailVisibility
@@ -659,6 +660,17 @@ export function mountAlbumArchive(root: HTMLElement) {
   const wakeScene = () => {
     if (!frame && scene && view === 'archive' && !disposed && !document.hidden) frame = requestAnimationFrame(animate)
   }
+
+  const settingsDialog = mountSettingsDialog(archive, {
+    logout: options.onLogout,
+    onOpen: () => { cancelAnimationFrame(frame); frame = 0 },
+    onClose: wakeScene,
+  })
+  const openSettings = (event: MouseEvent) => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-nav="settings"]') : null
+    if (button) { setQueueOpen(false); settingsDialog.show(button) }
+  }
+  archive.addEventListener('click', openSettings)
 
   const setNavigation = (name: 'library' | 'search' | 'upload' | 'user') => {
     for (const button of archive.querySelectorAll<HTMLButtonElement>('[data-nav="library"], [data-nav="search"], [data-nav="upload"], [data-nav="user"]')) {
@@ -879,6 +891,7 @@ export function mountAlbumArchive(root: HTMLElement) {
     }
 
     const onKeydown = (event: KeyboardEvent) => {
+      if (settingsDialog.open) return
       if (playerExpanded) {
         if (event.key === 'Escape') { event.preventDefault(); setPlayerExpanded(false, true) }
         return
@@ -950,6 +963,8 @@ export function mountAlbumArchive(root: HTMLElement) {
     })
   return () => {
     disposed = true
+    settingsDialog.destroy()
+    archive.removeEventListener('click', openSettings)
     queueAddAnimation.destroy()
     queuePersistence.destroy()
     window.removeEventListener('online', retryQueue)

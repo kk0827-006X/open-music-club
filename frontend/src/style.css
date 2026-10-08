@@ -1174,3 +1174,52 @@ body button[aria-pressed="true"]:has([data-ui-icon="heart"]) { --button-hover-co
   will-change: transform, opacity;
 }
 .queue-add-flight .ui-icon { width: 28px; height: 28px; }
+
+/* 设置 UI 独立于播放器，图标悬停动效沿用全站共享规则。 */
+.settings-dialog { width: min(1080px, 92vw); max-width: none; height: min(700px, 88svh); max-height: 88svh; margin: auto; padding: 28px 32px; border: 1px solid #ffffff90; border-radius: 2px; background: var(--paper); color: var(--ink); box-shadow: 0 20px 75px #17171026; overflow: hidden; }
+.settings-dialog[open] { display: flex; flex-direction: column; animation: settings-enter 220ms ease-out both; }
+.settings-dialog::backdrop { background: #24231d55; }
+.settings-dialog.is-closing { animation: settings-exit 180ms ease-in both; }
+.settings-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid var(--hairline); }
+.settings-header p { margin: 0 0 9px; font-size: .59rem; letter-spacing: .14em; color: var(--muted); }
+.settings-header h2 { margin: 0; font-size: 1.8rem; font-weight: 650; }
+.settings-header > button { width: 32px; height: 32px; border: 0; background: transparent; font-size: 1.5rem; }
+.settings-layout { display: grid; grid-template-columns: 1fr 3fr; flex: 1; min-height: 0; }
+.settings-sidebar { display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid var(--hairline); padding: 23px 22px 0 0; }
+.settings-sidebar nav { display: grid; gap: 9px; }
+.settings-sidebar nav button { position: relative; text-align: left; padding: 14px 12px; border: 0; background: transparent; font-size: .95rem; transition: color 180ms, background 180ms; }
+.settings-sidebar nav button[aria-current="page"] { color: var(--amber); background: #b7792209; }
+.settings-sidebar nav button[aria-current="page"]::before { content: ''; position: absolute; left: 0; top: 13px; bottom: 13px; width: 3px; background: var(--amber); }
+.settings-sidebar > p { margin: 12px; display: grid; gap: 8px; font-size: .62rem; letter-spacing: .08em; color: var(--muted); }
+.settings-operations { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 23px 0 0 30px; }
+[data-settings-content] { overflow-y: auto; scrollbar-width: thin; flex: 1; min-height: 0; padding-right: 7px; }
+.settings-section-heading { padding-bottom: 16px; }
+.settings-section-heading > p { margin: 0 0 8px; font-size: .59rem; letter-spacing: .15em; color: var(--muted); }
+.settings-section-heading h3 { margin: 0 0 9px; font-size: 1.3rem; font-weight: 600; }
+.settings-section-heading > span { font-size: .72rem; color: var(--muted); }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; min-height: 70px; padding: 14px 0; border-top: 1px solid var(--hairline); }
+.settings-row b { font-size: .8rem; font-weight: 600; }
+.settings-row p { margin: 6px 0 0; font-size: .65rem; line-height: 1.5; color: var(--muted); max-width: 330px; }
+.settings-control { display: flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: .72rem; max-width: 45%; overflow-wrap: anywhere; }
+.settings-control select, .settings-control > button:not(.settings-switch) { padding: 8px 11px; border: 1px solid var(--hairline); background: transparent; color: inherit; font: inherit; }
+.settings-control select { min-width: 100px; }
+.settings-control :disabled { opacity: .5; cursor: not-allowed; }
+.settings-switch { width: 43px; height: 24px; padding: 3px; border: 0; border-radius: 12px; background: #cbc7be; }
+.settings-switch span { display: block; width: 18px; height: 18px; border-radius: 50%; background: #faf8f3; }
+.settings-control input[type="range"] { width: 140px; accent-color: var(--amber); }
+.settings-pending { color: var(--muted); font-size: .65rem; }
+.settings-operations > footer { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--hairline); padding-top: 14px; font-size: .6rem; color: var(--muted); }
+[data-settings-status] { color: var(--amber); }
+@keyframes settings-enter { from { opacity: 0; transform: translateY(10px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes settings-exit { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(.99); } }
+@media (prefers-reduced-motion: reduce) { .settings-dialog[open], .settings-dialog.is-closing { animation: none; } }
+@media (max-width: 650px) {
+  .settings-dialog { width: 96vw; padding: 18px 14px; height: 90svh; max-height: 90svh; }
+  .settings-layout { grid-template-columns: 105px minmax(0, 1fr); }
+  .settings-sidebar { padding-right: 10px; }
+  .settings-sidebar nav button { font-size: .73rem; padding: 12px 8px; }
+  .settings-operations { padding-left: 14px; }
+  .settings-row { flex-wrap: wrap; }
+  .settings-control { max-width: 100%; }
+  .settings-operations > footer { flex-direction: column; }
+}

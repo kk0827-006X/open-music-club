@@ -1,5 +1,5 @@
 import './style.css'
-import { loginAndVerify, restoreSession } from './auth-client.ts'
+import { loginAndVerify, logoutSession, restoreSession } from './auth-client.ts'
 import { mountAlbumArchive } from './album-archive.ts'
 import { mountAuthorizedSequence } from './authorized-sequence.ts'
 import { mountEntryPage } from './entry-page.ts'
@@ -13,7 +13,7 @@ if (app) {
     cleanup()
     cleanup = mountAuthorizedSequence(app, role, () => {
       cleanup()
-      cleanup = mountAlbumArchive(app)
+      cleanup = mountAlbumArchive(app, { onLogout: async () => { await logoutSession(); showLogin() } })
     })
   }
   const showLogin = () => {
