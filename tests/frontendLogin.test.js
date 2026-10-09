@@ -11,6 +11,16 @@ function frontendModule(relativePath) {
 }
 
 describe('静态登录页面', () => {
+  it('两步验证使用默认关闭的独立弹窗，不占用密码表单下方的可见空间', async () => {
+    const { createLoginMarkup } = await import(frontendModule('login-page.ts'))
+    const markup = createLoginMarkup()
+    assert.match(markup, /<dialog[^>]*data-login-factor-dialog/)
+    assert.doesNotMatch(markup, /<dialog[^>]*\bopen(?:\s|=|>)/)
+    assert.match(markup, /data-login-factor-close/)
+    const main = markup.match(/<main[\s\S]*?<\/main>/)[0]
+    assert.doesNotMatch(main, /class="authenticator-panel"/)
+    assert.match(main, /data-login-factor-spacer[^>]*aria-hidden="true"/)
+  })
   it('只渲染登录所需内容，不提前显示业务导航或播放器', async () => {
     const { createLoginMarkup } = await import(frontendModule('login-page.ts'))
     const markup = createLoginMarkup()

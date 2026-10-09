@@ -248,6 +248,13 @@ p, h1, h2 { margin: 0; }
 .authenticator-panel { margin-top: 11px; opacity: .66; }
 .authenticator-panel.is-active { opacity: 1; }
 .authenticator-panel.is-active .authenticator-content { display: block; }
+.login-factor-dialog { width: min(620px, calc(100vw - 36px)); max-width: none; max-height: 88svh; margin: auto; padding: 0; border: 1px solid var(--hairline); background: var(--paper); color: var(--ink); box-shadow: 0 20px 75px #17171026; overflow-y: auto; }
+.login-factor-dialog[open] { animation: settings-enter 220ms ease-out both; }
+.login-factor-dialog.is-closing { animation: settings-exit 180ms ease-in both; }
+.login-factor-dialog::backdrop { background: #24231d55; }
+.login-factor-dialog .authenticator-panel { margin: 0; border: 0; }
+.login-factor-dialog [data-login-factor-close] { display: grid; place-items: center; width: 30px; height: 28px; margin-left: 8px; padding: 0; border: 0; background: transparent; }
+@media (prefers-reduced-motion: reduce) { .login-factor-dialog[open], .login-factor-dialog.is-closing { animation: none; } }
 .two-factor-manager form, [data-login-factor] { display: grid; gap: 12px; margin-block: 14px; }
 .two-factor-manager label, [data-login-factor] label { display: grid; gap: 6px; font-size: .82rem; }
 .two-factor-manager input, [data-login-factor] input:not([type=checkbox]) { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--muted); background: transparent; color: inherit; }
