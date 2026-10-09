@@ -1,4 +1,5 @@
 const { findUserById, toSafeUser } = require('../db/users')
+const { sessionIsValid } = require('../services/twoFactor.service')
 function clearSessionCookie(req, res) {
   const cookieName =
     req.app.locals.sessionCookieName || 'open_music_club.sid'
@@ -18,7 +19,7 @@ function requireLogin(req, res, next) {
   }
 
   const user = findUserById(req.app.locals.database, req.session.userId)
-  if (!user || user.status !== 'active') {
+  if (!user || user.status !== 'active' || !sessionIsValid(req, user)) {
     return req.session.destroy((error) => {
       if (error) return next(error)
       clearSessionCookie(req, res)

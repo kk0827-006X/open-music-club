@@ -20,11 +20,12 @@ if (app) {
     cleanup()
     cleanup = mountLoginPage(app, async (credentials) => {
       const result = await loginAndVerify(credentials)
+      if (!result.user) return result
       window.setTimeout(() => {
         showAuthorized(result.user.role)
       }, 1_150)
       return { role: result.user.role }
-    })
+    }, role => { window.setTimeout(() => showAuthorized(role), 1150) })
   }
   cleanup = mountEntryPage(app, () => {
     // 保留点击进入及原版授权动画；仅有效会话可以跳过密码表单。

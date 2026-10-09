@@ -124,6 +124,9 @@ export async function loginAndVerify(
         : '登录失败，请检查账号信息后重试'
       throw new AuthFlowError('LOGIN_REJECTED', message, loginResponse.status)
     }
+    if (isObject(loginBody) && loginBody.requiresTwoFactor === true) {
+      return { user: null, requiresTwoFactor: true as const, enrollmentRequired: loginBody.enrollmentRequired === true }
+    }
 
     // 登录成功后只以服务端 Session 的实时身份为准，避免相信陈旧响应。
     const meResponse = await fetcher('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
@@ -138,4 +141,28 @@ export async function loginAndVerify(
     if (error instanceof AuthFlowError) throw error
     throw new AuthFlowError('NETWORK_ERROR', '无法连接服务器，请稍后重试')
   }
+}
+
+// 每次提升权限都会轮换 Session，因此修改请求重新获取 CSRF Token。
+export async function twoFactorRequest(path: string, body?: Record<string, unknown>, fetcher: Fetcher = window.fetch.bind(window) as Fetcher): Promise<Record<string, unknown>> {
+  try {
+    let headers: Record<string, string> = {}
+    if (body) {
+      const csrf = await fetcher('/api/security/csrf-token', { credentials: 'same-origin', cache: 'no-store' })
+      const token = await safeJson(csrf)
+      if (!csrf.ok || !isObject(token) || typeof token.csrfToken !== 'string') throw new Error('无法验证安全请求')
+      headers = { 'Content-Type': 'application/json', 'X-CSRF-Token': token.csrfToken }
+    }
+    const response = await fetcher(`/api/auth/2fa/${path}`, { method: body ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers, ...(body ? { body: JSON.stringify(body) } : {}) })
+    const data = await safeJson(response)
+    if (!response.ok || !isObject(data)) throw new Error(isObject(data) && typeof data.message === 'string' ? data.message : '两步验证服务暂时不可用')
+    return data
+  } catch (error) { throw error instanceof Error ? error : new Error('无法连接服务器') }
+}
+
+export async function verifyTwoFactor(code: string, recovery = false, fetcher: Fetcher = window.fetch.bind(window) as Fetcher) {
+  await twoFactorRequest(recovery ? 'recovery' : 'verify', { code }, fetcher)
+  const user = await restoreSession(fetcher)
+  if (!user) throw new Error('登录会话未能通过服务器确认')
+  return user
 }

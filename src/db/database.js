@@ -152,6 +152,30 @@ function initializeSchema(database) {
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       tracks_json TEXT NOT NULL CHECK (json_valid(tracks_json) AND length(tracks_json) <= 12000)
     );
+
+    CREATE TABLE IF NOT EXISTS user_two_factor (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      secret_ciphertext TEXT,
+      enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+      last_used_counter INTEGER,
+      pending_ciphertext TEXT,
+      pending_session_hash TEXT,
+      pending_expires_at INTEGER,
+      session_version INTEGER NOT NULL DEFAULT 0,
+      failed_attempts INTEGER NOT NULL DEFAULT 0,
+      locked_until INTEGER NOT NULL DEFAULT 0,
+      confirmed_at DATETIME,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CHECK (enabled = 0 OR secret_ciphertext IS NOT NULL)
+    );
+    CREATE TABLE IF NOT EXISTS two_factor_recovery_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      used_at DATETIME,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (user_id, code_hash)
+    );
   `)
 }
 

@@ -137,6 +137,7 @@ describe('公网通信安全基线', () => {
       'download',
       'netease',
       'personalLibrary',
+      'twoFactor',
     ])
   })
 
@@ -261,9 +262,10 @@ describe('公网通信安全基线', () => {
       assert.match(cookie, /; SameSite=Lax(?:;|$)/)
       const expires = Date.parse(cookie.match(/Expires=([^;]+)/)[1])
       const duration = role === 'admin'
-        ? app.locals.security.sessionIdleTimeoutMinutes * 60 * 1000
+        ? 5 * 60 * 1000
         : 30 * 24 * 60 * 60 * 1000
       assert.ok(Math.abs(expires - startedAt - duration) < 5000)
+      if (role === 'admin') assert.equal(response.body.enrollmentRequired, true)
     }
   })
 

@@ -1,4 +1,5 @@
 import { uiIcons } from './ui-icons.ts'
+import { mountTwoFactorPanel } from './two-factor-panel.ts'
 
 const categories = [['account', '账号与安全'], ['playback', '播放偏好'], ['appearance', '外观与动效'], ['upload', '上传偏好'], ['about', '数据与关于']] as const
 type Category = typeof categories[number][0]
@@ -10,7 +11,7 @@ export function createSettingsMarkup() {
   return `<dialog class="settings-dialog" data-settings-dialog aria-labelledby="settings-title">
     <header class="settings-header"><div><p>OPEN MUSIC CLUB / SYSTEM PREFERENCES</p><h2 id="settings-title">设置</h2></div><button type="button" data-settings-close aria-label="关闭设置">${uiIcons.close}</button></header>
     <div class="settings-layout"><aside class="settings-sidebar"><nav aria-label="设置分类">${categories.map(([id, label]) => `<button type="button" data-settings-category="${id}" aria-current="${id === 'appearance' ? 'page' : 'false'}">${label}</button>`).join('')}</nav><p>PERSONAL PREFERENCES<span>个人偏好设置</span></p></aside>
-    <section class="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content></div><footer><span>设置项仅展示，暂不应用或保存</span><span data-settings-status role="status"></span></footer></section></div>
+    <section class="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content></div><footer><span>两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status"></span></footer></section></div>
   </dialog>`
 }
 
@@ -28,10 +29,10 @@ export function settingsSectionMarkup(category: Category, canLogout: boolean) {
     + row('播放模式', '顺序、随机与循环播放', '<select aria-label="播放模式" disabled><option>顺序播放</option><option>随机播放</option><option>单曲循环</option></select>')
     + row('默认音质', '音源实际可用性以上游返回为准', pending)
     + row('播放进度恢复', '重新打开网站后的播放位置', toggle('播放进度恢复'))
-  if (category === 'account') return heading('ACCOUNT & SECURITY', '账号与安全')
+  if (category === 'account') return `<div class="settings-section-heading"><p>ACCOUNT & SECURITY</p><h3 id="settings-section-title">账号与安全</h3><span>两步验证与退出登录已接入，其他设置暂不开放</span></div>`
     + row('账户资料', '头像与个人音乐收藏仍在用户页管理', pending)
     + row('修改密码', '账号密码管理', '<button type="button" disabled>修改密码</button>')
-    + row('两步验证', '认证器与恢复码管理；此处不表示已启用', '<button type="button" disabled>管理 2FA</button>')
+    + row('两步验证', '认证器与一次性恢复码管理', '<button type="button" data-settings-factor>管理 2FA</button>')
     + row('设备与登录', '登录设备与会话管理', pending)
     + row('退出当前登录', '清除当前会话，停止播放并返回登录页', `<button type="button" data-settings-logout${canLogout ? '' : ' disabled'}>退出登录</button>`)
   if (category === 'upload') return heading('UPLOAD', '上传偏好')
@@ -53,7 +54,9 @@ export function mountSettingsDialog(root: HTMLElement, options: { logout?: () =>
   let category: Category = 'appearance'
   let opener: HTMLElement | null = null
   let timer = 0, disposed = false, closing = false, busy = false
+  let factorCleanup = () => undefined as void
   const render = () => {
+    factorCleanup()
     content.innerHTML = settingsSectionMarkup(category, Boolean(options.logout))
     dialog.querySelectorAll<HTMLButtonElement>('[data-settings-category]').forEach(button => button.setAttribute('aria-current', button.dataset.settingsCategory === category ? 'page' : 'false'))
   }
@@ -63,6 +66,7 @@ export function mountSettingsDialog(root: HTMLElement, options: { logout?: () =>
     dialog.classList.add('is-closing')
     timer = window.setTimeout(() => {
       dialog.close(); closing = false; dialog.classList.remove('is-closing')
+      factorCleanup()
       options.onClose(); opener?.focus()
     }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180)
   }
@@ -71,6 +75,7 @@ export function mountSettingsDialog(root: HTMLElement, options: { logout?: () =>
     const target = event.target instanceof Element ? event.target : null
     const tab = target?.closest<HTMLButtonElement>('[data-settings-category]')
     if (tab) { category = tab.dataset.settingsCategory as Category; render(); return }
+    if (target?.closest('[data-settings-factor]')) { factorCleanup(); factorCleanup = mountTwoFactorPanel(content); status.textContent = '安全设置已接入；其他偏好仍仅展示'; return }
     if (target?.closest('[data-settings-close]')) { close(); return }
     if (event.target === dialog) {
       const rect = dialog.getBoundingClientRect()
@@ -98,6 +103,7 @@ export function mountSettingsDialog(root: HTMLElement, options: { logout?: () =>
     },
     destroy() {
       disposed = true; window.clearTimeout(timer)
+      factorCleanup()
       dialog.removeEventListener('click', click); dialog.removeEventListener('cancel', cancel)
       if (dialog.open) dialog.close()
       dialog.remove()

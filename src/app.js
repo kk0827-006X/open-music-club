@@ -9,6 +9,8 @@ const { createSecurityConfig } = require('./config/security')
 const { requireLogin } = require('./middleware/requireLogin')
 const { requireAdmin } = require('./middleware/requireAdmin')
 const { createAuthRouter } = require('./routes/auth.routes')
+const { createTwoFactorRouter } = require('./routes/twoFactor.routes')
+const { createTwoFactorService } = require('./services/twoFactor.service')
 const { createApplicationsRouter } = require('./routes/applications.routes')
 const {
   createAdminApplicationsRouter,
@@ -35,6 +37,7 @@ function createApp({
   localMusic = {},
   security = {},
   infrastructure = {},
+  twoFactor = {},
 }) {
   if (!sessionSecret) {
     throw new Error('SESSION_SECRET 不能为空')
@@ -57,6 +60,9 @@ function createApp({
   const localMusicConfig = createLocalMusicConfig(localMusic)
   const database = createDatabase(databasePath)
   initializeSchema(database)
+  let twoFactorService
+  try { twoFactorService = createTwoFactorService(database, twoFactor) }
+  catch (error) { database.close(); throw error }
 
   let sessionConfiguration
   try {
@@ -82,6 +88,8 @@ function createApp({
   app.locals.sessionCookieName = sessionConfiguration.cookieName
   app.locals.sessionCookieOptions = sessionConfiguration.cookieOptions
   app.locals.security = securityConfig
+  app.locals.twoFactor = twoFactorService
+  if (!twoFactorService.available) securityConfig.logger.warn?.({ event: 'two_factor_key_missing', message: '未配置 TOTP_ENCRYPTION_KEY，无法绑定认证器；公网管理员不能获得正式登录权限' })
 
   app.use(requestIdMiddleware)
   app.use(createHttpsEnforcement(securityConfig))
@@ -116,6 +124,7 @@ function createApp({
 
   app.get('/api/security/csrf-token', csrfTokenHandler)
   app.use(createCsrfProtection(securityConfig))
+  app.use('/api/auth/2fa', createTwoFactorRouter(infrastructure.createRateLimitStore))
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }))
   if (rateLimiters) app.use('/api/auth/login', rateLimiters.login)

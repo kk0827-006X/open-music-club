@@ -246,6 +246,16 @@ p, h1, h2 { margin: 0; }
 .preview-notice.is-running { color: var(--amber); }
 
 .authenticator-panel { margin-top: 11px; opacity: .66; }
+.authenticator-panel.is-active { opacity: 1; }
+.authenticator-panel.is-active .authenticator-content { display: block; }
+.two-factor-manager form, [data-login-factor] { display: grid; gap: 12px; margin-block: 14px; }
+.two-factor-manager label, [data-login-factor] label { display: grid; gap: 6px; font-size: .82rem; }
+.two-factor-manager input, [data-login-factor] input:not([type=checkbox]) { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--muted); background: transparent; color: inherit; }
+.two-factor-manager button, [data-login-factor] button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 14px; border: 1px solid var(--muted); background: transparent; color: inherit; cursor: pointer; }
+.two-factor-manager button:hover, [data-login-factor] button:hover { color: var(--amber); }
+.two-factor-qr { display: block; width: 180px; max-width: 100%; margin: 12px auto; }
+.two-factor-secret, .two-factor-codes { display: block; overflow-wrap: anywhere; white-space: pre-wrap; font-size: .8rem; padding-block: 12px; user-select: all; }
+.two-factor-manager { padding-block: 12px; }
 .authenticator-content {
   display: grid;
   grid-template-columns: 1.2fr 1fr;

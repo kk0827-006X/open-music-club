@@ -1,6 +1,8 @@
 import { sampleLoginMotion } from './login-motion.ts'
 import type { LoginCredentials } from './auth-client.ts'
 import { uiIcons } from './ui-icons.ts'
+import { verifyTwoFactor } from './auth-client.ts'
+import { mountTwoFactorPanel } from './two-factor-panel.ts'
 
 export function passwordEyeMarkup(visible: boolean) {
   return visible ? uiIcons.eye : uiIcons.eyeOff
@@ -75,7 +77,8 @@ function applyMotion(shell: HTMLElement, elapsedMs: number, reduced: boolean) {
 
 export function mountLoginPage(
   root: HTMLElement,
-  onAuthenticate?: (credentials: LoginCredentials) => Promise<{ role: 'admin' | 'user' }>,
+  onAuthenticate?: (credentials: LoginCredentials) => Promise<{ role?: 'admin' | 'user'; requiresTwoFactor?: boolean; enrollmentRequired?: boolean }>,
+  onVerified?: (role: 'admin' | 'user') => void,
 ) {
   root.innerHTML = createLoginMarkup()
   const shell = root.querySelector<HTMLElement>('[data-login-shell]')
@@ -83,6 +86,8 @@ export function mountLoginPage(
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const startedAt = performance.now()
   let animationFrame = 0
+  let disposed = false
+  let factorCleanup = () => undefined as void
   const animate = (now: number) => {
     const elapsed = now - startedAt
     applyMotion(shell, elapsed, reduceMotion)
@@ -115,6 +120,7 @@ export function mountLoginPage(
       return
     }
     submit?.setAttribute('disabled', 'true')
+    factorCleanup()
     if (label) label.textContent = '正在验证身份'
     if (status) status.textContent = '正在建立安全会话…'
     status?.classList.add('is-running')
@@ -122,13 +128,45 @@ export function mountLoginPage(
       const result = await onAuthenticate({
         email: email.value, password: password.value, rememberMe: remember?.checked === true,
       })
+      if (disposed) return
       password.value = ''
       status?.classList.remove('is-running')
+      if (result.requiresTwoFactor) {
+        if (label) label.textContent = '等待两步验证'
+        if (status) status.textContent = '密码正确，请完成下方两步验证；过期后请重新登录'
+        const panel = shell.querySelector<HTMLElement>('.authenticator-content')!
+        panel.parentElement?.classList.add('is-active')
+        if (result.enrollmentRequired) {
+          panel.style.display = 'block'
+          panel.parentElement?.setAttribute('aria-labelledby', 'settings-section-title')
+          factorCleanup = mountTwoFactorPanel(panel, role => onVerified?.(role))
+        } else {
+          panel.parentElement?.setAttribute('aria-labelledby', 'authenticator-title')
+          panel.innerHTML = `<form data-login-factor><h2 id="authenticator-title">AUTHENTICATOR / 两步验证</h2><label>验证码<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required/></label><label><input type="checkbox" name="recovery"/>使用恢复码</label><button type="submit">确认登录${uiIcons.right}</button><p role="status" data-factor-feedback></p></form>`
+          const factorForm = panel.querySelector<HTMLFormElement>('form')!, code = factorForm.querySelector<HTMLInputElement>('[name=code]')!, recovery = factorForm.querySelector<HTMLInputElement>('[name=recovery]')!
+          recovery.addEventListener('change', () => { code.value = ''; code.maxLength = recovery.checked ? 35 : 6; code.inputMode = recovery.checked ? 'text' : 'numeric' })
+          factorForm.addEventListener('submit', async event => {
+            event.preventDefault()
+            const button = factorForm.querySelector<HTMLButtonElement>('button')!
+            if (button.disabled) return
+            button.disabled = true
+            try {
+              const user = await verifyTwoFactor(code.value.trim(), recovery.checked)
+              if (!disposed) onVerified?.(user.role)
+            } catch (error) { if (!disposed) factorForm.querySelector<HTMLElement>('[data-factor-feedback]')!.textContent = error instanceof Error ? error.message : '验证失败' }
+            finally { code.value = ''; button.disabled = false }
+          })
+          code.focus()
+        }
+        submit?.removeAttribute('disabled')
+        return
+      }
       if (label) label.textContent = '认证通过'
       if (status) status.textContent = result.role === 'admin'
         ? '管理员身份已由服务器确认'
         : '成员身份已由服务器确认'
     } catch (error) {
+      if (disposed) return
       password.value = ''
       status?.classList.remove('is-running')
       if (status) status.textContent = error instanceof Error ? error.message : '登录失败，请稍后重试'
@@ -145,5 +183,5 @@ export function mountLoginPage(
     reveal.setAttribute('aria-pressed', String(shouldReveal))
     reveal.classList.toggle('is-visible', shouldReveal)
   })
-  return () => window.cancelAnimationFrame(animationFrame)
+  return () => { disposed = true; factorCleanup(); window.cancelAnimationFrame(animationFrame) }
 }
