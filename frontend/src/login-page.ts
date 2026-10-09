@@ -11,11 +11,12 @@ export function passwordEyeMarkup(visible: boolean) {
 export function createLoginMarkup() {
   return `
     <div class="login-shell" data-login-shell>
-      <header class="brand-lockup login-layout-spacer" aria-hidden="true" inert>
+      <header class="archive-brand"><h1>OPEN MUSIC CLUB</h1><p>MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p></header>
+      <div class="brand-lockup login-layout-spacer" aria-hidden="true" inert>
         <p class="brand-name">OPEN MUSIC CLUB</p>
         <p class="brand-subtitle">MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p>
         <p class="brand-note"><span></span>音乐连接彼此&nbsp;&nbsp;&nbsp;记录此刻与未来</p>
-      </header>
+      </div>
 
       <main class="access-layout">
         <section class="access-stack" aria-labelledby="login-title" data-motion="panel">
