@@ -11,6 +11,12 @@ function frontendModule(relativePath) {
 }
 
 describe('静态登录页面', () => {
+  it('流动玻璃仅作为无交互的透明动效层，不搬入演示背景和文字', async () => {
+    const { createLoginMarkup } = await import(frontendModule('login-page.ts'))
+    const markup = createLoginMarkup()
+    assert.match(markup, /data-login-glass[^>]*aria-hidden="true"/)
+    assert.doesNotMatch(markup, /LIVE SIMULATION|让光，随你流动|id="surface"/)
+  })
   it('登录页显示音乐库原版 Logo，直接复用相同定位和字形样式', async () => {
     const { createLoginMarkup } = await import(frontendModule('login-page.ts'))
     const { createAlbumArchiveMarkup } = await import(frontendModule('album-archive.ts'))

@@ -3,6 +3,7 @@ import type { LoginCredentials } from './auth-client.ts'
 import { uiIcons } from './ui-icons.ts'
 import { verifyTwoFactor } from './auth-client.ts'
 import { mountTwoFactorPanel } from './two-factor-panel.ts'
+import { mountLoginGlass } from './login-glass.ts'
 
 export function passwordEyeMarkup(visible: boolean) {
   return visible ? uiIcons.eye : uiIcons.eyeOff
@@ -11,6 +12,7 @@ export function passwordEyeMarkup(visible: boolean) {
 export function createLoginMarkup() {
   return `
     <div class="login-shell" data-login-shell>
+      <div class="login-glass-effect" data-login-glass aria-hidden="true"></div>
       <header class="archive-brand"><h1>OPEN MUSIC CLUB</h1><p>MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p></header>
       <div class="brand-lockup login-layout-spacer" aria-hidden="true" inert>
         <p class="brand-name">OPEN MUSIC CLUB</p>
@@ -94,6 +96,7 @@ export function mountLoginPage(
   root.innerHTML = createLoginMarkup()
   const shell = root.querySelector<HTMLElement>('[data-login-shell]')
   if (!shell) return () => undefined
+  const disposeGlass = mountLoginGlass(shell)
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const startedAt = performance.now()
   let animationFrame = 0
@@ -236,6 +239,7 @@ export function mountLoginPage(
     reveal.classList.toggle('is-visible', shouldReveal)
   })
   return () => {
+    disposeGlass()
     disposed = true; factorGeneration++; factorCleanup(); panel.innerHTML = ''
     window.clearTimeout(closeTimer); window.cancelAnimationFrame(animationFrame)
     dialog.removeEventListener('cancel', cancelFactor); dialog.removeEventListener('click', clickFactor)
