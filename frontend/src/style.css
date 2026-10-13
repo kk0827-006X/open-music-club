@@ -59,6 +59,9 @@ p, h1, h2 { margin: 0; }
   pointer-events: none;
 }
 .login-glass-effect canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+.login-shell .archive-brand {
+  transform: translate3d(0, var(--login-logo-wave-y, 0px), 0) rotate(var(--login-logo-wave-tilt, 0deg));
+}
 
 .brand-lockup {
   opacity: var(--brand-progress);

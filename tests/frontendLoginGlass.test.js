@@ -58,11 +58,13 @@ it('移植拖尾插值、凹陷缓动、点击波纹，波源固定 16 个且时
   assert.ok(size.width * size.height < 301000)
   assert.deepEqual(glassResolution(0, 0), { width: 1, height: 1 })
 })
-it('懒加载且点击产生涟漪，保护区域正确，鼠标离开后停帧并释放', async () => {
+it('进入页面自动显示背景波浪，点击保留涟漪，鼠标离开后仍有呼吸动效', async () => {
   const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
   let loads = 0
   cleanup = mountLoginGlass(shell, async () => { loads++; return fake() })
-  assert.equal(loads, 0)
+  assert.equal(loads, 1)
+  await settle(); tick(0)
+  assert.ok(draws[0][4] > 0, '没有鼠标操作也显示环境波浪')
   point(); point(shell, 'pointerdown'); await settle(); tick(0); tick(40)
   assert.equal(loads, 1)
   assert.ok(draws.at(-1)[0].hover > 0)
@@ -70,7 +72,7 @@ it('懒加载且点击产生涟漪，保护区域正确，鼠标离开后停帧�
   assert.equal(draws.at(-1)[3].length, 1, '只保留登录表单的动效遮罩')
   tick(41); assert.equal(draws.length, 2)
   shell.dispatchEvent(new window.Event('pointerleave')); tick(performance.now() + 1900)
-  assert.equal(frames.size, 0); assert.ok(clears > 0)
+  assert.equal(frames.size, 1); assert.ok(draws.at(-1)[4] > 0)
   cleanup(); cleanup = null; assert.equal(disposals, 1)
   point(); assert.equal(frames.size, 0)
 })
@@ -89,7 +91,7 @@ it('表单输入、2FA、触屏和后台标签不播放动效，不改变密码�
   let loads = 0
   cleanup = mountLoginGlass(shell, async () => { loads++; return fake() })
   const input = shell.querySelector('input'); input.value = 'not-sent'
-  point(input); point(shell, 'pointermove', 'touch'); assert.equal(loads, 0)
+  point(input); point(shell, 'pointermove', 'touch'); assert.equal(loads, 1)
   point(); await settle(); tick(0)
   input.focus(); point(); assert.equal(frames.size, 0); assert.equal(input.value, 'not-sent')
   input.blur(); shell.querySelector('dialog').setAttribute('open', '')
@@ -97,6 +99,32 @@ it('表单输入、2FA、触屏和后台标签不播放动效，不改变密码�
   shell.querySelector('dialog').removeAttribute('open'); point(); tick(50)
   Object.defineProperty(document, 'hidden', { value: true, configurable: true })
   document.dispatchEvent(new window.Event('visibilitychange')); assert.equal(frames.size, 0)
+  Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+  document.dispatchEvent(new window.Event('visibilitychange')); assert.equal(frames.size, 1)
+})
+it('呼吸强度以八秒为周期，平滑起伏且不过亮', async () => {
+  const { glassBreath } = await import('../frontend/src/login-glass-motion.ts')
+  assert.equal(typeof glassBreath, 'function')
+  assert.equal(glassBreath(0), .72)
+  assert.equal(glassBreath(4), 1)
+  assert.ok(Math.abs(glassBreath(8) - .72) < 1e-10)
+  assert.ok(glassBreath(1) < glassBreath(2))
+  assert.ok(glassBreath(5) > glassBreath(6))
+  assert.ok(Math.abs(glassBreath(4.01) - glassBreath(4)) < .001)
+})
+it('Logo 本身随波浪起伏，输入密码与销毁页面后恢复原位置', async () => {
+  const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
+  cleanup = mountLoginGlass(shell, async () => fake())
+  await settle(); tick(0); tick(40)
+  const logo = shell.querySelector('header')
+  assert.ok(parseFloat(logo.style.getPropertyValue('--login-logo-wave-y')) > 0)
+  assert.ok(Math.abs(parseFloat(logo.style.getPropertyValue('--login-logo-wave-y'))) <= 2.4)
+  shell.querySelector('input').focus()
+  assert.equal(logo.style.getPropertyValue('--login-logo-wave-y'), '')
+  shell.querySelector('input').blur(); tick(80)
+  assert.ok(logo.style.getPropertyValue('--login-logo-wave-y'))
+  cleanup(); cleanup = null
+  assert.equal(logo.style.getPropertyValue('--login-logo-wave-y'), '')
 })
 it('减少动态效果不加载，WebGL 失败保留静态页面，延迟加载销毁后正确清理', async () => {
   const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
