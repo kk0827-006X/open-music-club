@@ -1,8 +1,5 @@
-import { demoAlbums } from '../album-data.ts'
-
 export interface ArchiveRecord {
   id: string
-  title: string
   category: string
   albumIndex: number
 }
@@ -35,13 +32,13 @@ export function rankArchiveAlbums(
 
 // 保持原档案墙的循环交互，把 24 张专辑映射为三列、每列八格。
 export const archiveColumns = Array.from({ length: 3 }, (_, lane) => `专辑列 ${lane + 1}`)
-const albumOrder = rankArchiveAlbums(demoAlbums)
+// 几何槽位只保存索引，不读取音乐目录或网络数据。
+const albumOrder = Array.from({ length: 24 }, (_, index) => index)
 export const records: ArchiveRecord[] = archiveColumns.flatMap((category, lane) =>
   Array.from({ length: 8 }, (_, row) => {
     const albumIndex = albumOrder[((lane + 1) % 3) * 8 + row]
     return {
       id: `${lane + 1}-${row + 1}`,
-      title: demoAlbums[albumIndex].title,
       category,
       albumIndex,
     }

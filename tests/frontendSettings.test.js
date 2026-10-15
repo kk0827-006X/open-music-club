@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const { it } = require('node:test')
 
@@ -12,7 +13,7 @@ it('设置仅展示左右分栏 UI，复用关闭图标，不保存或应用播�
   assert.match(settingsSectionMarkup('playback', false), /disabled/)
   assert.match(settingsSectionMarkup('account', true), /data-settings-logout>/)
   assert.match(settingsSectionMarkup('account', false), /data-settings-logout disabled/)
-  const source = require('node:fs').readFileSync('frontend/src/settings-dialog.ts', 'utf8')
+  const source = readFrontendSource('frontend/src/settings-dialog.ts')
   assert.doesNotMatch(source, /localStorage|audio\.volume|setQuality|playerAutoHide|playerPinned/)
 })
 

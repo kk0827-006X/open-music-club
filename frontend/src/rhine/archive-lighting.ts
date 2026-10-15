@@ -14,7 +14,9 @@ export function createArchiveLighting(
   renderer.toneMappingExposure = refined ? 1.0 : 1.05;
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
-  scene.environment = pmrem.fromScene(room, 0.04).texture;
+  const environment = pmrem.fromScene(room, 0.04);
+  scene.environment = environment.texture;
+  scene.userData.archiveEnvironment = environment;
   room.dispose();
   pmrem.dispose();
   scene.environmentIntensity = refined ? 0.52 : 0.48;

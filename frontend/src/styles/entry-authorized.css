@@ -1,0 +1,158 @@
+/* 入口和登录后序列复用 RhineLabUI 的构图与参考帧尺寸。 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.entry-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  overflow: hidden;
+  background: #e8e5e1;
+  opacity: 1;
+  transition: opacity .6s;
+}
+
+.entry-gate.is-leaving { opacity: 0; pointer-events: none; }
+.entry-mark { width: 150px; height: 90px; margin-bottom: 49px; }
+.entry-mark svg { width: 100%; height: 100%; }
+.entry-gate > p { color: #888277; font-size: 11px; letter-spacing: 2px; }
+.entry-gate > i {
+  position: relative;
+  width: 180px;
+  height: 1px;
+  margin-top: 20px;
+  overflow: hidden;
+  background: #bab3a5;
+}
+.entry-gate > i::after {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: #414639;
+  content: "";
+}
+.entry-gate > button {
+  min-height: 48px;
+  margin-top: 32px;
+  padding: 8px 24px;
+  border: 0;
+  border-block: 1px solid #969183;
+  background: transparent;
+  font-size: 16px;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+.entry-gate > button:focus-visible { outline: 2px solid #555c45; outline-offset: 5px; }
+.entry-gate > small { margin-top: 14px; color: #777468; font-size: 12px; line-height: 1.8; }
+
+.authorized-viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #e8e5e1;
+}
+.authorized-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  transform-origin: center;
+  background: #e8e5e1;
+  isolation: isolate;
+}
+.sequence-background {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 51% 48%, #e7e7e1 0%, #e3e1dc 76%, #e4dfdb 100%);
+}
+.sequence-background svg { width: 100%; height: 100%; opacity: .15; filter: blur(2px); }
+.sequence-brand {
+  position: absolute;
+  z-index: 5;
+  top: 114px;
+  left: 59px;
+  width: 390px;
+  color: #080a08;
+  line-height: 1;
+  white-space: nowrap;
+}
+.sequence-brand h1 { margin: 0; font-size: 44px; font-weight: 750; letter-spacing: 1px; line-height: 48px; }
+.sequence-brand div { font-size: 19px; font-weight: 600; letter-spacing: 4.7px; line-height: 23px; }
+.sequence-brand p { margin-top: 3px; font-size: 35px; font-weight: 500; letter-spacing: 5px; line-height: 40px; }
+.sequence-enter { position: absolute; z-index: 5; top: 121px; right: 60px; color: #080a08; font-size: 14px; letter-spacing: 1.1px; opacity: .55; }
+.sequence-powered { position: absolute; z-index: 5; right: 59px; bottom: 108px; display: flex; align-items: center; gap: 5px; font-size: 18px; line-height: 24px; }
+.sequence-powered b { font-weight: 750; }
+.sequence-powered i { display: inline-block; width: 25px; height: 6px; margin-left: 11px; background: #090a08; }
+.sequence-session { position: absolute; z-index: 5; bottom: 38px; left: 59px; color: #72736b; font-size: 11px; letter-spacing: 2.2px; }
+.sequence-session::before { display: inline-block; width: 6px; height: 6px; margin-right: 12px; border-radius: 50%; background: #768d6e; content: ""; }
+
+.sequence-scan {
+  position: absolute;
+  inset: 0;
+  width: 1920px;
+  height: 1080px;
+  opacity: 0;
+}
+.sequence-scan svg { width: 100%; height: 100%; }
+.sequence-scan > span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-size: 22px;
+}
+.sequence-satellite { fill: #080a08; stroke: none; }
+
+.sequence-welcome {
+  position: absolute;
+  top: 403px;
+  left: 720px;
+  width: 480px;
+  height: 340px;
+  color: #080a08;
+  font-weight: 700;
+  opacity: 0;
+  transform-origin: 50% 44%;
+}
+.sequence-welcome-panel { position: absolute; top: -59px; left: 5px; width: 470px; height: 392px; background: #080a08; }
+.sequence-welcome-heading { position: relative; z-index: 1; font-size: 55px; line-height: 65px; white-space: nowrap; }
+.sequence-company { position: absolute; top: 67px; left: 35px; width: 410px; height: 60px; }
+.sequence-company strong {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 5px 8px;
+  background: transparent;
+  color: #080a08;
+  font-size: 42px;
+  line-height: 50px;
+  letter-spacing: -1.2px;
+  white-space: nowrap;
+}
+.sequence-company .sequence-highlight { background: #080a08; color: #eeede8; }
+.sequence-database { position: absolute; top: 134px; left: 0; width: 100%; font-size: 25px; line-height: 43px; letter-spacing: 1px; white-space: nowrap; }
+.sequence-logo { position: absolute; top: 187px; left: 138.5px; width: 203px; height: 121px; }
+.sequence-logo svg { width: 100%; height: 100%; }
+
+@media (max-width: 600px) {
+  .entry-mark { width: 125px; margin-bottom: 32px; }
+  .entry-gate > p { font-size: 9px; letter-spacing: 1.3px; }
+}
+

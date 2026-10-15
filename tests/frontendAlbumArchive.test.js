@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const crypto = require('node:crypto')
 const path = require('node:path')
@@ -55,8 +56,8 @@ describe('三维专辑档案 UI', () => {
     const motionPath = path.join(projectRoot, 'frontend/src/rhine/motion.ts')
     const modelPath = path.join(projectRoot, 'frontend/public/assets/archive-cassette.glb')
 
-    assert.match(fs.readFileSync(scenePath, 'utf8'), /export class ArchiveScene/)
-    assert.match(fs.readFileSync(scenePath, 'utf8'), /archiveWave\(/)
+    assert.match(readFrontendSource(scenePath), /export class ArchiveScene/)
+    assert.match(readFrontendSource(scenePath), /archiveWave\(/)
     assert.equal(
       crypto.createHash('sha256').update(fs.readFileSync(motionPath)).digest('hex'),
       '60c4bbef70f34f69e36ff60aa631b3b88b2eb42a6e9b431b6af3c6fd69eb744e'
@@ -70,7 +71,7 @@ describe('三维专辑档案 UI', () => {
 
   it('三维档案模型先完成加载，远程封面只作为随后更新的贴图', () => {
     const fs = require('node:fs')
-    const scene = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/scene.ts'), 'utf8')
+    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts'))
     const ready = scene.indexOf('this.loaded = true;')
     const coverStart = scene.indexOf('this.startCoverLoading();')
 
@@ -82,7 +83,7 @@ describe('三维专辑档案 UI', () => {
 
   it('每张档案的封面平面位于实体正面，不会被原模型遮住', () => {
     const fs = require('node:fs')
-    const scene = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/scene.ts'), 'utf8')
+    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts'))
     const model = fs.readFileSync(path.join(projectRoot, 'frontend/public/assets/archive-cassette.glb'))
     const gltf = JSON.parse(model.subarray(20, 20 + model.readUInt32LE(12)).toString())
     const front = Math.max(...gltf.meshes.flatMap((mesh) => mesh.primitives.map(
@@ -96,8 +97,8 @@ describe('三维专辑档案 UI', () => {
 
   it('选中档案的封面保持原色，不被档案场景的主题着色覆盖', () => {
     const fs = require('node:fs')
-    const scene = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/scene.ts'), 'utf8')
-    const appearance = fs.readFileSync(path.join(projectRoot, 'frontend/src/rhine/appearance.ts'), 'utf8')
+    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts'))
+    const appearance = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/appearance.ts'))
     assert.match(scene, /this\.selectedCover\.userData\.preserveArtwork = true/)
     assert.match(appearance, /if \(mesh\.userData\.preserveArtwork\) continue/)
   })

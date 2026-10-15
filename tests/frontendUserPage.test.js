@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -26,23 +27,23 @@ describe('用户页面真实数据界面', () => {
   })
 
   it('只接入原有导航容器，保留同一个全站播放器', () => {
-    const archive = fs.readFileSync(frontend('album-archive.ts'), 'utf8')
-    const css = fs.readFileSync(frontend('style.css'), 'utf8')
+    const archive = readFrontendSource(frontend('album-archive.ts'))
+    const css = readFrontendSource(frontend('style.css'))
     assert.match(archive, /data-user-host/)
     assert.match(archive, /data-nav="user"[^>]*>/)
     assert.doesNotMatch(archive.match(/data-nav="user"[^>]*>/)?.[0] ?? '', /disabled/)
     assert.match(archive, /mountUserPage/)
-    assert.match(archive, /\[data-nav="user"\]'\)\?\.addEventListener\('click', showUser\)/)
+    assert.match(archive, /case 'user': navigation.show\('user'\)/)
     assert.match(css, /\.user-page\s*\{[^}]*grid-template-columns/)
     assert.match(css, /\.album-archive\[data-view="user"\] \.user-page/)
     assert.equal((archive.match(/\$\{createPlayerMarkup\(selected\)\}/g) || []).length, 1)
   })
 
   it('用户页通过个人音乐库适配层接入，不重新创建播放器', () => {
-    const source = fs.readFileSync(frontend('user-page.ts'), 'utf8')
+    const source = readFrontendSource(frontend('user-page.ts'))
     assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|\/api\//)
     assert.doesNotMatch(source, /new Audio\s*\(/)
-    assert.match(source, /personal-library-client/)
+    assert.match(source, /services\/music\/personal-library/)
   })
 
   it('头像仅接受不超过 5 MB 的 JPG、PNG 和 WebP 图片', async () => {
@@ -91,7 +92,7 @@ describe('用户页面真实数据界面', () => {
   })
 
   it('歌单图标无圆圈及悬停背景，普通按钮轻晃一次，× 旋转 90 度并支持减少动态效果', () => {
-    const css = fs.readFileSync(frontend('style.css'), 'utf8')
+    const css = readFrontendSource(frontend('style.css'))
     const base = css.match(/\.user-track-actions \.user-icon-button, \.user-list-detail-actions \.user-icon-button\s*\{([^}]+)\}/)?.[1] || ''
     assert.match(base, /border: 0/)
     assert.match(base, /border-radius: 0/)

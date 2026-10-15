@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -23,8 +24,8 @@ describe('全站共享图标与动画', () => {
 
   it('各页面和播放器复用图标组件，不在页面内重复定义图形或按钮图标文字', () => {
     for (const file of ['album-archive.ts', 'search-page.ts', 'user-page.ts', 'upload-page.ts', 'login-page.ts', 'entry-page.ts']) {
-      const source = fs.readFileSync(frontend(file), 'utf8')
-      assert.match(source, /from '\.\/ui-icons\.ts'/, file)
+      const source = readFrontendSource(frontend(file))
+      assert.match(source, /from ['"][^'"]*\/icons\.ts['"]/, file)
       assert.doesNotMatch(source, /const icons =|const icon =/, file)
       assert.doesNotMatch(source, /<button[^>]*>[^<]*[▶＋♡×←→↑↓↗]/, file)
     }
@@ -45,7 +46,7 @@ describe('全站共享图标与动画', () => {
   })
 
   it('共享动画只变换图标：普通图标轻晃一次，× 平滑旋转，禁用及减少动态效果时不动', () => {
-    const css = fs.readFileSync(frontend('style.css'), 'utf8')
+    const css = readFrontendSource(frontend('style.css'))
     assert.match(css, /button:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\) \.ui-icon\s*\{[^}]*animation: ui-icon-bob 420ms ease-in-out/)
     assert.match(css, /button:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\) \.ui-icon\[data-ui-icon="close"\]\s*\{[^}]*animation: none;[^}]*transform: rotate\(90deg\)/)
     assert.match(css, /\.ui-icon\s*\{[^}]*transition: transform 240ms ease/)

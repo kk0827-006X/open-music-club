@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { glassRevealGLSL, frostedTransmissionGLSL, FROSTED_ROUGHNESS } from "./glass-reveal.ts";
 import { internalOpticsFragment } from "./internal-optics.ts";
-import { themeMaterial } from "./theme-material";
+import { themeMaterial } from "./theme-material.ts";
 
 type Surface = THREE.MeshPhysicalMaterial;
 type Palette = { high: Surface; low?: Surface };
@@ -187,6 +187,8 @@ export class CardAppearance {
   dispose(group: THREE.Group) {
     for (const child of group.children) {
       const mesh = child as THREE.Mesh;
+      // 返回副本共享当前档案的封面材质与贴图，由整个场景统一释放。
+      if (mesh.userData.preserveArtwork) continue;
       const mat = mesh.material as THREE.MeshBasicMaterial;
       if (!mesh.userData.surface) mat.map?.dispose();
       mat.dispose();
