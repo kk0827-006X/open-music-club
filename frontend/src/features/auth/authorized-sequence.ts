@@ -26,19 +26,19 @@ function createSequenceMarkup(role: 'admin' | 'user') {
   return `
     <main class="authorized-viewport" aria-live="polite">
       <div class="authorized-stage" data-authorized-stage>
-        <div class="sequence-background"><svg viewBox="0 0 1920 1080" preserveAspectRatio="none"><g fill="none" stroke="#fff" stroke-width="3"><path d="M-210 705C-45 705 182 704 247 567C337 377 99 306 4 435S27 680 169 631C309 584 227 314 279 111S568-113 568-113"/><path d="M1560-80C1374 114 1671 168 1601 323S1371 367 1431 480S1692 666 1559 787S1329 886 1498 1130"/><circle cx="1450" cy="648" r="346"/><circle cx="1450" cy="648" r="348"/></g></svg></div>
+        <div class="sequence-background"><svg viewBox="0 0 1920 1080" preserveAspectRatio="none"><g fill="none" stroke="var(--sequence-light)" stroke-width="3"><path d="M-210 705C-45 705 182 704 247 567C337 377 99 306 4 435S27 680 169 631C309 584 227 314 279 111S568-113 568-113"/><path d="M1560-80C1374 114 1671 168 1601 323S1371 367 1431 480S1692 666 1559 787S1329 886 1498 1130"/><circle cx="1450" cy="648" r="346"/><circle cx="1450" cy="648" r="348"/></g></svg></div>
         <header class="sequence-brand"><h1>OPEN MUSIC CLUB</h1><div>MUSIC ARCHIVE</div><p>ACCESS SYSTEM</p></header>
         <p class="sequence-enter">ENTER SYSTEM&nbsp;&nbsp;↗</p>
         <section class="sequence-scan">
           <svg viewBox="0 0 1920 1080" aria-hidden="true">
-            <g fill="none" stroke="#080a08" stroke-width="2" stroke-linecap="round" data-scan-group>
-              <path/><path stroke="#fff"/><path/><path/><path/><path/>
-              <circle class="sequence-orbit-dot" r="8" fill="#ed821b" stroke="none"/>
-              <circle class="sequence-orbit-dot" r="8" fill="#ed821b" stroke="none"/>
+            <g fill="none" stroke="var(--sequence-ink)" stroke-width="2" stroke-linecap="round" data-scan-group>
+              <path/><path stroke="var(--sequence-light)"/><path/><path/><path/><path/>
+              <circle class="sequence-orbit-dot" r="8" fill="var(--sequence-accent)" stroke="none"/>
+              <circle class="sequence-orbit-dot" r="8" fill="var(--sequence-accent)" stroke="none"/>
               ${satellites}
-              <circle class="sequence-core" cx="959.5" cy="539.5" r="5" fill="#080a08" stroke="none"/>
-              <circle class="sequence-cap sequence-cap-dark" fill="#080a08" stroke="none"/>
-              <circle class="sequence-cap sequence-cap-light" fill="#fff" stroke="none"/>
+              <circle class="sequence-core" cx="959.5" cy="539.5" r="5" fill="var(--sequence-ink)" stroke="none"/>
+              <circle class="sequence-cap sequence-cap-dark" fill="var(--sequence-ink)" stroke="none"/>
+              <circle class="sequence-cap sequence-cap-light" fill="var(--sequence-light)" stroke="none"/>
             </g>
           </svg>
           <span>PERMISSION AUTHORIZED</span>

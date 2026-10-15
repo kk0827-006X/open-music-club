@@ -185,6 +185,8 @@ Shared → 通用平台能力（不引用业务模块）
 
 ## CSS 保真规则
 
+2026-10-15 补充：新增浅色／深色／跟随系统后，颜色定义统一移入 `frontend/public/theme.css`，初始化脚本位于 `frontend/public/theme-init.js`，公开接口在 `shared/theme.ts`。详见 [主题开发说明](frontend-themes.md)。下述逐字节哈希是模块化重构当时的历史基线；当前测试还原浅色 Token 后对比原 2930 条声明，不再要求新增主题后的原文件字节完全一致。新增页面不得再分散硬编码颜色。
+
 `style.css` 依次导入：tokens-global、login、entry-authorized、archive-shell、player、music-library、search、upload、user、responsive、interaction、settings。跨页面响应式覆盖留在原顺序，不能按目录喜好挪到前面。
 
 展开导入后的 CSS 与任务基线逐字节相同（包含用户的 logo 呼吸效果）：

@@ -1,13 +1,8 @@
 :root {
-  color: #20211e;
-  background: #efede7;
+  color: var(--ink);
+  background: var(--paper);
   font-family: "Helvetica Neue", "Noto Sans SC", Arial, sans-serif;
   font-synthesis: none;
-  --paper: #efede7;
-  --ink: #20211e;
-  --muted: #77776f;
-  --hairline: rgba(32, 33, 30, 0.2);
-  --amber: #b77922;
 }
 
 * { box-sizing: border-box; }
@@ -17,8 +12,8 @@ html, body, #app { min-height: 100%; margin: 0; }
 body {
   min-width: 320px;
   background:
-    radial-gradient(circle at 76% 43%, rgba(255,255,255,.6), transparent 28%),
-    linear-gradient(112deg, rgba(255,255,255,.38), transparent 37%),
+    radial-gradient(circle at 76% 43%, var(--color-highlight-06), transparent 28%),
+    linear-gradient(112deg, var(--color-highlight-07), transparent 37%),
     var(--paper);
 }
 

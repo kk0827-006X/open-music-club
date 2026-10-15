@@ -1,20 +1,20 @@
 /* 专辑档案：三维阵列使用 RhineLabUI 原场景，资料和播放器保留界面层。 */
-.album-archive { position: fixed; inset: 0; overflow: hidden; color: #20211e; background: #eeece7; }
+.album-archive { position: fixed; inset: 0; overflow: hidden; color: var(--color-text-01); background: var(--color-surface-01); }
 .album-archive { isolation: isolate; }
-.album-archive::before { position: absolute; inset: 0; z-index: 8; background: linear-gradient(90deg, transparent 48%, rgba(238,236,231,.16) 57%, rgba(238,236,231,.92) 68%, #eeece7 78%); content: ""; pointer-events: none; }
-.album-archive::after { position: absolute; inset: 0; z-index: 20; background: radial-gradient(ellipse at 48% 48%, transparent 22%, rgba(238,236,231,.1) 65%, rgba(224,220,212,.24)); content: ""; pointer-events: none; }
+.album-archive::before { position: absolute; inset: 0; z-index: 8; background: linear-gradient(90deg, transparent 48%, var(--color-surface-02) 57%, var(--color-surface-03) 68%, var(--color-surface-01) 78%); content: ""; pointer-events: none; }
+.album-archive::after { position: absolute; inset: 0; z-index: 20; background: radial-gradient(ellipse at 48% 48%, transparent 22%, var(--color-surface-04) 65%, var(--color-surface-05)); content: ""; pointer-events: none; }
 
 .archive-brand { position: absolute; z-index: 30; top: 42px; left: 54px; }
 .archive-brand h1 { margin: 0; font-size: clamp(2rem, 3vw, 3.25rem); font-weight: 800; letter-spacing: -.04em; line-height: .94; }
 .archive-brand > p { margin: 8px 0 0; font-size: .7rem; font-weight: 650; letter-spacing: .21em; }
-.archive-brand > small { display: block; margin-top: 22px; color: #77776f; font-size: .58rem; letter-spacing: .1em; }
-.archive-brand > small i { display: inline-block; width: 5px; height: 5px; margin-right: 10px; border-radius: 50%; background: #879276; }
+.archive-brand > small { display: block; margin-top: 22px; color: var(--color-text-02); font-size: .58rem; letter-spacing: .1em; }
+.archive-brand > small i { display: inline-block; width: 5px; height: 5px; margin-right: 10px; border-radius: 50%; background: var(--color-success-01); }
 
 .archive-nav { position: absolute; z-index: 30; top: 43px; right: 50px; display: flex; align-items: center; height: 44px; gap: 4px; }
-.archive-nav button { position: relative; display: inline-flex; gap: 9px; align-items: center; height: 44px; padding: 0 13px; border: 0; background: transparent; color: #171815; font-size: .69rem; font-weight: 600; white-space: nowrap; cursor: default; }
+.archive-nav button { position: relative; display: inline-flex; gap: 9px; align-items: center; height: 44px; padding: 0 13px; border: 0; background: transparent; color: var(--color-text-03); font-size: .69rem; font-weight: 600; white-space: nowrap; cursor: default; }
 .archive-nav button[data-nav="library"], .archive-nav button[data-nav="search"], .archive-nav button[data-nav="upload"], .archive-nav button[data-nav="user"] { cursor: pointer; }
-.archive-nav button[data-nav="upload"]:hover, .archive-nav button[data-nav="upload"]:focus-visible { color: #9b652c; }
-.archive-nav button[aria-current="page"]::after { position: absolute; right: 12px; bottom: 0; left: 12px; height: 2px; background: #aa7435; content: ""; }
+.archive-nav button[data-nav="upload"]:hover, .archive-nav button[data-nav="upload"]:focus-visible { color: var(--color-accent-01); }
+.archive-nav button[aria-current="page"]::after { position: absolute; right: 12px; bottom: 0; left: 12px; height: 2px; background: var(--color-accent-02); content: ""; }
 .archive-nav svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 /* 共享图标只改变自身位置，避免动画移动按钮的点击区域。 */
@@ -28,34 +28,34 @@ button:hover:not(:disabled):not([aria-disabled="true"]) .ui-icon[data-ui-icon="c
 @media (prefers-reduced-motion: reduce) {
   .ui-icon, button:hover:not(:disabled):not([aria-disabled="true"]) .ui-icon, button:hover:not(:disabled):not([aria-disabled="true"]) .ui-icon[data-ui-icon="close"] { transition: none; animation: none; transform: none; }
 }
-.archive-nav button small { color: #797870; font-size: .58rem; font-weight: 500; }
-.archive-nav > i { width: 1px; height: 30px; margin: 0 8px; background: rgba(32,33,30,.16); }
+.archive-nav button small { color: var(--color-text-04); font-size: .58rem; font-weight: 500; }
+.archive-nav > i { width: 1px; height: 30px; margin: 0 8px; background: var(--color-line-01); }
 
 .album-wave-stage { position: absolute; inset: 0; z-index: 2; overflow: hidden; }
 .archive-three-scene, .archive-three-scene canvas { width: 100%; height: 100%; display: block; }
 .archive-three-scene { position: absolute; inset: 0; }
 
 .archive-selection-copy { position: absolute; z-index: 16; top: 20%; right: 3.3%; width: 26%; max-width: 430px; }
-.archive-selection-copy > p { margin: 0 0 21px; color: #6f7069; font-size: .54rem; letter-spacing: .16em; }
+.archive-selection-copy > p { margin: 0 0 21px; color: var(--color-text-05); font-size: .54rem; letter-spacing: .16em; }
 .archive-selection-copy h2 { margin: 0 0 5px; font-size: clamp(2.3rem, 3.8vw, 4.1rem); letter-spacing: -.06em; line-height: .96; }
-.archive-selection-copy h3 { margin: 0 0 7px; color: #666861; font-size: clamp(1rem, 1.5vw, 1.45rem); font-weight: 400; }
-.archive-selection-copy > span { display: block; padding-bottom: 23px; border-bottom: 1px solid #50514c; font-size: .76rem; }
+.archive-selection-copy h3 { margin: 0 0 7px; color: var(--color-text-06); font-size: clamp(1rem, 1.5vw, 1.45rem); font-weight: 400; }
+.archive-selection-copy > span { display: block; padding-bottom: 23px; border-bottom: 1px solid var(--color-border-01); font-size: .76rem; }
 .archive-selection-copy dl { display: grid; grid-template-columns: 1fr 1fr; gap: 17px 34px; margin: 19px 0 0; }
 .archive-selection-copy dl div { min-width: 0; }
-.archive-selection-copy dt { margin-bottom: 6px; color: #84837b; font-size: .47rem; letter-spacing: .12em; }
+.archive-selection-copy dt { margin-bottom: 6px; color: var(--color-text-07); font-size: .47rem; letter-spacing: .12em; }
 .archive-selection-copy dd { margin: 0; font-size: .69rem; line-height: 1.35; }
-.archive-selection-copy dd b, .player-track > b { display: inline-flex; gap: 6px; align-items: center; padding: 5px 9px; border-radius: 4px; background: #e6d5bb; font-size: .49rem; font-weight: 500; letter-spacing: .08em; }
-.archive-selection-copy dd b i, .player-track > b i { width: 7px; height: 7px; border: 1px solid #7a5524; border-radius: 50%; background: #ba7f2c; }
-.archive-selection-copy > button { display: flex; justify-content: space-between; width: 100%; margin-top: 30px; padding: 0 0 10px; border: 0; border-bottom: 1px solid #555650; background: transparent; font-size: .85rem; font-weight: 650; text-align: left; cursor: pointer; }
+.archive-selection-copy dd b, .player-track > b { display: inline-flex; gap: 6px; align-items: center; padding: 5px 9px; border-radius: 4px; background: var(--color-surface-06); font-size: .49rem; font-weight: 500; letter-spacing: .08em; }
+.archive-selection-copy dd b i, .player-track > b i { width: 7px; height: 7px; border: 1px solid var(--color-accent-03); border-radius: 50%; background: var(--color-accent-04); }
+.archive-selection-copy > button { display: flex; justify-content: space-between; width: 100%; margin-top: 30px; padding: 0 0 10px; border: 0; border-bottom: 1px solid var(--color-border-02); background: transparent; font-size: .85rem; font-weight: 650; text-align: left; cursor: pointer; }
 .archive-selection-copy > button span { font-size: 1.2rem; }
 
 .archive-callout { position: absolute; z-index: 16; bottom: 132px; left: 54px; }
 .archive-callout p { margin: 0; font-size: .55rem; letter-spacing: .18em; }
 .archive-callout strong { display: inline-block; margin-top: 5px; font-size: 3.8rem; font-weight: 300; letter-spacing: -.06em; }
-.archive-callout > span { margin-left: 10px; color: #77776f; font-size: 1rem; }
+.archive-callout > span { margin-left: 10px; color: var(--color-text-02); font-size: 1rem; }
 .archive-switcher { position: absolute; z-index: 16; bottom: 151px; left: 18%; display: flex; gap: 16px; align-items: center; }
 .archive-switcher button { width: 24px; padding: 0; border: 0; background: transparent; font-size: 1.35rem; cursor: pointer; }
 .archive-position-ticks { display: flex; align-items: center; gap: 8px; height: 24px; }
-.archive-position-ticks button { display: block; width: 3px; height: 15px; padding: 0; border: 0; background: rgba(50,51,47,.27); }
-.archive-position-ticks button[aria-current="true"] { background: #a9783f; }
+.archive-position-ticks button { display: block; width: 3px; height: 15px; padding: 0; border: 0; background: var(--color-line-02); }
+.archive-position-ticks button[aria-current="true"] { background: var(--color-accent-05); }
 

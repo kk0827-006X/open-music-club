@@ -1,4 +1,4 @@
-button:focus-visible { outline: 2px solid #a8793d; outline-offset: 3px; }
+button:focus-visible { outline: 2px solid var(--color-accent-09); outline-offset: 3px; }
 
 @media (max-height: 700px) and (min-width: 601px) {
   .user-sidebar { gap: 10px; }
@@ -60,7 +60,7 @@ button:focus-visible { outline: 2px solid #a8793d; outline-offset: 3px; }
   .archive-nav button[data-nav="settings"], .archive-nav > i { display: none; }
   .archive-brand { top: 28px; left: 24px; }
   .album-wave-stage { inset: 0; }
-  .album-archive::before { background: linear-gradient(180deg, transparent 35%, rgba(238,236,231,.92) 72%, #eeece7 84%); }
+  .album-archive::before { background: linear-gradient(180deg, transparent 35%, var(--color-surface-03) 72%, var(--color-surface-01) 84%); }
   .archive-selection-copy { display: none; }
   .archive-callout { bottom: 95px; left: 24px; }
   .archive-switcher { right: 24px; bottom: 112px; left: auto; }
@@ -93,7 +93,7 @@ button:focus-visible { outline: 2px solid #a8793d; outline-offset: 3px; }
   .user-avatar i { right: -3px; bottom: 4px; width: 12px; }
   .user-identity p { font-size: .55rem; }
   .user-section-nav { grid-column: 1 / -1; grid-row: 2; flex-direction: row; gap: 6px; margin: 0; border: 0; }
-  .user-section-nav button { display: block; flex: 1; width: auto; min-width: 0; min-height: 34px; padding: 6px; border: 1px solid #d4d0c7; text-align: center; }
+  .user-section-nav button { display: block; flex: 1; width: auto; min-width: 0; min-height: 34px; padding: 6px; border: 1px solid var(--color-border-19); text-align: center; }
   .user-section-nav button > span, .user-section-nav button small, .user-section-nav button b { display: none; }
   .user-section-nav button strong { font-size: .65rem; }
   .user-content-shell { padding: 0; }

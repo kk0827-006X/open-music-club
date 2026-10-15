@@ -1,5 +1,6 @@
 import { uiIcons } from "../../shared/ui/icons.ts"
 import { mountTwoFactorPanel } from "../auth/two-factor-panel.ts"
+import { getThemeState, setThemePreference, subscribeTheme, type ThemePreference } from '../../shared/theme.ts'
 
 const categories = [['account', '账号与安全'], ['playback', '播放偏好'], ['appearance', '外观与动效'], ['upload', '上传偏好'], ['about', '数据与关于']] as const
 type Category = typeof categories[number][0]
@@ -11,14 +12,14 @@ export function createSettingsMarkup() {
   return `<dialog class="settings-dialog" data-settings-dialog aria-labelledby="settings-title">
     <header class="settings-header"><div><p>OPEN MUSIC CLUB / SYSTEM PREFERENCES</p><h2 id="settings-title">设置</h2></div><button type="button" data-settings-close aria-label="关闭设置">${uiIcons.close}</button></header>
     <div class="settings-layout"><aside class="settings-sidebar"><nav aria-label="设置分类">${categories.map(([id, label]) => `<button type="button" data-settings-category="${id}" aria-current="${id === 'appearance' ? 'page' : 'false'}">${label}</button>`).join('')}</nav><p>PERSONAL PREFERENCES<span>个人偏好设置</span></p></aside>
-    <section class="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content></div><footer><span>两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status"></span></footer></section></div>
+    <section class="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content></div><footer><span>主题、两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status"></span></footer></section></div>
   </dialog>`
 }
 
 export function settingsSectionMarkup(category: Category, canLogout: boolean) {
-  const heading = (en: string, title: string) => `<div class="settings-section-heading"><p>${en}</p><h3 id="settings-section-title">${title}</h3><span>仅展示界面；设置功能尚未接入</span></div>`
+  const heading = (en: string, title: string) => `<div class="settings-section-heading"><p>${en}</p><h3 id="settings-section-title">${title}</h3><span>${category === 'appearance' ? '主题立即生效；其他偏好仅展示' : '仅展示界面；设置功能尚未接入'}</span></div>`
   if (category === 'appearance') return heading('APPEARANCE', '外观与动效')
-    + row('界面主题', '暖昼与深夜配色', '<button type="button" disabled>暖昼</button><button type="button" disabled>深夜</button>')
+    + row('界面主题', '立即生效；跟随系统会自动响应系统配色变化', `<div class="settings-theme-options" role="group" aria-label="界面主题">${([['light', '暖昼'], ['dark', '深夜'], ['system', '跟随系统']] as const).map(([mode, label]) => `<button type="button" data-theme-preference="${mode}" aria-pressed="${getThemeState().preference === mode}">${label}</button>`).join('')}</div>`)
     + row('减少动态效果', '简化界面过渡和三维动态', toggle('减少动态效果'))
     + row('播放器常驻显示', '保留原有播放器动效，此处不控制播放器', toggle('播放器常驻显示'))
     + row('歌词字号', '展开播放器中的歌词文字大小', '<select aria-label="歌词字号" disabled><option>标准</option><option>小</option><option>大</option></select>')
@@ -40,7 +41,7 @@ export function settingsSectionMarkup(category: Category, canLogout: boolean) {
     + row('默认封面', '无内嵌封面时的展示样式', '<select aria-label="默认封面" disabled><option>网站默认</option></select>')
     + row('上传前确认', '元数据与音频信息确认', toggle('上传前确认'))
   return heading('DATA & ABOUT', '数据与关于')
-    + row('恢复默认设置', '当前界面不保存任何偏好', '<button type="button" disabled>恢复默认</button>')
+    + row('恢复默认设置', '主题偏好保存在当前浏览器；其他设置暂未接入', '<button type="button" disabled>恢复默认</button>')
     + row('清理缓存', '不删除音乐、歌单或收藏', '<button type="button" disabled>清理缓存</button>')
     + row('音乐来源', '本地音乐与网易云独立存储，共用播放器', '<span>LOCAL / NETEASE</span>')
     + row('Open Music Club', '社区音乐终端', '<span>MUSIC ARCHIVE</span>')
@@ -55,10 +56,17 @@ export function mountSettingsDialog(root: HTMLElement, options: { logout?: () =>
   let opener: HTMLElement | null = null
   let timer = 0, disposed = false, closing = false, busy = false
   let factorCleanup = () => undefined as void
+  const updateTheme = () => {
+    const state = getThemeState()
+    dialog.querySelectorAll<HTMLButtonElement>('[data-theme-preference]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.themePreference === state.preference)))
+    if (category === 'appearance') status.textContent = `${state.preference === 'system' ? '跟随系统 · ' : ''}当前为${state.resolved === 'dark' ? '深色' : '浅色'}${state.persisted ? '' : '；浏览器无法保存偏好'}`
+  }
+  const unsubscribeTheme = subscribeTheme(updateTheme)
   const render = () => {
     factorCleanup()
     content.innerHTML = settingsSectionMarkup(category, Boolean(options.logout))
     dialog.querySelectorAll<HTMLButtonElement>('[data-settings-category]').forEach(button => button.setAttribute('aria-current', button.dataset.settingsCategory === category ? 'page' : 'false'))
+    updateTheme()
   }
   const close = () => {
     if (closing || busy || !dialog.open) return
@@ -73,6 +81,8 @@ export function mountSettingsDialog(root: HTMLElement, options: { logout?: () =>
   const click = (event: MouseEvent) => {
     if (busy || closing) return
     const target = event.target instanceof Element ? event.target : null
+    const themeButton = target?.closest<HTMLButtonElement>('button[data-theme-preference]')
+    if (themeButton) { setThemePreference(themeButton.dataset.themePreference as ThemePreference); return }
     const tab = target?.closest<HTMLButtonElement>('[data-settings-category]')
     if (tab) { category = tab.dataset.settingsCategory as Category; render(); return }
     if (target?.closest('[data-settings-factor]')) { factorCleanup(); factorCleanup = mountTwoFactorPanel(content); status.textContent = '安全设置已接入；其他偏好仍仅展示'; return }
@@ -103,6 +113,7 @@ export function mountSettingsDialog(root: HTMLElement, options: { logout?: () =>
     },
     destroy() {
       disposed = true; window.clearTimeout(timer)
+      unsubscribeTheme()
       factorCleanup()
       dialog.removeEventListener('click', click); dialog.removeEventListener('cancel', cancel)
       if (dialog.open) dialog.close()
