@@ -1,7 +1,9 @@
 import type { ArchiveCell, ArchiveNavigation } from '../../rhine/archive-loop.ts'
+import { getThemeState, subscribeTheme } from '../../shared/theme.ts'
 export interface ArchiveSceneController {
   load(): Promise<void>
   setReduced(reduced: boolean): void
+  setTheme?(dark: boolean, immediate?: boolean): void
   setMode(mode: 'archive' | 'detail'): void
   select(index: number, navigation?: ArchiveNavigation): void
   resize(): void
@@ -38,6 +40,14 @@ export function mountArchiveScene(container: HTMLElement, options: {
   }
   const resize = () => { if (!disposed) { scene?.resize(); wake() } }
   const visibility = () => { if (document.hidden) stop(); else wake() }
+  // 只更新原有材质和环境，不重建模型、渲染器或播放会话。
+  const applyTheme = () => {
+    scene?.setTheme?.(getThemeState().resolved === 'dark', true)
+    // 弹窗后方的画布也要即时换色；只补画一次，不恢复隐藏页的动画循环。
+    if (ready && !visible && !document.hidden) scene?.update(performance.now() / 1000)
+    wake()
+  }
+  const unsubscribeTheme = subscribeTheme(applyTheme)
   window.addEventListener('resize', resize)
   document.addEventListener('visibilitychange', visibility)
   const load = options.loadScene ?? (async () => {
@@ -50,6 +60,7 @@ export function mountArchiveScene(container: HTMLElement, options: {
     await next.load()
     if (disposed) return
     ready = true; next.setMode('archive')
+    applyTheme()
     next.onSelect = options.onSelect; next.onNavigate = options.onNavigate
     next.select(options.initialRecord); next.resize(); wake()
   }).catch(() => {
@@ -65,6 +76,7 @@ export function mountArchiveScene(container: HTMLElement, options: {
       if (disposed) return
       disposed = true; stop(); scene?.dispose(); scene = null
       window.removeEventListener('resize', resize); document.removeEventListener('visibilitychange', visibility)
+      unsubscribeTheme()
     },
   }
 }

@@ -1,16 +1,18 @@
 import * as THREE from "three";
+import { getThemeState, themeColor } from '../shared/theme.ts';
 
 const surfaces: Record<string, string> = {
-  Frosted_Polymer: "#626b70", Ivory_Edges: "#687277", Optical_Diffuser: "#192226",
-  Titanium_Fasteners: "#b1b9bb", Index_Inlay: "#c6a36b", Printed_Label: "#303a3e",
-  Subsurface_Optics: "#939e9f", Optical_Edges: "#bbc3bc", Carbon_Ink: "#b6bdb8",
+  Frosted_Polymer: "--scene-dark-polymer", Ivory_Edges: "--scene-dark-edges", Optical_Diffuser: "--scene-dark-diffuser",
+  Titanium_Fasteners: "--scene-dark-fasteners", Index_Inlay: "--scene-dark-inlay", Printed_Label: "--scene-dark-label",
+  Subsurface_Optics: "--scene-dark-optics", Optical_Edges: "--scene-dark-optical-edges", Carbon_Ink: "--scene-dark-ink",
 };
 /** Extend existing optical shaders; one float per instance avoids new meshes or passes. */
 export function themeMaterial(material: THREE.Material, name: string, instanced = false, subduedIndex = { value: 0 }) {
   const amount = { value: 0 };
   const before = material.onBeforeCompile;
   const cache = material.customProgramCacheKey.bind(material)();
-  const color = new THREE.Color(surfaces[name] ?? (name.includes("Orange") ? "#bb8850" : "#969f9f"));
+  const token = surfaces[name] ?? (name.includes("Orange") ? '--scene-dark-orange' : '--scene-dark-other');
+  const color = new THREE.Color(themeColor(token as `--${string}`) || 0);
   material.onBeforeCompile = (shader, renderer) => {
     before.call(material, shader, renderer);
     shader.uniforms.rhineTheme = amount;
@@ -39,7 +41,8 @@ export function themeMaterial(material: THREE.Material, name: string, instanced 
 
 type Baseline = { background: THREE.Color; fog?: THREE.Color; intensity: number; exposure: number; lights: { light: THREE.Light; intensity: number }[]; floor?: { material: THREE.MeshStandardMaterial; color: THREE.Color } };
 const scenes = new WeakMap<THREE.Scene, Baseline>();
-const background = new THREE.Color("#11181b"), floorColor = new THREE.Color("#192125"), mistColor = new THREE.Color("#263136");
+const background = new THREE.Color(), floorColor = new THREE.Color(), mistColor = new THREE.Color();
+let paletteTheme = '';
 export function themeEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, amount: number) {
   let baseline = scenes.get(scene);
   if (!baseline) {
@@ -51,9 +54,18 @@ export function themeEnvironment(scene: THREE.Scene, renderer: THREE.WebGLRender
       exposure: renderer.toneMappingExposure, lights, floor: material ? { material, color: material.color.clone() } : undefined };
     scenes.set(scene, baseline);
   }
-  (scene.background as THREE.Color).copy(baseline.background).lerp(background, amount);
-  if (scene.fog && baseline.fog) scene.fog.color.copy(baseline.fog).lerp(mistColor, amount);
-  if (baseline.floor) baseline.floor.material.color.copy(baseline.floor.color).lerp(floorColor, amount);
+  // 只在主题变化时读取 CSS 配置，不在每帧触发 getComputedStyle。
+  const resolved = getThemeState().resolved;
+  if (resolved !== paletteTheme) {
+    const color = themeColor('--scene-background');
+    if (color) {
+      background.set(color); floorColor.set(themeColor('--scene-floor')); mistColor.set(themeColor('--scene-fog'));
+      paletteTheme = resolved;
+    }
+  }
+  (scene.background as THREE.Color).copy(paletteTheme ? background : baseline.background);
+  if (scene.fog && baseline.fog) scene.fog.color.copy(paletteTheme ? mistColor : baseline.fog);
+  if (baseline.floor) baseline.floor.material.color.copy(paletteTheme ? floorColor : baseline.floor.color);
   scene.environmentIntensity = THREE.MathUtils.lerp(baseline.intensity, .32, amount);
   renderer.toneMappingExposure = THREE.MathUtils.lerp(baseline.exposure, .98, amount);
   for (const { light, intensity } of baseline.lights) light.intensity = intensity * (1 - .35 * amount);
