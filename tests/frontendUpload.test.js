@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -25,7 +26,7 @@ describe('本地音乐上传页 UI', () => {
   })
 
   it('页面不直接构造网络请求，上传逻辑统一交给客户端适配层', () => {
-    const source = fs.readFileSync(frontendFile('upload-page.ts'), 'utf8')
+    const source = readFrontendSource(frontendFile('upload-page.ts'))
     assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|\/api\/local\/music/)
     assert.match(source, /uploadMusicFile/)
     assert.match(source, /内嵌封面/)
@@ -86,11 +87,11 @@ describe('本地音乐上传页 UI', () => {
   })
 
   it('从音乐库和搜索页平滑切换到上传页，播放器保持同一个实例', () => {
-    const archive = fs.readFileSync(frontendFile('album-archive.ts'), 'utf8')
-    const css = fs.readFileSync(frontendFile('style.css'), 'utf8')
+    const archive = readFrontendSource(frontendFile('album-archive.ts'))
+    const css = readFrontendSource(frontendFile('style.css'))
     assert.match(archive, /data-upload-host/)
-    assert.match(archive, /data-nav="upload"[^\n]*addEventListener\('click', showUpload\)/)
-    assert.match(archive, /view: 'archive' \| 'search' \| 'upload'/)
+    assert.match(archive, /case 'upload': navigation.show\('upload'\)/)
+    assert.match(archive, /mountUploadPage\(host\('upload'\)\)/)
     assert.match(css, /\.upload-page\s*\{[^}]*opacity: 0[^}]*transition: opacity/)
     assert.match(css, /\.album-archive\[data-view="upload"\] \.upload-page\s*\{[^}]*opacity: 1/)
     assert.match(css, /\.album-archive\[data-view="upload"\] \.archive-brand/)

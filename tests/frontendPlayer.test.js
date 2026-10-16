@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -50,8 +51,8 @@ describe('底部播放器与歌词画面', () => {
   it('底栏可从底部唤出，点击展开歌词画面，音量沿用细线进度条视觉', async () => {
     const { createAlbumArchiveMarkup } = await import(frontendModule('album-archive.ts'))
     const markup = createAlbumArchiveMarkup()
-    const source = fs.readFileSync(path.join(projectRoot, 'frontend/src/album-archive.ts'), 'utf8')
-    const css = fs.readFileSync(path.join(projectRoot, 'frontend/src/style.css'), 'utf8')
+    const source = readFrontendSource(path.join(projectRoot, 'frontend/src/album-archive.ts'))
+    const css = readFrontendSource(path.join(projectRoot, 'frontend/src/style.css'))
     assert.match(markup, /data-player-hotspot/)
     assert.match(markup, /data-player-expanded/)
     assert.match(markup, /data-player-lyrics/)

@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const { it } = require('node:test')
 const path = require('node:path')
@@ -102,7 +103,7 @@ it('恢复器保留顺序和去重，最多 500 首；全站挂载恢复并清�
   queue.restore(Array.from({ length: 501 }, (_, i) => song(i + 1)))
   assert.equal(queue.items.length, 500)
   const fs = require('node:fs')
-  const source = fs.readFileSync(path.resolve(__dirname, '../frontend/src/album-archive.ts'), 'utf8')
+  const source = readFrontendSource(path.resolve(__dirname, '../frontend/src/album-archive.ts'))
   assert.match(source, /const updateQueue = \(\) => \{\s*queuePersistence.changed\(\)/)
   assert.match(source, /restore: tracks => \{ queue.restore\(tracks\); updateQueue\(\) \}/)
   assert.match(source, /queuePersistence.start\(\)/)

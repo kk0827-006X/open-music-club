@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>前端重构回归夹具（Mock）</title>
+<div id="app"></div>
+<aside style="position:fixed;z-index:300;right:8px;top:4px;font:10px monospace"><button data-fixture-remount>重挂载工作区</button><button data-fixture-stats>读取资源计数</button><output data-fixture-result>Mock 音乐/API，仅供本地验收</output></aside>
+<script type="module">
+import '/src/style.css'
+import { mountMusicWorkspace } from '/src/app/music-workspace.ts'
+import { createPlayerController } from '/src/features/player/player-core.ts'
+import { MusicQueue } from '/src/features/queue/model.ts'
+import { toPersonalSong } from '/src/services/music/personal-library.ts'
+import { demoAlbums } from '/src/features/music-library/album-data.ts'
+
+// 夹具不创建账号、不修改数据库、不调用真实写接口，不被 Vite 生产入口引用。
+const root = document.querySelector('#app'), result = document.querySelector('[data-fixture-result]')
+const song = (id, source = 'local') => ({ source, sourceId: String(id), trackKey: `${source}:${id}`, title: source === 'local' ? '本地测试歌曲' : '网易云 Mock 歌曲', artists: [{ name: '测试歌手' }], album: { name: '测试专辑' }, durationMs: 3000, coverUrl: null, playable: true })
+let stored = [song(1), song(2, 'netease')], lists = [{ id: 1, name: '测试歌单', trackCount: 2 }], likes = new Set(), scene = null, audioCount = 0, destroyedScenes = 0
+const api = {
+  queue: async () => stored, saveQueue: async refs => { stored = refs.map(ref => song(ref.sourceId, ref.source)) },
+  profile: async () => ({ id: 1, nickname: '本地回归成员', avatarUrl: null }), playlists: async () => lists,
+  playlist: async id => ({ playlist: lists.find(list => list.id === id), tracks: [song(1), song(2, 'netease')].map(track => ({ ...track, liked: likes.has(track.trackKey) })) }),
+  createPlaylist: async name => { const list = { id: lists.length + 1, name, trackCount: 0 }; lists.push(list); return list },
+  renamePlaylist: async (id, name) => { lists.find(list => list.id === id).name = name },
+  deletePlaylist: async id => { lists = lists.filter(list => list.id !== id) }, addTrack: async () => {}, removeTrack: async () => {},
+  isLiked: async track => likes.has(`${track.source}:${track.sourceId}`), setLiked: async (track, liked) => { const key = `${track.source}:${track.sourceId}`; if (liked) likes.add(key); else likes.delete(key) },
+  likes: async () => [...likes].map(key => { const [source, id] = key.split(':'); return song(id, source) }), uploads: async () => [song(1)],
+}
+const realFetch = window.fetch.bind(window)
+window.fetch = async (input, init) => {
+  const url = typeof input === 'string' ? input : input.url
+  if (!url.startsWith('/api/')) return realFetch(input, init)
+  let body = { success: true }
+  if (url === '/api/local/music') body = { success: true, tracks: [song(1)] }
+  if (url.includes('/search?')) body = { code: 200, result: { songs: [{ id: 2, name: '网易云 Mock 歌曲', ar: [{ name: '测试歌手' }], al: { name: '测试专辑' }, dt: 3000 }] } }
+  if (url.includes('/song/detail')) body = { code: 200, songs: [] }
+  if (url.includes('/album?')) body = { code: 200, songs: [1,2,3].map(id => ({ id, name: `专辑 Mock 曲目 ${id}`, dt: 3000 })) }
+  if (url.includes('/lyric?')) body = { code: 200, lrc: { lyric: '[00:00.00]第一句测试歌词\n[00:01.00]第二句测试歌词\n[00:02.00]第三句测试歌词' } }
+  return { ok: true, status: 200, json: async () => body }
+}
+// 真正的浏览器 Audio 播放三秒静音 WAV，仅播放地址由 Mock 代替。
+const wav = new Uint8Array(44 + 8000 * 3 * 2), view = new DataView(wav.buffer)
+const word = (offset, text) => [...text].forEach((c, i) => { wav[offset + i] = c.charCodeAt(0) })
+word(0,'RIFF'); view.setUint32(4,wav.length-8,true); word(8,'WAVE'); word(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true); view.setUint32(24,8000,true); view.setUint32(28,16000,true); view.setUint16(32,2,true); view.setUint16(34,16,true); word(36,'data'); view.setUint32(40,wav.length-44,true)
+const audioUrl = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }))
+const queue = new MusicQueue(), player = createPlayerController({ queue, resolveUrl: async () => audioUrl, createAudio: () => { audioCount++; return new Audio() } })
+let destroy = () => {}
+function mount() {
+  destroy()
+  destroy = mountMusicWorkspace(root, { player, queue, personalLibrary: api, loadScene: async () => {
+    const { ArchiveScene } = await import('/src/rhine/scene.ts')
+    const next = new ArchiveScene(root.querySelector('[data-three-scene]'), undefined, undefined, undefined, demoAlbums.map(album => album.coverUrl))
+    const dispose = next.dispose.bind(next)
+    let disposed = false
+    next.dispose = () => { if (!disposed) { disposed = true; destroyedScenes++; dispose() } }
+    scene = next
+    return next
+  } })
+}
+document.querySelector('[data-fixture-remount]').onclick = mount
+document.querySelector('[data-fixture-stats]').onclick = () => {
+  const info = scene?.renderer.info
+  result.textContent = JSON.stringify({ audios: audioCount, destroyedScenes, tracks: queue.items.length, geometries: info?.memory.geometries, textures: info?.memory.textures, frames: scene?.getStats().renderedFrames })
+}
+window.addEventListener('pagehide', () => { destroy(); player.destroy(); URL.revokeObjectURL(audioUrl) }, { once: true })
+mount()
+</script></html>

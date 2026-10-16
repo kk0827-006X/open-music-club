@@ -1,0 +1,27 @@
+:root {
+  color: #20211e;
+  background: #efede7;
+  font-family: "Helvetica Neue", "Noto Sans SC", Arial, sans-serif;
+  font-synthesis: none;
+  --paper: #efede7;
+  --ink: #20211e;
+  --muted: #77776f;
+  --hairline: rgba(32, 33, 30, 0.2);
+  --amber: #b77922;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #app { min-height: 100%; margin: 0; }
+
+body {
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 76% 43%, rgba(255,255,255,.6), transparent 28%),
+    linear-gradient(112deg, rgba(255,255,255,.38), transparent 37%),
+    var(--paper);
+}
+
+button, input { font: inherit; }
+button { color: inherit; }
+

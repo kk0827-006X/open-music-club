@@ -1,12 +1,16 @@
 // 移植自 liquid-glass/index.html 的 leaveWake 与 animate。
 // 固定大小的环形数组保存拖尾，避免鼠标移动时不断分配或积累波源。
 export const GLASS_TRAIL_SIZE = 16
+// 余弦曲线在吸气与呼气的转折处速度为零，避免明暗突然跳变。
+export function glassBreath(seconds: number) {
+  return .72 + .28 * (.5 - .5 * Math.cos(seconds * Math.PI * 2 / 8))
+}
 export function createGlassMotion() {
   const trail = Array.from({ length: GLASS_TRAIL_SIZE }, () => [0, 0, -100, 0])
   let index = 0, previous: number[] | null = null, previousTime = 0
   let motionTarget = 0, motion = 0, hover = 0, targetHover = 0
   let x = 0, y = 0, targetX = 0, targetY = 0, time = 0, last = -1
-  let ripple = [0, 0, -100]
+  let ripple = [0, 0, -100], ambientTime = 0
   return {
     point(clientX: number, clientY: number, width: number, height: number, now: number, click = false) {
       targetX = (clientX / Math.max(width, 1) - .5) * width / Math.max(height, 1) * 4
@@ -30,13 +34,14 @@ export function createGlassMotion() {
     leave() { targetHover = 0; previous = null },
     sample(now: number) {
       const dt = last < 0 ? 0 : Math.min(Math.max((now - last) / 1000, 0), .05)
-      last = now; time += dt * 1.15 * 1.7
+      last = now; time += dt * 1.15 * 1.7; ambientTime += dt
       motionTarget *= Math.exp(-dt * 3)
       motion += (motionTarget - motion) * (1 - Math.exp(-dt * 10))
       const smooth = 1 - Math.exp(-dt * 12)
       x += (targetX - x) * smooth; y += (targetY - y) * smooth
       hover += (targetHover - hover) * smooth
-      return { x, y, hover, motion, time, clock: now / 1000, trail, ripple }
+      const logoWave = Math.sin(ambientTime * Math.PI * 2 / 8)
+      return { x, y, hover, motion, time, breath: glassBreath(ambientTime), logoY: logoWave * 2.4, logoTilt: logoWave * .12, clock: now / 1000, trail, ripple }
     },
   }
 }

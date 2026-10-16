@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -17,7 +18,7 @@ describe('播放队列面板交互', () => {
     const footer = createPlayerMarkup(demoAlbums[0])
     assert.doesNotMatch(footer, /data-player-queue-panel|<aside/)
     assert.equal((createAlbumArchiveMarkup().match(/data-player-queue-panel/g) || []).length, 1)
-    const source = fs.readFileSync(frontend('album-archive.ts'), 'utf8')
+    const source = readFrontendSource(frontend('album-archive.ts'))
     assert.match(source, /outerHTML\s*=\s*createPlayerMarkup\(/)
   })
 

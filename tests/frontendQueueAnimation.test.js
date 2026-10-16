@@ -1,3 +1,4 @@
+const { readFrontendSource } = require('./helpers/frontendSource')
 const assert = require('node:assert/strict')
 const { it } = require('node:test')
 const { readFileSync } = require('node:fs')
@@ -69,14 +70,14 @@ it('入队弧线从点击位置出发，抛起后落入目标', async () => {
 })
 
 it('所有入队加号统一委托，动画不拦截点击并支持减少动态效果', () => {
-  const code = readFileSync('frontend/src/queue-add-animation.ts', 'utf8')
+  const code = readFrontendSource('frontend/src/queue-add-animation.ts')
   assert.match(code, /data-ui-icon="plus"/)
   assert.match(code, /addEventListener\('click', capture, true\)/)
   assert.match(code, /reduced/)
   assert.match(code, /uiIcons.plus/)
-  const archive = readFileSync('frontend/src/album-archive.ts', 'utf8')
+  const archive = readFrontendSource('frontend/src/album-archive.ts')
   assert.match(archive, /updateQueue\(\)\s+queueAddAnimation\.added\(\)/)
-  const css = readFileSync('frontend/src/style.css', 'utf8')
+  const css = readFrontendSource('frontend/src/style.css')
   assert.match(css, /\.queue-add-flight[^}]*pointer-events: none/s)
   assert.match(css, /button:not\(:disabled\):not\(\[aria-disabled="true"\]\):is\(:hover, :focus-visible\)/)
 })

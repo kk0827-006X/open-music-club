@@ -6,17 +6,18 @@ import type { GlassRenderer } from './login-glass.ts'
 // 高度场来自 /Users/kk/liquid-glass/index.html；保留凹陷、拖尾及点击波纹公式。
 // 不搬入原项目的背景纹理和绿色调色，只用中性反光叠加在现有背景上。
 const heightGLSL = `
-uniform float uTime, uAspect, uWave, uDepth, uHover;
+uniform float uTime, uAspect, uWave, uDepth, uHover, uBreath;
 uniform vec2 uPointer;
 uniform vec3 uRipple;
 uniform vec4 uTrail[${GLASS_TRAIL_SIZE}];
 uniform float uTrailClock, uMotion;
 float heightAt(vec2 p) {
  float t=uTime;
- float h=sin(p.x*2.3+p.y*1.5-t*.75)*.16;
- h+=sin(p.x*3.8-p.y*2.7+t*.55)*.085;
- h+=sin(p.x*1.4+p.y*4.1-t*.45)*.065;
- h*=uWave;
+ float flow=t*.35;
+ float h=sin(p.x*2.3+p.y*1.5-flow*.75)*.16;
+ h+=sin(p.x*3.8-p.y*2.7+flow*.55)*.085;
+ h+=sin(p.x*1.4+p.y*4.1-flow*.45)*.065;
+ h*=uWave*uBreath;
  float d=length(p-uPointer);
  h-=exp(-d*d/0.14)*uDepth*uHover*(.80+uMotion*.40);
  for(int i=0;i<${GLASS_TRAIL_SIZE};i++) {
@@ -43,6 +44,7 @@ export function createGlassRenderer(shell: HTMLElement): GlassRenderer {
   const uniforms = {
     uTime: { value: 0 }, uAspect: { value: 1 }, uWave: { value: .32 }, uDepth: { value: .57 },
     uHover: { value: 0 }, uMotion: { value: 0 }, uTrailClock: { value: 0 }, uPresence: { value: 1 },
+    uBreath: { value: .72 },
     uPointer: { value: new THREE.Vector2() }, uRipple: { value: new THREE.Vector3(0, 0, -100) },
     uTrail: { value: Array.from({ length: GLASS_TRAIL_SIZE }, () => new THREE.Vector4(0, 0, -100, 0)) },
     uSize: { value: new THREE.Vector2() }, uMasks: { value: [new THREE.Vector4()] },
@@ -65,8 +67,12 @@ export function createGlassRenderer(shell: HTMLElement): GlassRenderer {
         float spec=pow(max(dot(n,normalize(light+vec3(0.,0.,1.))),0.),65.);
         float fresnel=pow(1.-max(n.z,0.),2.);
         float ribbon=pow(.5+.5*sin(p.x*2.5+p.y*3.4+h*5.-uTime*.3),16.);
-        float shine=spec*.48+fresnel*.24+ribbon*uWave*.12;
+        float shine=spec*.48+fresnel*.24+ribbon*uWave*uBreath*.12;
         float shade=max(0.,1.-n.z)*.22;
+        // 宽缓的环境波带持续移动，强度随八秒呼吸周期变化。
+        float swell=sin(p.x*.9+p.y*1.5-uTime*.16+h*2.);
+        shine+=max(swell,0.)*.14*uBreath;
+        shade+=max(-swell,0.)*.10*uBreath;
         vec2 pixel=vec2(vUv.x,1.-vUv.y)*uSize;
         float visible=1.;
         for(int i=0;i<1;i++) {
@@ -90,6 +96,7 @@ export function createGlassRenderer(shell: HTMLElement): GlassRenderer {
       uniforms.uTime.value = state.time; uniforms.uAspect.value = w / Math.max(h, 1)
       uniforms.uHover.value = state.hover; uniforms.uMotion.value = state.motion
       uniforms.uTrailClock.value = state.clock; uniforms.uPresence.value = presence
+      uniforms.uBreath.value = state.breath
       uniforms.uPointer.value.set(state.x, state.y); uniforms.uRipple.value.fromArray(state.ripple)
       uniforms.uTrail.value.forEach((point, i) => point.fromArray(state.trail[i]))
       uniforms.uSize.value.set(w, h); uniforms.uMasks.value.forEach((mask, i) => mask.fromArray(masks[i]))

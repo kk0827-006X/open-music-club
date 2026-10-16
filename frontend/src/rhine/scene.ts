@@ -3,7 +3,7 @@ import { ArchiveVisibility } from "./archive-visibility";
 import { InstanceUpdates } from "./instance-updates";
 import { RenderState } from "./render-state";
 import { SharedDepthAO, SharedDepthBokeh } from "./shared-depth";
-import { disposeThreeTree } from "./three-resources";
+import { collectThreeTextures, disposeThreeTree } from "./three-resources";
 import { ThemeWave } from "./theme-motion";
 import { themeMaterial, themeEnvironment } from "./theme-material";
 import { RhythmMotion, rhythmDisplacement, quietBands, type MusicBands, type RhythmStyle } from "./archive-play-motion";
@@ -20,7 +20,6 @@ import { CardAppearance } from "./appearance";
 import { configureInternalOptics } from "./internal-optics";
 import { DecryptionController } from "./decryption";
 import { fileAtSlot, fileLocation, records } from "./data";
-import { demoAlbums } from "../album-data.ts";
 import {
   cellKey,
   sameCell,
@@ -57,6 +56,7 @@ const ease = (t: number) => {
   return t * t * t * (t * (t * 6 - 15) + 10);
 };
 export class ArchiveScene {
+  private disposed = false;
   private inputEvents = new AbortController();
   private presence = 1;
   private presenceTarget = 1;
@@ -72,6 +72,8 @@ export class ArchiveScene {
   }
   revealImmediately() { this.reveal = this.targetReveal; }
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     this.inputEvents.abort();
     this.cancelPointer();
     disposeThreeTree(this.scene);
@@ -256,6 +258,7 @@ export class ArchiveScene {
     private readonly selectionPulse = baselineSelectionWave,
     private readonly deferSelectionPulse = false,
     private readonly lightingLook: LightingLook = "baseline",
+    private readonly coverUrls: readonly string[] = [],
   ) {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -334,14 +337,18 @@ export class ArchiveScene {
     this.smaa.enabled = false;
     this.composer.addPass(this.smaa);
     this.composer.addPass(new OutputPass());
+    this.scene.add(this.model);
     this.bindPointer();
   }
   async load(assetUrl = publicAsset("assets/archive-cassette.glb")) {
     this.labelMark.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(labelMarkSvg)}`;
     await this.labelMark.decode();
+    if (this.disposed) return;
     const gltf = await new GLTFLoader().loadAsync(
       assetUrl,
     );
+    if (this.disposed) { disposeThreeTree(gltf.scene); return; }
+    try {
     gltf.scene.updateMatrixWorld(true);
     const meshes: THREE.Mesh[] = [];
     gltf.scene.traverse((o) => {
@@ -400,7 +407,7 @@ export class ArchiveScene {
         mat.metalness = 0.08;
       }
       configureInternalOptics(name, mat);
-      if (name === "Carbon_Ink") continue;
+      if (name === "Carbon_Ink") { geom.dispose(); mat.dispose(); continue; }
       const selectedMesh = new THREE.Mesh(geom, mat);
       selectedMesh.userData.surface = name;
       selectedMesh.castShadow = name === "Optical_Diffuser";
@@ -482,7 +489,7 @@ export class ArchiveScene {
     this.labelTexture.anisotropy =
       this.renderer.capabilities.getMaxAnisotropy();
     this.fallbackCover = this.createFallbackCover();
-    this.coverTextures = demoAlbums.map(() => this.fallbackCover!);
+    this.coverTextures = Array.from({ length: records.length }, () => this.fallbackCover!);
     const coverGeometry = new THREE.PlaneGeometry(2.65, 2.65);
     coverGeometry.translate(0, 1.85, 0.34);
     for (const texture of this.coverTextures) {
@@ -520,6 +527,10 @@ export class ArchiveScene {
     this.model.position.copy(this.cellPosition(poolCell(this.selectedSlot)));
     this.loaded = true;
     this.startCoverLoading();
+    } finally {
+      // GLTF 原始树不再使用；保留已被实例材质引用的纹理，不释放共享贴图。
+      disposeThreeTree(gltf.scene, collectThreeTextures(this.scene));
+    }
   }
 
   private createFallbackCover() {
@@ -550,8 +561,8 @@ export class ArchiveScene {
 
   private startCoverLoading() {
     const loader = new THREE.TextureLoader();
-    demoAlbums.forEach((album, index) => {
-      void loader.loadAsync(album.coverUrl).then((source) => {
+    this.coverUrls.forEach((coverUrl, index) => {
+      void loader.loadAsync(coverUrl).then((source) => {
         try {
           if (!this.loaded) return;
           const canvas = document.createElement("canvas");
