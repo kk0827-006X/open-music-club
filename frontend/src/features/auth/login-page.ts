@@ -190,6 +190,7 @@ export function mountLoginPage(
         if (label) label.textContent = '等待两步验证'
         if (status) status.textContent = '密码正确，请在弹窗中完成两步验证；过期后请重新登录'
         const generation = ++factorGeneration
+        dialog.classList.toggle('is-challenge', !result.enrollmentRequired)
         if (result.enrollmentRequired) {
           dialog.setAttribute('aria-labelledby', 'settings-section-title')
           factorCleanup = mountTwoFactorPanel(panel, role => {
@@ -197,9 +198,45 @@ export function mountLoginPage(
           })
         } else {
           dialog.setAttribute('aria-labelledby', 'authenticator-title')
-          panel.innerHTML = `<form data-login-factor><h2 id="authenticator-title">AUTHENTICATOR / 两步验证</h2><label>验证码<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required/></label><label><input type="checkbox" name="recovery"/>使用恢复码</label><button type="submit">确认登录${uiIcons.right}</button><p role="status" data-factor-feedback></p></form>`
+          panel.innerHTML = `
+            <form class="factor-challenge" data-login-factor>
+              <p class="factor-challenge-step">STEP 02 / TOTP 2FA CHALLENGE</p>
+              <h2 id="authenticator-title">手机打开验证器 App，输入 6 位动态口令</h2>
+              <div class="factor-code-field">
+                <div class="factor-code-digits" data-factor-digits aria-hidden="true">${'<span data-factor-digit></span>'.repeat(6)}</div>
+                <input class="factor-code-input" name="code" aria-label="验证码" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false" required/>
+              </div>
+              <label class="factor-recovery-option"><input type="checkbox" name="recovery"/>使用恢复码</label>
+              <button class="factor-confirm" type="submit">确认登录${uiIcons.right}</button>
+              <p role="status" data-factor-feedback></p>
+            </form>`
           const factorForm = panel.querySelector<HTMLFormElement>('form')!, code = factorForm.querySelector<HTMLInputElement>('[name=code]')!, recovery = factorForm.querySelector<HTMLInputElement>('[name=recovery]')!
-          recovery.addEventListener('change', () => { code.value = ''; code.maxLength = recovery.checked ? 35 : 6; code.inputMode = recovery.checked ? 'text' : 'numeric' })
+          const digits = [...factorForm.querySelectorAll<HTMLElement>('[data-factor-digit]')]
+          const heading = factorForm.querySelector<HTMLElement>('#authenticator-title')!
+          // 保留一个原生输入框，六格只负责显示，兼容粘贴、键盘编辑与系统验证码填充。
+          const syncDigits = () => {
+            const caret = Math.min(code.selectionStart ?? code.value.length, 5)
+            digits.forEach((digit, index) => {
+              digit.textContent = recovery.checked ? '' : code.value[index] ?? ''
+              digit.classList.toggle('is-current', document.activeElement === code && index === caret)
+            })
+          }
+          for (const event of ['input', 'select', 'keyup', 'focus', 'blur']) code.addEventListener(event, syncDigits)
+          code.addEventListener('click', event => {
+            if (recovery.checked) return
+            const bounds = code.getBoundingClientRect()
+            const index = Math.max(0, Math.min(5, Math.floor((event.clientX - bounds.left) / (bounds.width / 6))))
+            const caret = Math.min(index, code.value.length)
+            code.setSelectionRange(caret, caret)
+            syncDigits()
+          })
+          recovery.addEventListener('change', () => {
+            code.value = ''; code.maxLength = recovery.checked ? 35 : 6; code.inputMode = recovery.checked ? 'text' : 'numeric'
+            factorForm.classList.toggle('is-recovery', recovery.checked)
+            code.setAttribute('aria-label', recovery.checked ? '恢复码' : '验证码')
+            heading.textContent = recovery.checked ? '输入一组未使用的恢复码' : '手机打开验证器 App，输入 6 位动态口令'
+            syncDigits()
+          })
           factorForm.addEventListener('submit', async event => {
             event.preventDefault()
             const button = factorForm.querySelector<HTMLButtonElement>('button')!
@@ -209,7 +246,7 @@ export function mountLoginPage(
               const user = await verifyTwoFactor(code.value.trim(), recovery.checked)
               if (!disposed && generation === factorGeneration) closeFactor(user.role)
             } catch (error) { if (!disposed && generation === factorGeneration) factorForm.querySelector<HTMLElement>('[data-factor-feedback]')!.textContent = error instanceof Error ? error.message : '验证失败' }
-            finally { code.value = ''; if (!closing) { button.disabled = false; factorBusy = false; closeButton.disabled = false } }
+            finally { code.value = ''; syncDigits(); if (!closing) { button.disabled = false; factorBusy = false; closeButton.disabled = false } }
           })
         }
         dialog.showModal()

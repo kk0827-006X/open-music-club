@@ -257,6 +257,31 @@ p, h1, h2 { margin: 0; }
 }
 .authenticator-content h2 { font-size: 1.02rem; }
 .authenticator-content p { font-size: .67rem; }
+
+/* 仅调整登录验证码弹窗，首次绑定与设置中的认证管理沿用原样式。 */
+/* 独立 scale 按比例缩小内容，避免覆盖原进出动画使用的 transform。 */
+.login-factor-dialog.is-challenge { width: min(980px, calc(100vw - 36px)); scale: .5; }
+.login-factor-dialog.is-challenge .authenticator-panel::before, .login-factor-dialog.is-challenge .authenticator-panel::after { display: none; }
+.login-factor-dialog.is-challenge .panel-rail { display: flex; justify-content: flex-end; border: 0; }
+.login-factor-dialog.is-challenge .panel-rail > span { display: none; }
+.login-factor-dialog.is-challenge .authenticator-content { padding: 0 clamp(16px, 4vw, 48px) 26px; }
+.factor-challenge[data-login-factor] { justify-items: center; gap: 0; margin: 0; text-align: center; }
+.factor-challenge .factor-challenge-step { color: var(--amber); font: 700 clamp(.85rem, 2.2vw, 1.35rem)/1.5 ui-monospace, monospace; letter-spacing: .04em; }
+.factor-challenge #authenticator-title { margin: 16px 0 46px; font-size: clamp(1.2rem, 3.1vw, 2rem); line-height: 1.5; font-weight: 700; }
+.factor-code-field { position: relative; width: min(100%, 512px); }
+.factor-code-digits { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(8px, 1.5vw, 16px); }
+.factor-code-digits span { display: grid; place-items: center; min-width: 0; aspect-ratio: 72 / 88; border: 2px solid var(--muted); border-radius: 8px; background: var(--color-surface-15); color: var(--amber); font: 700 clamp(1.5rem, 4vw, 2.5rem)/1 ui-monospace, monospace; }
+.factor-code-digits .is-current { border-color: var(--amber); }
+.factor-challenge .factor-code-input { position: absolute; inset: 0; height: 100%; opacity: 0; cursor: text; }
+.factor-code-field:has(.factor-code-input:focus-visible) { outline: 2px solid var(--amber); outline-offset: 6px; border-radius: 8px; }
+.factor-challenge .factor-recovery-option { display: flex; align-items: center; gap: 8px; margin-top: 24px; color: var(--muted); cursor: pointer; }
+.factor-challenge .factor-recovery-option:hover { color: var(--amber); }
+.factor-recovery-option input { accent-color: var(--amber); }
+.factor-challenge .factor-confirm { min-width: 180px; margin-top: 18px; }
+.factor-challenge [data-factor-feedback] { min-height: 1.5em; margin-top: 12px; color: var(--amber); }
+.factor-challenge.is-recovery .factor-code-digits { display: none; }
+.factor-challenge.is-recovery .factor-code-input { position: static; height: 60px; opacity: 1; font: 600 1.1rem/1.5 ui-monospace, monospace; text-align: center; }
+
 .code-preview { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
 .code-preview span { aspect-ratio: 1; border: 1px solid var(--color-border-07); background: var(--color-highlight-03); }
 .code-preview span:first-child { border-color: var(--amber); }
