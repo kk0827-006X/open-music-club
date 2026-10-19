@@ -76,13 +76,14 @@ function createAdminApplicationsRouter() {
         return res.status(409).json({ success: false, message: '该邮箱已注册' })
       }
 
+      await req.app.locals.mail.applicationReviewed({ ...application, status: 'approved' }, req.requestId)
       return res.status(200).json({ success: true, user: toSafeUser(result.user) })
     } catch (error) {
       return next(error)
     }
   })
 
-  router.post('/:id/reject', (req, res, next) => {
+  router.post('/:id/reject', async (req, res, next) => {
     try {
       const id = parseApplicationId(req.params.id)
       if (!id) {
@@ -101,6 +102,7 @@ function createAdminApplicationsRouter() {
         return res.status(409).json({ success: false, message: '该申请已处理' })
       }
 
+      await req.app.locals.mail.applicationReviewed(result.application, req.requestId)
       return res.status(200).json({
         success: true,
         application: toApplicationDetails(result.application),

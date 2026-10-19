@@ -10,7 +10,7 @@ const BASIC_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 function createApplicationsRouter() {
   const router = express.Router()
 
-  router.post('/', (req, res, next) => {
+  router.post('/', async (req, res, next) => {
     try {
       const { email, nickname, reason } = req.body ?? {}
       const normalizedEmail = typeof email === 'string' ? normalizeEmail(email) : ''
@@ -39,6 +39,8 @@ function createApplicationsRouter() {
         return res.status(409).json({ success: false, message: '该邮箱已有待审核申请' })
       }
 
+      // submitApplication 返回前已经提交事务，通知失败不得改变申请结果。
+      await req.app.locals.mail.applicationSubmitted(result.application, req.requestId)
       return res.status(201).json({
         success: true,
         application: toApplicationSummary(result.application),

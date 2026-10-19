@@ -18,13 +18,29 @@ describe('访问申请与管理员审核 API', () => {
   let database
   let adminAgent
   let memberAgent
+  let notifications
+  let mailFailure
 
   beforeEach(async () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-applications-'))
+    notifications = []
+    mailFailure = false
     app = createApp({
       databasePath: path.join(directory, 'database.sqlite'),
       sessionDatabasePath: path.join(directory, 'sessions.sqlite'),
       sessionSecret: 'test-session-secret',
+      mail: {
+        env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com' },
+        transport: { async sendMail(message) {
+          // 通知触发时，另一个连接必须已经能读到已提交的数据。
+          const { createDatabase } = require('../src/db/database')
+          const reader = createDatabase(path.join(directory, 'database.sqlite'))
+          try { notifications.push({ message, stored: reader.prepare('SELECT status FROM access_requests ORDER BY id DESC LIMIT 1').get().status }) }
+          finally { reader.close() }
+          if (mailFailure) throw new Error('smtp-secret-password /private/database.sqlite')
+          return { accepted: [message.to] }
+        } },
+      },
     })
     database = app.locals.database
 
@@ -195,6 +211,47 @@ describe('访问申请与管理员审核 API', () => {
 
     assert.equal(first.status, 201)
     assert.equal(second.status, 409)
+    assert.equal(notifications.length, 1)
+  })
+
+  it('申请先提交数据库再通知管理员，邮件失败仍返回成功且可审批', async () => {
+    mailFailure = true
+    const submitted = await submitApplication()
+    assert.equal(submitted.status, 201)
+    assert.equal(notifications.length, 1)
+    assert.equal(notifications[0].stored, 'pending')
+    assert.equal(notifications[0].message.to, 'admin@example.com')
+    const approved = await adminAgent.post(`/api/admin/applications/${submitted.body.application.id}/approve`).send({ initialPassword: INITIAL_PASSWORD })
+    assert.equal(approved.status, 200)
+    assert.equal(notifications.length, 2)
+    assert.equal(notifications[1].stored, 'approved')
+    assert.equal(notifications[1].message.to, 'candidate@example.com')
+    assert.doesNotMatch(JSON.stringify(notifications), /initial-password|smtp-secret|password_hash/)
+    assert.doesNotMatch(JSON.stringify(approved.body), /smtp|private|notification/)
+    assert.equal((await login(request.agent(app), 'candidate@example.com', INITIAL_PASSWORD)).status, 200)
+    assert.equal((await adminAgent.post(`/api/admin/applications/${submitted.body.application.id}/approve`).send({ initialPassword: INITIAL_PASSWORD })).status, 409)
+    assert.equal(notifications.length, 2)
+  })
+
+  it('申请 INSERT 失败不发送邮件，也不暴露数据库内部错误', async () => {
+    database.exec("CREATE TRIGGER fail_application BEFORE INSERT ON access_requests BEGIN SELECT RAISE(ABORT, 'private-database-path'); END")
+    const response = await submitApplication()
+    assert.equal(response.status, 500)
+    assert.equal(notifications.length, 0)
+    assert.equal(database.prepare('SELECT count(*) AS count FROM access_requests').get().count, 0)
+    assert.doesNotMatch(JSON.stringify(response.body), /private-database-path|sqlite|stack/)
+  })
+
+  it('拒绝邮件失败也保留拒绝结果，允许申请人重新申请', async () => {
+    const id = insertApplication()
+    mailFailure = true
+    const response = await adminAgent.post(`/api/admin/applications/${id}/reject`)
+    assert.equal(response.status, 200)
+    assert.equal(findApplication(id).status, 'rejected')
+    assert.equal(notifications[0].stored, 'rejected')
+    assert.equal((await adminAgent.post(`/api/admin/applications/${id}/reject`)).status, 409)
+    assert.equal(notifications.length, 1)
+    assert.equal((await submitApplication()).status, 201)
   })
 
   it('先前申请 rejected 后允许创建新的 pending 申请', async () => {
@@ -416,6 +473,7 @@ describe('访问申请与管理员审核 API', () => {
     })
     assert.equal(findApplication(applicationId).status, 'pending')
     assert.equal(findUserByEmail(database, 'rollback@example.com'), undefined)
+    assert.equal(notifications.length, 0)
   })
 
   it('管理员可以拒绝 pending 申请且不会创建用户', async () => {
@@ -433,6 +491,8 @@ describe('访问申请与管理员审核 API', () => {
     assert.equal(application.reviewed_by, 1)
     assert.notEqual(application.reviewed_at, null)
     assert.equal(findUserByEmail(database, 'reject-me@example.com'), undefined)
+    assert.equal(notifications.length, 1)
+    assert.equal(notifications[0].stored, 'rejected')
   })
 
   it('不存在的申请返回 404，已处理申请不能再次 reject', async () => {

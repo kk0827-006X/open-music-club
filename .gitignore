@@ -39,3 +39,8 @@ storage/temp/*
 .vscode/
 *.cookies
 *.cookies.txt
+
+# 验收产生的报告、截图、trace；只上传隔离测试环境的产物，不提交运行时数据。
+artifacts/
+playwright-report/
+test-results/

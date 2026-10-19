@@ -1,0 +1,65 @@
+name: 可复现验收基线
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - name: 安装锁文件依赖及 Chromium 系统依赖
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps --only-shell chromium
+      - name: 安装、构建、测试、覆盖率与浏览器验收
+        run: pnpm verify:baseline
+      - name: 保存隔离验收结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/
+            coverage/lcov.info
+          retention-days: 14
+          if-no-files-found: warn
+
+  dependency-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - name: 依赖安全门禁（现有高危风险也会失败）
+        run: |
+          mkdir -p artifacts/security
+          pnpm audit --registry=https://registry.npmjs.org --audit-level=high --json > artifacts/security/audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-audit-${{ github.run_id }}
+          path: artifacts/security/
+          retention-days: 14

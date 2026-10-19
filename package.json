@@ -2,6 +2,7 @@
   "name": "open-music-club",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@12.3.4",
   "description": "面向公网部署的音乐共享与播放服务",
   "main": "src/server.js",
   "scripts": {
@@ -12,6 +13,8 @@
     "build:web": "pnpm --dir frontend build",
     "db:init": "node src/db/init.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "test:e2e": "playwright test",
+    "verify:baseline": "node scripts/acceptance-baseline.js",
     "test:coverage": "c8 --include='src/**' --exclude='vendor/**' --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 node --test --test-concurrency=1 tests/*.test.js"
   },
   "engines": {
@@ -29,6 +32,7 @@
     "helmet": "^8.3.0",
     "multer": "^2.4.0",
     "music-metadata": "^11.15.0",
+    "nodemailer": "10.1.2",
     "otplib": "^13.5.0",
     "qrcode": "^1.5.4",
     "rate-limit-redis": "^6.0.1",
@@ -36,6 +40,7 @@
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "c8": "^12.0.0",
     "concurrently": "^10.0.5",
     "supertest": "^7.2.2"

@@ -17,6 +17,7 @@ const {
 } = require('./routes/adminApplications.routes')
 const { createNeteaseRouter } = require('./routes/netease.routes')
 const { createNeteaseService } = require('./services/netease.service')
+const { createMailService } = require('./services/mail.service')
 const { createLocalMusicConfig } = require('./config/localMusic')
 const { createLocalMusicRouter } = require('./routes/localMusic.routes')
 const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes')
@@ -38,12 +39,14 @@ function createApp({
   security = {},
   infrastructure = {},
   twoFactor = {},
+  mail = {},
 }) {
   if (!sessionSecret) {
     throw new Error('SESSION_SECRET 不能为空')
   }
 
   const securityConfig = createSecurityConfig(security)
+  const mailService = createMailService({ ...mail, logger: securityConfig.logger })
   const sessionStore =
     infrastructure.sessionStore ||
     (securityConfig.production ? null : createMemorySessionStore())
@@ -89,6 +92,7 @@ function createApp({
   app.locals.sessionCookieOptions = sessionConfiguration.cookieOptions
   app.locals.security = securityConfig
   app.locals.twoFactor = twoFactorService
+  app.locals.mail = mailService
   if (!twoFactorService.available) securityConfig.logger.warn?.({ event: 'two_factor_key_missing', message: '未配置 TOTP_ENCRYPTION_KEY，无法绑定认证器；公网管理员不能获得正式登录权限' })
 
   app.use(requestIdMiddleware)

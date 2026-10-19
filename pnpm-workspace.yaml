@@ -9,3 +9,6 @@ allowBuilds:
   core-js: true
   esbuild: true
   es5-ext: true
+
+minimumReleaseAgeExclude:
+  - nodemailer@10.1.2
