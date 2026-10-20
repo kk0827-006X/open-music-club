@@ -68,7 +68,8 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
     await test.step('浏览器登录、设置中绑定认证器，密码错误不能绑定', async () => {
       await loginUi(page)
       await expect(page.locator('[data-album-archive]')).toBeVisible()
-      await expect.poll(() => page.locator('[data-three-scene]').getAttribute('data-render-quality').then(value => value && JSON.parse(value).superPerformance)).toBe(true)
+      // 软件 WebGL 首次加载模型和编译材质比普通 DOM 更新慢，单独等待真实场景就绪。
+      await expect.poll(() => page.locator('[data-three-scene]').getAttribute('data-render-quality').then(value => value && JSON.parse(value).superPerformance), { timeout: 60000 }).toBe(true)
       await expect(page.locator('[data-three-scene] canvas')).toBeVisible()
       await page.locator('[data-nav="settings"]').click()
       await page.getByRole('button', { name: '账号与安全', exact: true }).click()
