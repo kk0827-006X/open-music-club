@@ -10,7 +10,7 @@ module.exports = defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4317', browserName: 'chromium',
     // CSS 视口保持桌面布局；降低测试设备像素比，避免无 GPU CI 的原画质离屏渲染阻塞。
-    viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 0.5, reducedMotion: 'reduce',
+    viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 0.25, reducedMotion: 'reduce',
     actionTimeout: 30000, screenshot: 'only-on-failure',
     // 保留操作与 DOM 诊断，避免 trace 持续录屏触发软件 WebGL 逐帧读回。
     trace: { mode: 'retain-on-failure', screenshots: false, snapshots: true, sources: true },
