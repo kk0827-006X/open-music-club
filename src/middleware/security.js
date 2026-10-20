@@ -27,12 +27,12 @@ function createHttpsEnforcement(config) {
 function createSameOriginCors(config) {
   return function sameOriginCors(req, res, next) {
     const origin = req.get('Origin')
-    if (origin && config.publicOrigin && origin !== config.publicOrigin) {
+    if (origin && config.allowedOrigins.length && !config.allowedOrigins.includes(origin)) {
       return sendSecurityError(res, 403, '请求来源不受信任')
     }
 
-    if (origin && origin === config.publicOrigin) {
-      res.setHeader('Access-Control-Allow-Origin', config.publicOrigin)
+    if (origin && config.allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
       res.setHeader('Access-Control-Allow-Credentials', 'true')
       res.setHeader('Vary', 'Origin')
     }
@@ -68,7 +68,7 @@ function createCsrfProtection(config) {
     const origin = req.get('Origin')
     const suppliedToken = req.get('X-CSRF-Token')
     if (
-      origin !== config.publicOrigin ||
+      !config.allowedOrigins.includes(origin) ||
       !tokensMatch(req.session?.csrfToken, suppliedToken)
     ) {
       return sendSecurityError(res, 403, 'CSRF 校验失败')

@@ -38,6 +38,20 @@ function parsePublicOrigin(value, production) {
   return url.origin
 }
 
+function parseDevelopmentOrigins(value) {
+  try {
+    return [...new Set(value.split(',').map((entry) => {
+      const url = new URL(entry.trim())
+      if (!['http:', 'https:'].includes(url.protocol) || url.hostname.includes('*')) {
+        throw new Error('不支持的来源')
+      }
+      return parsePublicOrigin(entry.trim(), false)
+    }))]
+  } catch {
+    throw new Error('DEV_ALLOWED_ORIGINS 必须是逗号分隔的精确 HTTP/HTTPS Origin，不得含通配符、凭据、路径或查询参数')
+  }
+}
+
 function mergeRateLimits(overrides = {}) {
   return Object.fromEntries(
     Object.entries(DEFAULT_RATE_LIMITS).map(([name, defaults]) => [
@@ -54,6 +68,10 @@ function createSecurityConfig(options = {}) {
     options.publicOrigin ?? process.env.PUBLIC_ORIGIN,
     production,
   )
+  // 开发白名单与正式站点独立；生产环境完全忽略此变量，仍只允许正式 Origin。
+  const allowedOrigins = !production && process.env.DEV_ALLOWED_ORIGINS?.trim()
+    ? parseDevelopmentOrigins(process.env.DEV_ALLOWED_ORIGINS)
+    : publicOrigin ? [publicOrigin] : []
   const trustProxyHops = parsePositiveInteger(
     options.trustProxyHops ?? process.env.TRUST_PROXY_HOPS,
     'TRUST_PROXY_HOPS',
@@ -67,6 +85,7 @@ function createSecurityConfig(options = {}) {
   return {
     production,
     publicOrigin,
+    allowedOrigins,
     trustProxyHops,
     enforceHttps: options.enforceHttps ?? production,
     csrfEnabled: options.csrfEnabled ?? production,

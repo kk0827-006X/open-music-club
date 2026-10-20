@@ -7,7 +7,7 @@ const { pathToFileURL } = require('node:url')
 const projectRoot = path.resolve(__dirname, '..')
 
 describe('本地前后端联调环境', () => {
-  it('Vite 只监听本机并将 API 转发到本地后端', async () => {
+  it('Vite 允许外部访问并将 API 转发到本地后端', async () => {
     const configPath = path.join(projectRoot, 'frontend/vite.config.ts')
     const moduleUrl = `${pathToFileURL(configPath).href}?test=${Date.now()}`
     const { createViteConfig } = await import(moduleUrl)
@@ -15,7 +15,7 @@ describe('本地前后端联调环境', () => {
       apiTarget: 'http://127.0.0.1:3999',
     })
 
-    assert.equal(config.server.host, '127.0.0.1')
+    assert.equal(config.server.host, '0.0.0.0')
     assert.equal(config.server.port, 5173)
     assert.equal(config.server.strictPort, true)
     assert.deepEqual(config.server.proxy, {
