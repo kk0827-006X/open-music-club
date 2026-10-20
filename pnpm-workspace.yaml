@@ -12,3 +12,14 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - nodemailer@10.1.2
+
+# 统一修复直接和传递依赖；未发布修复版的漏洞仍由安全门禁阻断。
+overrides:
+  'proxy-addr@<2.0.8': 2.0.8
+  'shell-quote@>=1.8.4 <1.11.0': 1.12.0
+  'serialize-javascript@<=7.0.2': 7.1.2
+  'brace-expansion@>=1.0.0 <2.0.0': 1.1.21
+  'brace-expansion@>=2.0.0 <3.0.0': 2.1.7
+  'brace-expansion@>=4.0.0 <5.0.11': 5.0.12
+  'basic-ftp@<=6.2.0': 6.2.3
+  'source-map-js@<1.2.2': 1.2.2

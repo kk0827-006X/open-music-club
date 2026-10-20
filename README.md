@@ -6,6 +6,7 @@
 使用 `.node-version` 中的 Node 和 `package.json` 中锁定的 pnpm 版本。
 
 ```bash
+git submodule update --init --recursive
 pnpm install --frozen-lockfile
 pnpm dev
 ```
