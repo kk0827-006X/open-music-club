@@ -8,12 +8,14 @@ it('软件渲染验收在帧完成后给真实鼠标操作留出空档，不替�
   class Original {
     setQuality() {}
     setSuperPerformance() {}
-    update() { draws++; now += 1000 }
+    update() { draws++ }
   }
   const source = graphicsProfile('http://127.0.0.1:4317/assets/scene-test.js')
     .replace(/^\s*import[^;]+;/, '').replace('export class', 'class')
   const Scene = vm.runInNewContext(source + '\nArchiveScene', { Original, performance: { now: () => now } })
-  const scene = new Scene()
+  // 软件 GPU 异步执行：update 返回不代表这一帧已经完成。
+  const container = { querySelector: () => ({ getContext: () => ({ finish() { now += 1000 } }) }) }
+  const scene = new Scene(container)
   scene.update(0)
   assert.equal(draws, 1)
   now = 1100
