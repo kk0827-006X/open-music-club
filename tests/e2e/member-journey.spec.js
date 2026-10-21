@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test')
 const { generateSync } = require('otplib')
 const { ADMIN, MEMBER, wave } = require('./fixtures')
+const { graphicsProfile } = require('./graphics-profile')
 
 const origin = 'http://127.0.0.1:4317'
 async function post(client, url, data) {
@@ -40,12 +41,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
     const url = new URL(route.request().url())
     if (url.searchParams.has('acceptance-original')) return route.continue()
     url.searchParams.set('acceptance-original', '1')
-    return route.fulfill({ contentType: 'application/javascript', body: `
-      import { ArchiveScene as Original } from ${JSON.stringify(url.href)};
-      export class ArchiveScene extends Original {
-        constructor(...args) { super(...args); this.setQuality({ scale:50,pixelRatio:1,antialias:'off',shadows:0,aoSamples:0,aoResolution:.5,depthOfField:0,transmission:.25,anisotropy:1 }); }
-        async load(...args) { await super.load(...args); this.setSuperPerformance(true); }
-      }` })
+    return route.fulfill({ contentType: 'application/javascript', body: graphicsProfile(url.href) })
   })
   const client = page.request
   const adminContext = await browser.newContext({ baseURL: origin })
@@ -171,7 +167,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
     expect(errors).toEqual([])
     await info.attach('acceptance-environment.json', { contentType: 'application/json', body: JSON.stringify({
       browserVersion: browser.version(), viewport: page.viewportSize(), deviceScaleFactor: await page.evaluate(() => devicePixelRatio),
-      graphicsProfile: '原场景公开接口：50% / superPerformance / 无阴影、AO、景深',
+      graphicsProfile: '原场景公开接口：50% / superPerformance / 无阴影、AO、景深；帧完成后至少间隔 250ms',
       audio: '真实 HTMLAudioElement；本地受保护流与模拟网易云 CDN',
       database: '独立临时 SQLite；不连接真实账号数据库',
     }, null, 2) })

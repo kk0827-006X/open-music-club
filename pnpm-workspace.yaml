@@ -23,3 +23,5 @@ overrides:
   'brace-expansion@>=4.0.0 <5.0.11': 5.0.12
   'basic-ftp@<=6.2.0': 6.2.3
   'source-map-js@<1.2.2': 1.2.2
+  'follow-redirects@>=1.16.0 <1.16.1': 1.16.1
+  'vite@>=7.0.0 <7.3.7': 7.3.7

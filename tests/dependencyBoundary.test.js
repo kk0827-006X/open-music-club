@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { createRequire } = require('node:module')
+const { createPublicKey } = require('node:crypto')
 
 it('网易云加密不加载 node-forge，且保留原 weapi 协议字节', () => {
   const filename = require.resolve('../vendor/api-enhanced/util/crypto')
@@ -16,11 +17,28 @@ it('网易云加密不加载 node-forge，且保留原 weapi 协议字节', () =
       return nativeRequire(name)
     },
   }
-  vm.runInNewContext(fs.readFileSync(filename, 'utf8'), sandbox, { filename, timeout: 1000 })
+  const source = fs.readFileSync(filename, 'utf8')
+  vm.runInNewContext(source, sandbox, { filename, timeout: 1000 })
   const encrypted = sandbox.module.exports.weapi({ id: 123, csrf_token: '' })
   // 从改动前的实现固定取得，确保更换加密库不改变上游协议。
   assert.equal(encrypted.params, 'CLDD+DdPkibsXQi558ASK3fQufUZOm8UMZu1BjXirW8DhUiezS9M/pwzrGWI5uXc')
   assert.equal(encrypted.encSecKey, 'd473b9eca232f1b4090dd606b0df86de318748dd2eec307e4ed4345030fc4ee30331e598f41d5a6f5befaab94630ea1a1eda7cfade84fbec1a907913d2e4d2c8744bc572b99a050075e075b4537f645ecfa994f95906c32818e076aeda6bdb906bfa0bb96c4cf4bc3ed6d9ab76cf08441153d9d85e1ea3d78fa8d9210d581cee')
+  // 非均匀密钥验证反转顺序；用独立模幂参考而不是再次调用被测加密 API。
+  let ordinal = 0
+  sandbox.Math.random = () => ordinal++ / 61
+  const ordered = sandbox.module.exports.weapi({ id: 123, csrf_token: '' })
+  const pem = source.match(/const publicKey = `([\s\S]*?)`/)[1]
+  const { n, e } = createPublicKey(pem).export({ format: 'jwk' })
+  const modulus = Buffer.from(n, 'base64url')
+  const bigint = buffer => BigInt('0x' + buffer.toString('hex'))
+  const limit = bigint(modulus)
+  let base = bigint(Buffer.from('ponmlkjihgfedcba')), exponent = bigint(Buffer.from(e, 'base64url')), result = 1n
+  while (exponent) {
+    if (exponent & 1n) result = result * base % limit
+    base = base * base % limit
+    exponent >>= 1n
+  }
+  assert.equal(ordered.encSecKey, result.toString(16).padStart(modulus.length * 2, '0'))
   const manifest = require('../vendor/api-enhanced/package.json')
   assert.equal(manifest.dependencies['node-forge'], undefined)
 })
