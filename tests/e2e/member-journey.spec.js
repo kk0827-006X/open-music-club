@@ -67,6 +67,12 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       // 软件 WebGL 首次加载模型和编译材质比普通 DOM 更新慢，单独等待真实场景就绪。
       await expect.poll(() => page.locator('[data-three-scene]').getAttribute('data-render-quality').then(value => value && JSON.parse(value).superPerformance), { timeout: 60000 }).toBe(true)
       await expect(page.locator('[data-three-scene] canvas')).toBeVisible()
+      // 独立验证原模型确实绘制和响应选择，不用仅有 canvas DOM 冒充场景已渲染。
+      const scene = page.locator('[data-three-scene]')
+      await expect.poll(async () => Number(await scene.getAttribute('data-acceptance-frames'))).toBeGreaterThan(0)
+      const selection = await scene.getAttribute('data-acceptance-selection')
+      await page.keyboard.press('ArrowDown')
+      await expect.poll(() => scene.getAttribute('data-acceptance-selection')).not.toBe(selection)
       await page.locator('[data-nav="settings"]').click()
       await page.getByRole('button', { name: '账号与安全', exact: true }).click()
       await page.getByRole('button', { name: '管理 2FA' }).click()
@@ -167,7 +173,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
     expect(errors).toEqual([])
     await info.attach('acceptance-environment.json', { contentType: 'application/json', body: JSON.stringify({
       browserVersion: browser.version(), viewport: page.viewportSize(), deviceScaleFactor: await page.evaluate(() => devicePixelRatio),
-      graphicsProfile: '原场景公开接口：50% / superPerformance / 无阴影、AO、景深；帧完成后至少间隔 250ms',
+      graphicsProfile: '真实模型按需绘图；验证首帧与键盘选择；不验收持续动画或默认画质性能',
       audio: '真实 HTMLAudioElement；本地受保护流与模拟网易云 CDN',
       database: '独立临时 SQLite；不连接真实账号数据库',
     }, null, 2) })
