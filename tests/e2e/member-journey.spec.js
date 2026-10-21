@@ -36,7 +36,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
   await page.context().route('https://*.music.126.net/**', route => route.request().url().endsWith('.wav')
     ? route.fulfill({ contentType: 'audio/wav', body: wave() })
     : route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#987654"/></svg>' }))
-  // CI 无独立 GPU：加载原场景，仅通过既有公开画质接口切换测试配置，不替换模型/交互实现。
+  // CI 无独立 GPU：原场景使用低画质按需绘图，验证首帧/选择而非连续动画性能。
   await page.context().route('**/assets/scene-*.js*', route => {
     const url = new URL(route.request().url())
     if (url.searchParams.has('acceptance-original')) return route.continue()
