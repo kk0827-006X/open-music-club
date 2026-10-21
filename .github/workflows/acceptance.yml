@@ -18,6 +18,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: 确认网易云子模块已检出
+        run: test -f vendor/api-enhanced/module/search.js
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
@@ -46,6 +50,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: 确认网易云子模块已检出
+        run: test -f vendor/api-enhanced/module/search.js
       - uses: actions/setup-node@v4
         with:
           node-version-file: .node-version
