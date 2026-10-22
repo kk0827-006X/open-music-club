@@ -3,17 +3,18 @@ const path = require('node:path')
 const root = path.resolve(__dirname, '../../frontend/src')
 // 测试检查真实实现，而不是旧入口的转发文本。
 const implementations = {
-  'login-page.ts': ['features/auth/login-page.ts'], 'entry-page.ts': ['features/auth/entry-page.ts'],
-  'authorized-sequence.ts': ['features/auth/authorized-sequence.ts'],
-  'album-archive.ts': ['app/workspace-view.ts', 'app/music-workspace.ts', 'features/music-library/library-view.ts', 'features/music-library/library-controller.ts', 'features/player/player-view.ts'],
+  'login-page.ts': ['features/auth/LoginPage.tsx'], 'entry-page.ts': ['features/auth/EntryPage.tsx'],
+  'authorized-sequence.ts': ['features/auth/AuthorizedSequence.tsx'],
+  'album-archive.ts': ['app/Workspace.tsx', 'features/music-library/LibraryView.tsx', 'features/player/PlayerView.tsx'],
   'music-queue.ts': ['features/queue/model.ts'], 'queue-persistence.ts': ['features/queue/persistence.ts'],
-  'queue-add-animation.ts': ['features/queue/add-animation.ts'], 'player-queue-panel.ts': ['features/queue/panel.ts'],
-  'user-page.ts': ['features/user/user-page.ts'], 'upload-page.ts': ['features/upload/upload-page.ts'],
-  'search-page.ts': ['features/search/search-page.ts'], 'settings-dialog.ts': ['features/settings/settings-dialog.ts'],
+  'queue-add-animation.ts': ['features/queue/add-animation.ts', 'features/queue/QueueAddFlights.tsx'], 'player-queue-panel.ts': ['features/queue/QueuePanel.tsx'],
+  'user-page.ts': ['features/user/UserPage.tsx'], 'upload-page.ts': ['features/upload/UploadPage.tsx'],
+  'search-page.ts': ['features/search/SearchPage.tsx'], 'settings-dialog.ts': ['features/settings/SettingsDialog.tsx'],
 }
-function readCss(file = path.join(root, 'style.css')) {
+function readCss(file = path.join(root, 'style.css'), { originalOnly = false } = {}) {
+  if (originalOnly && file === path.join(root, 'styles/react-components.css')) return ''
   const text = fs.readFileSync(file, 'utf8')
-  return text.replace(/@import\s+['"]([^'"]+)['"];\s*/g, (_, name) => readCss(path.resolve(path.dirname(file), name)))
+  return text.replace(/@import\s+['"]([^'"]+)['"];\s*/g, (_, name) => readCss(path.resolve(path.dirname(file), name), { originalOnly }))
 }
 function readFrontendSource(file) {
   const relative = path.isAbsolute(file) ? path.relative(root, file) : file.replace(/^frontend\/src\//, '')

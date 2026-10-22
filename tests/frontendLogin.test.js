@@ -20,17 +20,23 @@ describe('静态登录页面', () => {
   it('登录页显示音乐库原版 Logo，直接复用相同定位和字形样式', async () => {
     const { createLoginMarkup } = await import(frontendModule('login-page.ts'))
     const { createAlbumArchiveMarkup } = await import(frontendModule('album-archive.ts'))
-    const loginHeader = createLoginMarkup().match(/<header class="archive-brand">([\s\S]*?)<\/header>/)
-    const libraryHeader = createAlbumArchiveMarkup().match(/<header class="archive-brand">([\s\S]*?)<\/header>/)
-    assert.ok(loginHeader, '登录页必须显示与音乐库同一 CSS 类的 Logo')
-    assert.equal(loginHeader[1], libraryHeader[1].replace(/<small>[\s\S]*?<\/small>/, ''))
+    const { JSDOM } = require(require.resolve('jsdom', { paths: [path.resolve('vendor/api-enhanced')] }))
+    const login = new JSDOM(createLoginMarkup()), library = new JSDOM(createAlbumArchiveMarkup())
+    try {
+      const loginHeader = login.window.document.querySelector('header.archive-brand')
+      const libraryHeader = library.window.document.querySelector('header.archive-brand')
+      assert.ok(loginHeader, '登录页必须显示与音乐库同一 CSS 类的 Logo')
+      assert.equal(loginHeader.querySelector('h1').textContent, libraryHeader.querySelector('h1').textContent)
+      assert.equal(loginHeader.querySelector('p').textContent, libraryHeader.querySelector('p').textContent)
+      assert.equal(loginHeader.querySelector('small'), null, '登录页不显示音乐库统计')
+    } finally { login.window.close(); library.window.close() }
   })
   it('两步验证使用默认关闭的独立弹窗，不占用密码表单下方的可见空间', async () => {
     const { createLoginMarkup } = await import(frontendModule('login-page.ts'))
     const markup = createLoginMarkup()
-    assert.match(markup, /<dialog[^>]*data-login-factor-dialog/)
+    // React Modal 在关闭时不挂载；真实打开/关闭/验证码断言由 LoginDialog 测试覆盖。
     assert.doesNotMatch(markup, /<dialog[^>]*\bopen(?:\s|=|>)/)
-    assert.match(markup, /data-login-factor-close/)
+    assert.doesNotMatch(markup, /data-login-factor\s|factor-challenge/)
     const main = markup.match(/<main[\s\S]*?<\/main>/)[0]
     assert.doesNotMatch(main, /class="authenticator-panel"/)
     assert.match(main, /data-login-factor-spacer[^>]*aria-hidden="true"/)

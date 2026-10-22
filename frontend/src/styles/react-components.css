@@ -1,0 +1,10 @@
+/* React 控件适配只负责组件容器，原类名、主题和响应式规则保持不变。 */
+.login-glass-wave { position: absolute; inset: -8%; pointer-events: none; }
+.login-glass-lens { width: min(62vw, 960px); height: min(58vh, 620px); }
+.login-library-glass { pointer-events: none; opacity: .28; }
+.login-library-glass .glass { box-shadow: none !important; }
+.player-volume-slider { position: relative; display: flex; align-items: center; width: 88px; height: 24px; touch-action: none; user-select: none; cursor: pointer; }
+.player-volume-slider-track { position: relative; height: 2px; flex: 1; background: var(--color-line-01); }
+.player-volume-slider-range { position: absolute; height: 100%; background: var(--amber); }
+.player-volume-slider-thumb { display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--amber); }
+.player-volume-slider-thumb:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; }

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const { it } = require('node:test')
+const { withReactHarness } = require('./helpers/reactHarness')
 const { JSDOM } = require(require.resolve('jsdom', { paths: [require('node:path').resolve('vendor/api-enhanced')] }))
 
 function setup(saved, dark = false, blocked = false) {
@@ -47,26 +48,30 @@ it('跟随系统实时响应，显式主题不被系统覆盖，跨标签同步�
 })
 
 it('禁用存储不影响当前主题切换；设置按钮通过同一个接口同步状态', async () => {
-  const env = setup(undefined, true, true), names = ['window', 'document', 'Element'], originals = Object.fromEntries(names.map(key => [key, global[key]]))
-  for (const key of names) global[key] = env.win[key]
-  let dialog
-  try {
-    env.run(); env.select('dark'); assert.equal(env.root.dataset.theme, 'dark'); assert.equal(env.root.dataset.themePersisted, 'false')
-    const { mountSettingsDialog } = await import('../frontend/src/features/settings/settings-dialog.ts')
-    dialog = mountSettingsDialog(env.win.document.querySelector('#app'), { onOpen() {}, onClose() {} })
-    const button = env.win.document.querySelector('[data-theme-preference="system"]')
-    assert.ok(button); assert.equal(button.disabled, false); button.click()
+  await withReactHarness(async h => {
+    const win = h.window, root = h.document.documentElement, media = new win.EventTarget()
+    media.matches = true
+    const originalMedia = win.matchMedia
+    win.matchMedia = query => query.includes('prefers-color-scheme') ? media : originalMedia(query)
+    win.getComputedStyle = () => ({ getPropertyValue: () => root.dataset.theme === 'dark' ? '#141b1f' : '#efede7' })
+    Object.defineProperty(win, 'localStorage', { get() { throw new Error('存储被禁用') } })
+    new Function('window', 'document', 'CustomEvent', fs.readFileSync('frontend/public/theme-init.js', 'utf8'))(win, h.document, win.CustomEvent)
+    const select = preference => win.dispatchEvent(new win.CustomEvent('omc:theme-preference', { detail: preference }))
+    select('dark'); assert.equal(root.dataset.theme, 'dark'); assert.equal(root.dataset.themePersisted, 'false')
+    const { SettingsDialog } = await import('../frontend/src/features/settings/SettingsDialog.tsx')
+    const handle = h.React.createRef()
+    await h.render(h.React.createElement(SettingsDialog, { ref: handle, onOpen() {}, onClose() {} }))
+    await h.React.act(async () => handle.current.show())
+    const button = h.require('[data-theme-preference="system"]')
+    assert.equal(button.disabled, false); await h.click('[data-theme-preference="system"]')
     assert.equal(button.getAttribute('aria-pressed'), 'true')
-    env.system(false); assert.equal(env.root.dataset.theme, 'light')
-    assert.match(env.win.document.querySelector('[data-settings-status]').textContent, /浅色/)
-    env.win.document.querySelector('[data-settings-category="account"]').click()
-    assert.equal(env.win.document.querySelector('#settings-section-title').textContent, '账号与安全', '根节点主题属性不能截获普通设置按钮')
-    dialog.destroy(); dialog = null; env.select('dark')
-    assert.equal(env.win.document.querySelector('[data-settings-dialog]'), null)
-  } finally {
-    dialog?.destroy(); env.dom.window.close()
-    for (const [key, value] of Object.entries(originals)) { if (value === undefined) delete global[key]; else global[key] = value }
-  }
+    await h.React.act(async () => { media.matches = false; media.dispatchEvent(new win.Event('change')) })
+    assert.equal(root.dataset.theme, 'light'); assert.match(h.require('[data-settings-status]').textContent, /浅色/)
+    await h.click('[data-settings-category="account"]')
+    assert.equal(h.require('#settings-section-title').textContent, '账号与安全', '根节点主题属性不能截获普通设置按钮')
+    await h.unmount(); select('dark')
+    assert.equal(h.query('[data-settings-dialog]'), null)
+  })
 })
 
 it('配置先于模块和界面载入，颜色只在统一表定义，主题模块不接触播放器', () => {
