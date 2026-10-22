@@ -170,7 +170,7 @@ describe('三维专辑档案 UI', () => {
     assert.match(markup, /data-player-progress-bar/)
     assert.match(markup, /data-player-volume-input/)
     assert.match(markup, /data-player-queue-panel/)
-    assert.match(markup, /data-queue-count>00/)
+    assert.match(markup, /data-queue-count(?:="(?:true)?")?>00/)
     assert.match(markup, /data-player-previous/)
     assert.match(markup, /data-player-next/)
     assert.match(markup, /NETEASE/)

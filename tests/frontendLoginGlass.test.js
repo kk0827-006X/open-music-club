@@ -1,142 +1,138 @@
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
 const path = require('node:path')
-const { it, beforeEach, afterEach } = require('node:test')
-const { JSDOM } = require(require.resolve('jsdom', { paths: [path.resolve(__dirname, '../vendor/api-enhanced')] }))
-let dom, shell, cleanup, previous, frames, draws, clears, disposals, media
-const settle = () => new Promise(resolve => setImmediate(resolve))
-beforeEach(() => {
-  dom = new JSDOM('<div><header class="archive-brand"></header><form><input type="password"></form><dialog></dialog></div>', { pretendToBeVisual: true })
-  previous = ['window', 'document'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)])
-  globalThis.window = dom.window; globalThis.document = dom.window.document
-  media = { matches: false, addEventListener() {}, removeEventListener() {} }
-  window.matchMedia = query => query.includes('reduced') ? media : { matches: false }
-  frames = new Map(); let id = 0
-  window.requestAnimationFrame = callback => { frames.set(++id, callback); return id }
-  window.cancelAnimationFrame = id => frames.delete(id)
-  shell = document.querySelector('div')
-  shell.getBoundingClientRect = () => ({ left: 0, top: 0, width: 1200, height: 800 })
-  for (const el of shell.querySelectorAll('form, header')) el.getBoundingClientRect = () => ({ left: 30, top: 40, right: 400, bottom: 600 })
-  draws = []; clears = 0; disposals = 0
-})
-afterEach(() => {
-  cleanup?.(); cleanup = null; dom.window.close()
-  for (const [key, descriptor] of previous) {
-    if (descriptor) Object.defineProperty(globalThis, key, descriptor)
-    else delete globalThis[key]
-  }
-})
-const fake = () => ({ draw: (...args) => draws.push(args), clear: () => clears++, dispose: () => disposals++ })
-function point(target = shell, type = 'pointermove', pointerType = 'mouse') {
-  const event = new window.MouseEvent(type, { bubbles: true, clientX: 900, clientY: 300 })
-  Object.defineProperty(event, 'pointerType', { value: pointerType }); target.dispatchEvent(event)
-}
-function tick(now) { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(callback => callback(now)) }
+const { it } = require('node:test')
+const { withReactHarness } = require('./helpers/reactHarness')
 
-it('移植拖尾插值、凹陷缓动、点击波纹，波源固定 16 个且时间步长有界', async () => {
-  const { createGlassMotion, glassResolution } = await import('../frontend/src/login-glass-motion.ts')
-  const motion = createGlassMotion()
-  motion.sample(0); motion.point(600, 400, 1200, 800, 10)
-  motion.point(1000, 200, 1200, 800, 30, true)
-  const state = motion.sample(33)
-  assert.ok(state.hover > 0 && state.hover < 1)
-  assert.ok(state.motion > 0)
-  assert.equal(state.trail.length, 16)
-  assert.ok(state.trail.some(point => point[3] > 0))
-  assert.ok(Math.abs(state.ripple[0] - 2) < 1e-10)
-  assert.deepEqual(state.ripple.slice(1), [1, 0])
-  for (let i = 0; i < 100; i++) motion.point(i * 15, 100, 1200, 800, 35 + i)
-  assert.equal(motion.sample(66).trail.length, 16)
-  motion.leave()
-  const before = motion.sample(99)
-  const after = motion.sample(9999)
-  assert.ok(after.hover < before.hover)
-  assert.ok(after.time - before.time < .1)
-  motion.point(0, 0, 0, 0, 10000)
-  assert.ok(Number.isFinite(motion.sample(10001).x))
-  assert.deepEqual(glassResolution(300, 200), { width: 300, height: 200 })
-  const size = glassResolution(3840, 2160)
-  assert.ok(size.width * size.height < 301000)
-  assert.deepEqual(glassResolution(0, 0), { width: 1, height: 1 })
+function installLoginStyles(document) {
+  const stylesheet = document.createElement('style')
+  stylesheet.textContent = fs.readFileSync(path.resolve(__dirname, '../frontend/src/styles/login.css'), 'utf8')
+  document.head.append(stylesheet)
+}
+
+it('React 玻璃层在减少动态效果时保持静态，不更换背景、不遮挡输入及 Logo', async () => {
+  await withReactHarness(async h => {
+    const { LoginPage } = await import('../frontend/src/features/auth/LoginPage.tsx')
+    installLoginStyles(h.document)
+    await h.render(h.React.createElement(LoginPage))
+    const shell = h.require('[data-login-shell]')
+    shell.style.backgroundColor = 'rgb(231, 229, 223)'
+    const effect = h.require('[data-login-glass]')
+    assert.equal(effect.getAttribute('aria-hidden'), 'true')
+    assert.equal(h.window.getComputedStyle(effect).pointerEvents, 'none')
+    assert.equal(effect.querySelectorAll('button, input, a, [tabindex], canvas, .login-glass-wave').length, 0)
+    assert.equal(h.query('[data-login-glass] .archive-brand'), null, 'Logo 不是玻璃遮罩的内部替代品')
+    assert.equal(h.document.querySelectorAll('.archive-brand').length, 1)
+    await h.input('[name="password"]', 'synthetic-private-input')
+    await h.click('[data-reveal-password]')
+    assert.equal(h.require('[name="password"]').value, 'synthetic-private-input')
+    assert.equal(h.require('[name="password"]').type, 'text')
+    assert.equal(h.window.getComputedStyle(shell).backgroundColor, 'rgb(231, 229, 223)')
+    assert.equal(h.query('.login-library-glass'), null, '减少动态效果时不加载折射组件')
+  })
 })
-it('进入页面自动显示背景波浪，点击保留涟漪，鼠标离开后仍有呼吸动效', async () => {
-  const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
-  let loads = 0
-  cleanup = mountLoginGlass(shell, async () => { loads++; return fake() })
-  assert.equal(loads, 1)
-  await settle(); tick(0)
-  assert.ok(draws[0][4] > 0, '没有鼠标操作也显示环境波浪')
-  point(); point(shell, 'pointerdown'); await settle(); tick(0); tick(40)
-  assert.equal(loads, 1)
-  assert.ok(draws.at(-1)[0].hover > 0)
-  assert.deepEqual(draws.at(-1)[3][0], [6, 16, 424, 624])
-  assert.equal(draws.at(-1)[3].length, 1, '只保留登录表单的动效遮罩')
-  tick(41); assert.equal(draws.length, 2)
-  shell.dispatchEvent(new window.Event('pointerleave')); tick(performance.now() + 1900)
-  assert.equal(frames.size, 1); assert.ok(draws.at(-1)[4] > 0)
-  cleanup(); cleanup = null; assert.equal(disposals, 1)
-  point(); assert.equal(frames.size, 0)
+
+it('真实玻璃组件在输入、2FA 暂停与后台标签期间停止，并保持密码和 Logo 原位', async () => {
+  await withReactHarness(async h => {
+    const media = { matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }
+    h.window.matchMedia = () => media
+    const { LoginGlassEffect } = await import('../frontend/src/shared/react/LoginGlassEffect.tsx')
+    const createShell = paused => h.React.createElement('section', { className: 'login-shell' },
+      h.React.createElement('header', { className: 'archive-brand' }, 'OPEN MUSIC CLUB'),
+      h.React.createElement('form', null, h.React.createElement('input', { type: 'password', name: 'password', autoFocus: true, defaultValue: 'synthetic-private-input' })),
+      h.React.createElement(LoginGlassEffect, { paused }))
+    await h.render(createShell(false))
+    const input = h.require('[name="password"]')
+    const logo = h.require('.archive-brand')
+    assert.equal(h.document.activeElement, input)
+    assert.equal(h.query('.login-glass-wave'), null, '开始输入时不挂载折射动效')
+    await h.React.act(async () => input.blur())
+    await h.until(() => h.query('.login-library-glass'), '退出输入后应挂载实际 liquid-glass-react 组件')
+    // 设置测试标记，确保暂停时真实动画清理函数会恢复 Logo 样式，而不依赖帧率。
+    logo.style.setProperty('--login-logo-wave-y', '2px')
+    logo.style.setProperty('--login-logo-wave-tilt', '.1deg')
+    await h.React.act(async () => input.focus())
+    assert.equal(h.query('.login-glass-wave'), null)
+    assert.equal(logo.style.getPropertyValue('--login-logo-wave-y'), '')
+    assert.equal(logo.style.getPropertyValue('--login-logo-wave-tilt'), '')
+    await h.React.act(async () => input.blur())
+    await h.until(() => h.query('.login-glass-wave'), '离开输入框后恢复装饰层')
+    await h.render(createShell(true))
+    assert.equal(h.query('.login-glass-wave'), null, '2FA 弹窗期间按公开 paused 输入暂停')
+    await h.render(createShell(false))
+    await h.until(() => h.query('.login-glass-wave'), '关闭 2FA 弹窗后恢复装饰层')
+    Object.defineProperty(h.document, 'hidden', { configurable: true, value: true })
+    await h.React.act(async () => h.document.dispatchEvent(new h.window.Event('visibilitychange')))
+    assert.equal(h.query('.login-glass-wave'), null)
+    Object.defineProperty(h.document, 'hidden', { configurable: true, value: false })
+    await h.React.act(async () => h.document.dispatchEvent(new h.window.Event('visibilitychange')))
+    await h.until(() => h.query('.login-glass-wave'), '前台标签恢复装饰层')
+    assert.equal(input.value, 'synthetic-private-input')
+    assert.equal(input.type, 'password')
+    logo.style.setProperty('--login-logo-wave-y', '2px')
+    logo.style.setProperty('--login-logo-wave-tilt', '.1deg')
+    await h.unmount()
+    assert.equal(logo.style.getPropertyValue('--login-logo-wave-y'), '')
+    assert.equal(logo.style.getPropertyValue('--login-logo-wave-tilt'), '')
+  })
 })
-it('鼠标经过 Logo 时继续产生动效，不再作为保护区域排除', async () => {
-  const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
-  let loads = 0
-  cleanup = mountLoginGlass(shell, async () => { loads++; return fake() })
-  point(shell.querySelector('header'))
-  await settle(); tick(0); tick(40)
-  assert.equal(loads, 1)
-  assert.ok(draws.at(-1)[0].hover > 0)
-  assert.equal(draws.at(-1)[3].length, 1)
+
+it('玻璃组件卸载移除自身 focus 和 visibility 监听，多次挂载不累积', async () => {
+  await withReactHarness(async h => {
+    const { LoginGlassEffect } = await import('../frontend/src/shared/react/LoginGlassEffect.tsx')
+    const originalAdd = h.window.EventTarget.prototype.addEventListener
+    const originalRemove = h.window.EventTarget.prototype.removeEventListener
+    const listeners = new Map()
+    const tracked = (target, name) => target === h.document && name === 'visibilitychange'
+      || target instanceof h.window.Element && target.classList.contains('login-shell') && ['focusin', 'focusout'].includes(name)
+    h.window.EventTarget.prototype.addEventListener = function (name, handler, options) {
+      if (tracked(this, name)) {
+        if (!listeners.has(this)) listeners.set(this, new Map())
+        const registered = listeners.get(this)
+        if (!registered.has(name)) registered.set(name, new Set())
+        registered.get(name).add(handler)
+      }
+      return originalAdd.call(this, name, handler, options)
+    }
+    h.window.EventTarget.prototype.removeEventListener = function (name, handler, options) {
+      if (tracked(this, name)) listeners.get(this)?.get(name)?.delete(handler)
+      return originalRemove.call(this, name, handler, options)
+    }
+    try {
+      for (let version = 0; version < 3; version++) {
+        await h.render(h.React.createElement('section', { key: version, className: 'login-shell' }, h.React.createElement(LoginGlassEffect, { paused: true })))
+        const shells = [...listeners].filter(([target]) => target instanceof h.window.Element)
+        assert.equal(shells.reduce((count, [, events]) => count + [...events.values()].reduce((sum, handlers) => sum + handlers.size, 0), 0), 2, '只允许当前组件的 focusin/focusout 两个监听')
+      }
+      await h.unmount()
+      for (const events of listeners.values()) for (const handlers of events.values()) assert.equal(handlers.size, 0)
+    } finally {
+      h.window.EventTarget.prototype.addEventListener = originalAdd
+      h.window.EventTarget.prototype.removeEventListener = originalRemove
+    }
+  })
 })
-it('表单输入、2FA、触屏和后台标签不播放动效，不改变密码值', async () => {
-  const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
-  let loads = 0
-  cleanup = mountLoginGlass(shell, async () => { loads++; return fake() })
-  const input = shell.querySelector('input'); input.value = 'not-sent'
-  point(input); point(shell, 'pointermove', 'touch'); assert.equal(loads, 1)
-  point(); await settle(); tick(0)
-  input.focus(); point(); assert.equal(frames.size, 0); assert.equal(input.value, 'not-sent')
-  input.blur(); shell.querySelector('dialog').setAttribute('open', '')
-  point(); assert.equal(frames.size, 0)
-  shell.querySelector('dialog').removeAttribute('open'); point(); tick(50)
-  Object.defineProperty(document, 'hidden', { value: true, configurable: true })
-  document.dispatchEvent(new window.Event('visibilitychange')); assert.equal(frames.size, 0)
-  Object.defineProperty(document, 'hidden', { value: false, configurable: true })
-  document.dispatchEvent(new window.Event('visibilitychange')); assert.equal(frames.size, 1)
-})
-it('呼吸强度以八秒为周期，平滑起伏且不过亮', async () => {
-  const { glassBreath } = await import('../frontend/src/login-glass-motion.ts')
-  assert.equal(typeof glassBreath, 'function')
-  assert.equal(glassBreath(0), .72)
-  assert.equal(glassBreath(4), 1)
-  assert.ok(Math.abs(glassBreath(8) - .72) < 1e-10)
-  assert.ok(glassBreath(1) < glassBreath(2))
-  assert.ok(glassBreath(5) > glassBreath(6))
-  assert.ok(Math.abs(glassBreath(4.01) - glassBreath(4)) < .001)
-})
-it('Logo 本身随波浪起伏，输入密码与销毁页面后恢复原位置', async () => {
-  const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
-  cleanup = mountLoginGlass(shell, async () => fake())
-  await settle(); tick(0); tick(40)
-  const logo = shell.querySelector('header')
-  assert.ok(parseFloat(logo.style.getPropertyValue('--login-logo-wave-y')) > 0)
-  assert.ok(Math.abs(parseFloat(logo.style.getPropertyValue('--login-logo-wave-y'))) <= 2.4)
-  shell.querySelector('input').focus()
-  assert.equal(logo.style.getPropertyValue('--login-logo-wave-y'), '')
-  shell.querySelector('input').blur(); tick(80)
-  assert.ok(logo.style.getPropertyValue('--login-logo-wave-y'))
-  cleanup(); cleanup = null
-  assert.equal(logo.style.getPropertyValue('--login-logo-wave-y'), '')
-})
-it('减少动态效果不加载，WebGL 失败保留静态页面，延迟加载销毁后正确清理', async () => {
-  const { mountLoginGlass } = await import('../frontend/src/login-glass.ts')
-  let loads = 0
-  media.matches = true
-  cleanup = mountLoginGlass(shell, async () => { loads++; return fake() })
-  point(); assert.equal(loads, 0); cleanup()
-  media.matches = false
-  cleanup = mountLoginGlass(shell, async () => { loads++; throw new Error('WebGL unavailable') })
-  point(); await settle(); point(); assert.equal(loads, 1); assert.equal(frames.size, 0); cleanup()
-  let resolve
-  cleanup = mountLoginGlass(shell, () => new Promise(done => { resolve = done }))
-  point(); cleanup(); cleanup = null; resolve(fake()); await settle()
-  assert.equal(disposals, 1); assert.equal(frames.size, 0)
+
+it('装饰 ErrorBoundary 捕获组件故障时仅移除装饰，原登录表单仍可输入提交', async () => {
+  await withReactHarness(async h => {
+    const { ErrorBoundary } = await import('../frontend/src/shared/react/ErrorBoundary.tsx')
+    let submits = 0
+    function BrokenDecoration() { throw new Error('synthetic decorative failure') }
+    const originalError = console.error
+    const captured = []
+    // React 对已捕获的测试异常仍会输出错误；仅局部收集，并在 finally 原样恢复。
+    console.error = (...args) => { captured.push(args) }
+    try {
+      await h.render(h.React.createElement('section', { className: 'login-shell' },
+        h.React.createElement(ErrorBoundary, { decorative: true }, h.React.createElement(BrokenDecoration)),
+        h.React.createElement('form', { 'data-preserved-login': true, onSubmit: event => { event.preventDefault(); submits++ } },
+          h.React.createElement('input', { type: 'password', name: 'password' }), h.React.createElement('button', { type: 'submit' }, '登录'))))
+      assert.ok(captured.length > 0, '应实际触发组件错误，而非测试空装饰')
+      assert.equal(h.query('[role="alert"]'), null, '装饰故障不将整页替换成业务错误页')
+      await h.input('[name="password"]', 'synthetic-private-input')
+      await h.submit('[data-preserved-login]')
+      assert.equal(h.require('[name="password"]').value, 'synthetic-private-input')
+      assert.equal(submits, 1)
+    } finally { console.error = originalError }
+  })
 })

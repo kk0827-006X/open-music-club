@@ -4,6 +4,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { describe, it } = require('node:test')
 const { pathToFileURL } = require('node:url')
+const { withReactHarness } = require('./helpers/reactHarness')
 
 const frontend = (name) => path.resolve(__dirname, '../frontend/src', name)
 
@@ -26,24 +27,40 @@ describe('用户页面真实数据界面', () => {
     assert.doesNotMatch(markup, /<audio|data-global-player/)
   })
 
-  it('只接入原有导航容器，保留同一个全站播放器', () => {
-    const archive = readFrontendSource(frontend('album-archive.ts'))
+  it('兼容挂载把真实用户页渲染到宿主，不创建第二套播放器', async () => {
     const css = readFrontendSource(frontend('style.css'))
-    assert.match(archive, /data-user-host/)
-    assert.match(archive, /data-nav="user"[^>]*>/)
-    assert.doesNotMatch(archive.match(/data-nav="user"[^>]*>/)?.[0] ?? '', /disabled/)
-    assert.match(archive, /mountUserPage/)
-    assert.match(archive, /case 'user': navigation.show\('user'\)/)
     assert.match(css, /\.user-page\s*\{[^}]*grid-template-columns/)
     assert.match(css, /\.album-archive\[data-view="user"\] \.user-page/)
-    assert.equal((archive.match(/\$\{createPlayerMarkup\(selected\)\}/g) || []).length, 1)
+    await withReactHarness(async (h) => {
+      const host = h.document.createElement('div')
+      h.document.body.appendChild(host)
+      const client = {
+        profile: async () => ({ id: 1, nickname: '测试成员', avatarUrl: null }),
+        playlists: async () => [],
+        playlist: async () => null,
+        likes: async () => [],
+        uploads: async () => [],
+      }
+      const { mountUserPage } = await import(pathToFileURL(frontend('user-page.ts')).href)
+      let view
+      await h.React.act(async () => { view = mountUserPage(host, { client }) })
+      await h.flush()
+      assert.equal(view.element, h.require('[data-user-page]'))
+      assert.equal(view.hasOpenDialog, false)
+      assert.equal(h.query('[data-global-player]'), null)
+      assert.equal(h.query('audio'), null)
+      await h.React.act(async () => { view.destroy() })
+      assert.equal(host.childElementCount, 0)
+      host.remove()
+    })
   })
 
   it('用户页通过个人音乐库适配层接入，不重新创建播放器', () => {
-    const source = readFrontendSource(frontend('user-page.ts'))
-    assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|\/api\//)
-    assert.doesNotMatch(source, /new Audio\s*\(/)
-    assert.match(source, /services\/music\/personal-library/)
+    const compat = fs.readFileSync(frontend('features/user/user-page.ts'), 'utf8')
+    const component = fs.readFileSync(frontend('features/user/UserPage.tsx'), 'utf8')
+    assert.doesNotMatch(compat, /fetch\s*\(|XMLHttpRequest|\/api\//)
+    assert.doesNotMatch(component, /fetch\s*\(|XMLHttpRequest|new Audio\s*\(/)
+    assert.match(component, /services\/music\/personal-library/)
   })
 
   it('头像仅接受不超过 5 MB 的 JPG、PNG 和 WebP 图片', async () => {
@@ -109,13 +126,41 @@ describe('用户页面真实数据界面', () => {
     assert.match(reducedMotion, /\.ui-icon[^}]*transform: none/)
   })
 
-  it('删除歌单使用确认弹窗且明确不会删除音乐文件', async () => {
-    const { createUserPageMarkup } = await import(pathToFileURL(frontend('user-page.ts')).href)
-    const markup = createUserPageMarkup()
-    assert.match(markup, /<dialog[^>]*data-user-delete-dialog/)
-    assert.match(markup, /data-user-delete-confirm/)
-    assert.match(markup, /data-user-delete-cancel/)
-    assert.match(markup, /不会删除音乐文件/)
+  it('删除歌单使用真实确认弹窗且明确不会删除音乐文件', async () => {
+    await withReactHarness(async (h) => {
+      const host = h.document.createElement('div')
+      h.document.body.appendChild(host)
+      const list = { id: 1, name: '夜晚歌单', description: null, trackCount: 0, createdAt: '', updatedAt: '' }
+      const client = {
+        profile: async () => ({ id: 1, nickname: '测试成员', avatarUrl: null }),
+        playlists: async () => [list],
+        playlist: async () => ({ playlist: list, tracks: [] }),
+        likes: async () => [],
+        uploads: async () => [],
+        deletePlaylist: async () => undefined,
+      }
+      const { mountUserPage } = await import(pathToFileURL(frontend('user-page.ts')).href)
+      let view
+      await h.React.act(async () => { view = mountUserPage(host, { client }) })
+      await h.until(() => {
+        const card = h.query('[data-user-list="1"]')
+        return Boolean(card && !card.disabled)
+      }, '歌单卡片应完成加载并可点击')
+      await h.click('[data-user-list="1"]')
+      await h.until(() => {
+        const remove = h.query('[data-user-delete="1"]')
+        return Boolean(remove && !remove.disabled)
+      }, '歌单详情应完成加载并渲染删除入口')
+      await h.click('[data-user-delete="1"]')
+      await h.until(() => view.hasOpenDialog === true, '删除确认弹窗应打开')
+      const dialog = h.require('[data-user-delete-dialog]')
+      assert.match(dialog.textContent, /不会删除音乐文件/)
+      assert.match(h.require('[data-user-delete-name]').textContent, /夜晚歌单/)
+      await h.click('[data-user-delete-cancel]')
+      await h.until(() => view.hasOpenDialog === false, '取消后删除确认弹窗应关闭')
+      await h.React.act(async () => { view.destroy() })
+      host.remove()
+    })
   })
 
   it('播放歌单包含全部页的可用曲目，按顺序加入原队列并播放第一首', async () => {

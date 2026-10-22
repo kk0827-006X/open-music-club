@@ -12,10 +12,10 @@
     "dev:web": "pnpm --dir frontend dev",
     "build:web": "pnpm --dir frontend build",
     "db:init": "node src/db/init.js",
-    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "test": "tsx --tsconfig frontend/tsconfig.json --test --test-concurrency=1 tests/*.test.js",
     "test:e2e": "playwright test",
     "verify:baseline": "node scripts/acceptance-baseline.js",
-    "test:coverage": "c8 --include='src/**' --exclude='vendor/**' --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 node --test --test-concurrency=1 tests/*.test.js"
+    "test:coverage": "c8 --include='src/**' --exclude='vendor/**' --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 tsx --tsconfig frontend/tsconfig.json --test --test-concurrency=1 tests/*.test.js"
   },
   "engines": {
     "node": ">=22"
@@ -43,6 +43,7 @@
     "@playwright/test": "1.64.1",
     "c8": "^12.0.0",
     "concurrently": "^10.0.5",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "tsx": "4.23.15"
   }
 }

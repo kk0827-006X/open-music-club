@@ -23,7 +23,8 @@ it('主题 token 还原后，浅色样式的 2930 条原声明与基线一致', 
   postcss.parse(fs.readFileSync('frontend/public/theme.css', 'utf8')).walkRules(rule => {
     if (rule.selector.includes('data-theme="light"')) rule.walkDecls(d => colors.set(d.prop, d.value))
   })
-  postcss.parse(readCss()).walkDecls(d => {
+  // React 适配层单独验收；原 2930 条声明及哈希仍逐字保持，不放松原视觉基线。
+  postcss.parse(readCss(undefined, { originalOnly: true })).walkDecls(d => {
     // 旧根颜色变量已移入配置表；三态按钮和新版 2FA 专属样式不属于原布局。
     const selector = d.parent.selector || ''
     if (['--paper', '--ink', '--muted', '--hairline', '--amber'].includes(d.prop) || selector.includes('.settings-theme-options') || /\.factor-(?:challenge|code-|recovery-option)|\.login-factor-dialog\.is-challenge/.test(selector)) return

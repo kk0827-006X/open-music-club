@@ -25,7 +25,7 @@ describe('全站共享图标与动画', () => {
   it('各页面和播放器复用图标组件，不在页面内重复定义图形或按钮图标文字', () => {
     for (const file of ['album-archive.ts', 'search-page.ts', 'user-page.ts', 'upload-page.ts', 'login-page.ts', 'entry-page.ts']) {
       const source = readFrontendSource(frontend(file))
-      assert.match(source, /from ['"][^'"]*\/icons\.ts['"]/, file)
+      assert.match(source, /from ['"][^'"]*\/react\/ui\.tsx['"]/, file)
       assert.doesNotMatch(source, /const icons =|const icon =/, file)
       assert.doesNotMatch(source, /<button[^>]*>[^<]*[▶＋♡×←→↑↓↗]/, file)
     }

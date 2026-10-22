@@ -1,11 +1,11 @@
 // 图形只定义一次；所有页面共享图标标记，动画统一由 CSS 控制。
-const glyphs = {
+export const glyphs = {
   play: '▶', plus: '＋', close: '×',
   left: '←', right: '→', up: '↑', down: '↓', open: '↗',
 } as const
 
 const eye = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
-const paths = {
+export const paths = {
   library: '<path d="M3.5 6.5h6l1.7 2H20.5v9.5H3.5z"/><path d="M3.5 6.5v-2h6l1.7 2"/>',
   search: '<circle cx="10.5" cy="10.5" r="5.8"/><path d="m15 15 5 5"/>',
   upload: '<path d="M12 16V3m0 0L7.5 7.5M12 3l4.5 4.5M4 14v6h16v-6"/>',

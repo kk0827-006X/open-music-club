@@ -41,7 +41,7 @@ describe('上传页本地音频标签识别', () => {
   it('上传页面在提交前读取所选文件，且丢弃过期的识别结果', () => {
     const source = readFrontendSource(path.resolve(__dirname, '../frontend/src/upload-page.ts'))
     assert.match(source, /readUploadMetadata\(file\)/)
-    assert.match(source, /currentRequestId !== metadataRequestId/)
+    assert.match(source, /currentRequestId !== metadataRequestIdRef\.current/)
     assert.match(source, /isSubmitting \|\| isReadingMetadata/)
   })
 
