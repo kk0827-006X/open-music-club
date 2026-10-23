@@ -10,12 +10,12 @@ class FakeAudio extends EventTarget {
   removeAttribute(name) { if (name === 'src') this.src = '' }
   load() { this.loads++ }
 }
-async function setup(resolveUrl = async track => `/${track.source}/${track.sourceId}`) {
+async function setup(resolveUrl = async track => `/${track.source}/${track.sourceId}`, onPlayed) {
   const { createPlayerController } = await import('../frontend/src/features/player/player-core.ts')
   const { MusicQueue } = await import('../frontend/src/music-queue.ts')
   const audio = new FakeAudio(), queue = new MusicQueue()
   let created = 0
-  const player = createPlayerController({ queue, resolveUrl, createAudio: () => { created++; return audio } })
+  const player = createPlayerController({ queue, resolveUrl, onPlayed, createAudio: () => { created++; return audio } })
   return { player, queue, audio, created: () => created }
 }
 it('跨来源播放共用一个音频实例，音量、进度、暂停及上下曲目兼容', async () => {
@@ -68,4 +68,32 @@ it('音频错误保持原安全提示，上游失败不覆盖上一首', async (
   audio.dispatchEvent(new Event('error'))
   assert.equal(player.get().error, '音频加载失败，请重新选择歌曲。')
   player.destroy()
+})
+
+it('足迹只在真正开播后通知，暂停恢复不重复记录；通知失败不影响播放', async () => {
+  const reports = []
+  const { player, audio } = await setup(undefined, track => { reports.push(track.key); return Promise.reject(new Error('足迹服务不可用')) })
+  await player.play(song(1))
+  await player.toggle(); await player.toggle()
+  assert.deepEqual(reports, ['local:1'])
+  assert.equal(player.get().paused, false)
+  assert.equal(player.get().error, null)
+  audio.play = async () => { throw new Error('播放被拒绝') }
+  await assert.rejects(player.play(song(2)), /播放被拒绝/)
+  assert.deepEqual(reports, ['local:1'])
+  player.destroy()
+})
+
+it('迟到的开播承诺不能为已切换或销毁的歌曲记录足迹', async () => {
+  const reports = [], first = deferred(), last = deferred()
+  const { player, audio } = await setup(undefined, track => { reports.push(track.key) })
+  const original = audio.play.bind(audio)
+  audio.play = () => audio.src.endsWith('/1') ? first.promise : original()
+  const pending = player.play(song(1)); await new Promise(resolve => setImmediate(resolve))
+  await player.play(song(2)); first.resolve(); await pending
+  assert.deepEqual(reports, ['local:2'])
+  audio.play = () => last.promise
+  const destroyed = player.play(song(3)); await new Promise(resolve => setImmediate(resolve))
+  player.destroy(); last.resolve(); await destroyed
+  assert.deepEqual(reports, ['local:2'])
 })

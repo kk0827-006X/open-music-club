@@ -14,22 +14,27 @@ import { Brand, Icon } from '../shared/react/ui.tsx'
 import { useReducedMotion } from '../shared/react/hooks.ts'
 import type { MusicActions } from '../shared/music.ts'
 import { ErrorBoundary } from '../shared/react/ErrorBoundary.tsx'
+import { createFootprintClient } from '../services/music/footprint.ts'
+import type { FootprintPageHandle } from '../features/footprint/FootprintPage.tsx'
 
 const SearchPage = lazy(() => import('../features/search/SearchPage.tsx'))
 const UploadPage = lazy(() => import('../features/upload/UploadPage.tsx'))
 const UserPage = lazy(() => import('../features/user/UserPage.tsx'))
-type Page = 'archive' | 'search' | 'upload' | 'user'
-const tabs = [['library', '音乐库', 'library'], ['search', '搜索', 'search'], ['upload', '上传音乐', 'upload'], ['user', '用户', 'user']] as const
+const FootprintPage = lazy(() => import('../features/footprint/FootprintPage.tsx'))
+type Page = 'archive' | 'search' | 'upload' | 'user' | 'footprint'
+const tabs = [['library', '音乐库', 'library'], ['search', '搜索', 'search'], ['upload', '上传音乐', 'upload'], ['footprint', '音乐足迹', 'route'], ['user', '用户', 'user']] as const
 
 export interface WorkspaceProps {
   player: PlayerController
   queue: MusicQueue
   personalLibrary?: ReturnType<typeof createPersonalLibraryClient>
+  footprintClient?: ReturnType<typeof createFootprintClient>
+  footprintRevision?: number
   onLogout?: () => Promise<void>
   loadScene?: () => Promise<ArchiveSceneController>
   initialIndex?: number
 }
-export default function Workspace({ player, queue, personalLibrary, onLogout, loadScene, initialIndex = 0 }: WorkspaceProps) {
+export default function Workspace({ player, queue, personalLibrary, footprintClient, footprintRevision = 0, onLogout, loadScene, initialIndex = 0 }: WorkspaceProps) {
   const archive = useRef<HTMLElement>(null)
   const sceneContainer = useRef<HTMLDivElement>(null)
   const library = useRef<LibraryViewHandle>(null)
@@ -37,6 +42,7 @@ export default function Workspace({ player, queue, personalLibrary, onLogout, lo
   const settings = useRef<SettingsDialogHandle>(null)
   const search = useRef<SearchPageHandle>(null)
   const user = useRef<UserPageHandle>(null)
+  const footprint = useRef<FootprintPageHandle>(null)
   const reduced = useReducedMotion()
   const [scene, setScene] = useState<ReturnType<typeof mountArchiveScene> | null>(null)
   const [page, setPage] = useState<Page>('archive')
@@ -45,6 +51,7 @@ export default function Workspace({ player, queue, personalLibrary, onLogout, lo
   const [expanded, setExpanded] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const client = useMemo(() => personalLibrary ?? createPersonalLibraryClient(), [personalLibrary])
+  const footprints = useMemo(() => footprintClient ?? createFootprintClient(), [footprintClient])
   const sceneInputs = useRef({ loadScene, reduced })
   sceneInputs.current = { loadScene, reduced }
   useLayoutEffect(() => {
@@ -86,7 +93,7 @@ export default function Workspace({ player, queue, personalLibrary, onLogout, lo
         return
       }
       if (page !== 'archive') {
-        if (event.key === 'Escape' && !(page === 'user' && user.current?.hasOpenDialog)) { event.preventDefault(); show('archive') }
+        if (event.key === 'Escape' && !(page === 'user' && user.current?.hasOpenDialog) && !(page === 'footprint' && footprint.current?.hasOpenDialog)) { event.preventDefault(); show('archive') }
         else if (page === 'search' && event.key === '/' && !search.current?.ownsKeyboardTarget(event.target)) { event.preventDefault(); search.current?.focus() }
         return
       }
@@ -122,6 +129,7 @@ export default function Workspace({ player, queue, personalLibrary, onLogout, lo
       <div data-search-host>{visited.has('search') && <SearchPage ref={search} active={page === 'search'} {...actions} />}</div>
       <div data-upload-host onClick={event => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) show('archive') }}>{visited.has('upload') && <UploadPage active={page === 'upload'} />}</div>
       <div data-user-host>{visited.has('user') && <UserPage ref={user} active={page === 'user'} {...actions} client={client} choosePlaylist={track => { void playerView.current?.choosePlaylist(track) }} changed={() => { void playerView.current?.syncLiked() }} />}</div>
+      <div data-footprint-host>{visited.has('footprint') && <FootprintPage ref={footprint} active={page === 'footprint'} {...actions} client={footprints} revision={footprintRevision} />}</div>
     </Suspense></ErrorBoundary>
     <PlayerView ref={playerView} player={player} queue={queue} personalLibrary={client} root={archive} selectedAlbum={selected} defaultTrack={albumTrack(selected)} onExpandedChanged={setExpanded} collectionChanged={collectionChanged} />
     <SettingsDialog ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />

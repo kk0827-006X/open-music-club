@@ -35,7 +35,8 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
     }
     const scene = { load: async () => {}, dispose: () => { sceneDisposals++ }, setReduced() {}, setMode() {}, select() {}, resize() {}, update() {}, finishDecryption() {}, detailVisibility: 0 }
     const loadScene = async () => scene
-    const renderedWorkspace = version => h.React.createElement(Workspace, { key: version, queue, player, personalLibrary: api, loadScene })
+    const footprintClient = { timeline: async () => ({ total: 0, events: [], timezoneOffsetMinutes: 480 }) }
+    const renderedWorkspace = version => h.React.createElement(Workspace, { key: version, queue, player, personalLibrary: api, footprintClient, loadScene })
     // 仅记录工作区自己的窗口计时器，照常执行原生计时以免改变生产调度逻辑。
     const nativeSetTimeout = h.window.setTimeout.bind(h.window)
     const nativeClearTimeout = h.window.clearTimeout.bind(h.window)
@@ -55,7 +56,7 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
       assert.equal(h.document.querySelectorAll('[data-queue-items] li').length, 0, '尚未播放时清空也必须更新队列视图')
       assert.equal(h.require('[data-queue-count]').textContent, '00')
       await h.React.act(async () => queue.add(toPersonalSong(track)))
-      for (let repeat = 0; repeat < 3; repeat++) for (const page of ['search', 'upload', 'user', 'library']) {
+      for (let repeat = 0; repeat < 3; repeat++) for (const page of ['search', 'upload', 'user', 'footprint', 'library']) {
         await h.click(`[data-nav="${page}"]`)
         const name = page === 'library' ? 'archive' : page
         assert.equal(h.require('[data-album-archive]').dataset.view, name)

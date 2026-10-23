@@ -12,7 +12,8 @@ const implementations = {
   'search-page.ts': ['features/search/SearchPage.tsx'], 'settings-dialog.ts': ['features/settings/SettingsDialog.tsx'],
 }
 function readCss(file = path.join(root, 'style.css'), { originalOnly = false } = {}) {
-  if (originalOnly && file === path.join(root, 'styles/react-components.css')) return ''
+  // 新业务样式独立验收，不混入原 2930 条声明的逐字视觉基线。
+  if (originalOnly && ['styles/react-components.css', 'styles/footprint.css', 'styles/member-sidebar.css'].some(name => file === path.join(root, name))) return ''
   const text = fs.readFileSync(file, 'utf8')
   return text.replace(/@import\s+['"]([^'"]+)['"];\s*/g, (_, name) => readCss(path.resolve(path.dirname(file), name), { originalOnly }))
 }
