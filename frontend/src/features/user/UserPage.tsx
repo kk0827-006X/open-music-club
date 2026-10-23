@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import type { ChangeEvent, FocusEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import { motion } from 'motion/react'
 import { Icon, Modal } from '../../shared/react/ui.tsx'
-import { usePageVisibility, useReducedMotion } from '../../shared/react/hooks.ts'
+import { usePageMotion, useSectionTransition } from '../../shared/react/page-transitions.ts'
 import LineSidebar from '../../shared/react/LineSidebar.tsx'
 import { CollapsibleSidebarLayout } from '../../shared/react/CollapsibleSidebarLayout.tsx'
 import {
@@ -235,9 +235,8 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   { active, play, enqueue, choosePlaylist: _choosePlaylist, changed, client },
   ref,
 ) {
-  const reduced = useReducedMotion()
-  // active=false 立即 inert；hidden 延迟到淡出结束，避免吞掉退出动画。
-  const visible = usePageVisibility(active, 300)
+  const pageMotion = usePageMotion(active)
+  const { changing, run: transitionSection, finish: finishSection } = useSectionTransition(active)
   const api = useMemo(() => client || createPersonalLibraryClient(), [client])
   const pageRef = useRef<HTMLElement>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -250,7 +249,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   const loadingRef = useRef(false)
   const busyRef = useRef(false)
   const avatarBusyRef = useRef(false)
-  const tabTimerRef = useRef<number | null>(null)
   const renameSessionRef = useRef(0)
   const renameIdRef = useRef<number | null>(null)
   const renameValueRef = useRef('')
@@ -272,7 +270,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   const [tracks, setTracksState] = useState<PersonalTrack[]>([])
   const [loading, setLoadingState] = useState(false)
   const [busy, setBusyState] = useState(false)
-  const [changing, setChanging] = useState(false)
   const [playlistPlaying, setPlaylistPlaying] = useState(false)
   const [nickname, setNickname] = useState('REGISTERED MEMBER / 社区成员')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
@@ -408,7 +405,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
       if (!unmountedRef.current && current === requestRef.current) {
         setLoading(false)
         // 以最新请求为准；切换途中触发的外部刷新也能正确结束淡出。
-        if (tabTimerRef.current === null) setChanging(false)
+        finishSection()
       }
     }
   }
@@ -433,17 +430,14 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
     // 淡出时保留旧视图，避免先换成空列表再淡出的闪烁。
     requestRef.current += 1
     playRequestRef.current += 1
-    setChanging(true)
-    if (tabTimerRef.current !== null) window.clearTimeout(tabTimerRef.current)
-    tabTimerRef.current = window.setTimeout(() => {
-      tabTimerRef.current = null
+    transitionSection(() => {
       if (unmountedRef.current) return
       setSection(next)
       setSelectedId(null)
       setPageIndex(0)
       setTracks([])
       void refreshRef.current()
-    }, reduced ? 0 : 190)
+    })
   }
 
   function openPlaylist(id: number) {
@@ -596,8 +590,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
       requestRef.current += 1
       playRequestRef.current += 1
       renameSessionRef.current += 1
-      if (tabTimerRef.current !== null) window.clearTimeout(tabTimerRef.current)
-      tabTimerRef.current = null
     }
   }, [])
 
@@ -736,12 +728,8 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
       ref={pageRef}
       className="user-page"
       data-user-page
-      hidden={!visible}
-      inert={!active}
+      {...pageMotion}
       aria-label="个人音乐空间"
-      initial={reduced ? false : { opacity: 0, y: 12 }}
-      animate={active ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
-      transition={reduced ? { duration: 0 } : { duration: 0.3, ease: [0.2, 0.7, 0.2, 1] as [number, number, number, number] }}
     >
       <CollapsibleSidebarLayout active={active} variant="user" sidebarClassName="user-sidebar" sidebar={expanded => <>
         <p className="user-eyebrow">MEMBER ARCHIVE / 个人音乐空间</p>
@@ -778,7 +766,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
         <header className="user-content-header">
           <div><p>PERSONAL COLLECTION / 个人收藏</p><h2 data-user-heading>{headings[section]}</h2><span data-user-subtitle>{subtitles[section]}</span></div>
         </header>
-        <div className={`user-content${changing ? ' is-changing' : ''}`} data-user-content inert={changing} aria-live="polite" aria-busy={busy || loading || changing}>
+        <div className={`user-content section-content${changing ? ' is-changing' : ''}`} data-user-content inert={changing} aria-live="polite" aria-busy={busy || loading || changing}>
           {contentBody}
         </div>
         <p className="user-preview-note" data-user-feedback role="status" data-error={String(feedback.error)}>{feedback.message}</p>

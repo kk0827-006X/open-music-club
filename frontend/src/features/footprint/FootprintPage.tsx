@@ -1,6 +1,8 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Icon, IconButton, Modal } from '../../shared/react/ui.tsx'
-import { useLatest, usePageVisibility } from '../../shared/react/hooks.ts'
+import { motion } from 'motion/react'
+import { useLatest } from '../../shared/react/hooks.ts'
+import { usePageMotion, useSectionTransition } from '../../shared/react/page-transitions.ts'
 import LineSidebar from '../../shared/react/LineSidebar.tsx'
 import { CollapsibleSidebarLayout } from '../../shared/react/CollapsibleSidebarLayout.tsx'
 import { safeCoverUrl, type MusicActions } from '../../shared/music.ts'
@@ -25,7 +27,8 @@ const tabs: { id: Tab; label: string; english: string; title: string; subtitle: 
 
 export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>(function FootprintPage({ active, play, enqueue, client, revision = 0 }, ref) {
   const api = useMemo(() => client ?? createFootprintClient(), [client])
-  const visible = usePageVisibility(active, 280)
+  const pageMotion = usePageMotion(active)
+  const { changing, run: transitionSection, finish: finishSection } = useSectionTransition(active)
   const latest = useLatest({ active, play, enqueue })
   const [tab, setTab] = useState<Tab>('timeline')
   const [postId, setPostId] = useState<number | null>(null)
@@ -68,15 +71,16 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
     actionRef.current?.abort()
     busyRef.current = false
     setBusy(false)
-    setLoading(false)
   }
   const refresh = () => { setPageOffset(0); setReload(value => value + 1) }
   const switchView = (next: Tab, id: number | null = null) => {
     invalidate()
-    setTab(next); setPostId(id); setPageOffset(0)
-    setEvents([]); setCards([]); setPosts([]); setTotal(0); setMilestone(null); setDetail(null)
-    setEditingId(null); setNoteDraft(''); setComment(''); setCommentsComplete(false); setDialog(null); say('')
-    setReload(value => value + 1)
+    transitionSection(() => {
+      setTab(next); setPostId(id); setPageOffset(0)
+      setEvents([]); setCards([]); setPosts([]); setTotal(0); setMilestone(null); setDetail(null)
+      setEditingId(null); setNoteDraft(''); setComment(''); setCommentsComplete(false); setDialog(null); say('')
+      setReload(value => value + 1)
+    })
   }
 
   // 播放上报可随时到达；正在提交时先保留版本，提交结束后再统一刷新。
@@ -132,7 +136,7 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
       if (current()) say('足迹已更新')
     }
     void read().catch(error => { if (current() && !isFootprintAbort(error)) say(error instanceof Error ? error.message : '足迹读取失败，请重试', true) })
-      .finally(() => { if (current()) setLoading(false) })
+      .finally(() => { if (current()) { setLoading(false); finishSection() } })
     return () => { controller.abort(); actionRef.current?.abort(); serial.current++ }
   }, [active, api, tab, postId, appliedRevision, reload, pageOffset])
 
@@ -190,7 +194,7 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
     }, liked ? '已点赞' : '已取消赞', undefined, false)
   }}><span>{post.likeCount}</span></IconButton>
 
-  return <section className="footprint-page" data-footprint-page data-active={active} data-fp-mode={postId === null ? tab : 'detail'} hidden={!visible} inert={!active} aria-label="音乐足迹">
+  return <motion.section className="footprint-page" data-footprint-page data-active={active} data-fp-mode={postId === null ? tab : 'detail'} {...pageMotion} aria-label="音乐足迹">
     <CollapsibleSidebarLayout active={active} variant="footprint" sidebarClassName="fp-sidebar" sidebar={expanded => <>
       <p className="fp-eyebrow">MUSIC FOOTPRINT / 音乐足迹</p>
       <LineSidebar ariaLabel="音乐足迹功能" items={tabs.map(item => item.label)}
@@ -201,7 +205,7 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
         onItemClick={index => switchView(tabs[index].id)} />
       <p className="fp-sidebar-foot"><i />听过、写过、分享过<br />都算数。</p></>}>
     <div className="fp-shell"><header className="fp-header"><div><p>PERSONAL TIMELINE / 个人音乐时间档案</p><h2>{postId !== null ? '足迹详情' : heading.title}</h2><span>{postId !== null ? '点赞、评论，看看这段足迹背后的故事。' : heading.subtitle}</span></div>{postId !== null && <IconButton icon="left" className="fp-back" data-fp-back onClick={() => switchView(tab)}>返回列表</IconButton>}</header>
-      <div className="fp-content" data-fp-content aria-busy={loading}>
+      <div className={`fp-content section-content${changing ? ' is-changing' : ''}`} data-fp-content inert={changing} aria-busy={loading || changing}>
         {postId === null && tab === 'timeline' && <section className="fp-view fp-timeline"><header className="fp-view-header"><p>TIMELINE / 时光轴</p><h3>我的听歌足迹</h3><span>{total} 条播放记录</span></header>
           {[...groups.entries()].map(([key, group]) => <div className="fp-day" key={key}><div className="fp-day-marker"><i /><h4>{formatDate(group[0].playedAt, offset)}</h4><span>{group.length} 段声音</span></div><ol className="fp-day-list">{group.map(event => <li key={event.id} className={`fp-entry${event.note ? ' has-note' : ''}`}><time className="fp-entry-time">{formatClock(event.playedAt, offset)}</time><div className="fp-entry-card"><img src={safeCoverUrl(event.coverUrl)} alt="" loading="lazy" /><div className="fp-entry-body"><strong>{event.title}</strong><small>{event.artist}{event.album ? ` · ${event.album}` : ''}</small><em>{formatTrackDuration(event.durationMs)} · {event.source === 'local' ? '本地' : '网易云'}</em>
             {event.note && editingId !== event.id && <blockquote className="fp-note">{event.note.content}<cite>随笔 · {formatClock(event.note.updatedAt, offset)}</cite></blockquote>}
@@ -228,7 +232,7 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
       </div><p className="fp-feedback" data-fp-feedback data-error={notice.error} role="status">{notice.text}{notice.error && <button type="button" className="fp-text" disabled={disabled} onClick={refresh}>重新读取</button>}</p></div>
     </CollapsibleSidebarLayout>
     <Modal open={dialog !== null && active} busy={busy} onClose={() => setDialog(null)} className="fp-dialog" data-fp-dialog aria-labelledby="fp-dialog-title"><form data-fp-dialog-form onSubmit={e => { e.preventDefault(); if (!dialog) return; const choice = dialog; if (choice.kind === 'share') { void mutate(signal => api.publish(choice.card.id, caption.trim(), signal), '已分享到足迹广场', () => { setPublished(previous => [...previous, choice.card.id]); setDialog(null) }, false) } else if (choice.kind === 'card') { void mutate(signal => api.deleteCard(choice.id, signal), '卡片已删除', () => { setDialog(null); setPreview(null) }) } else { void mutate(signal => api.deletePost(choice.id, signal), '分享已删除', () => { setDialog(null); if (postId !== null) switchView(tab) }) } }}><h3 id="fp-dialog-title">{dialog?.kind === 'share' ? '分享到足迹广场' : dialog?.kind === 'card' ? '删除回忆卡片？' : '删除这条分享？'}</h3>{dialog?.kind === 'share' ? <label className="fp-field"><span>写一句分享语（可以留空）</span><textarea autoFocus name="caption" maxLength={300} rows={3} value={caption} disabled={busy} onChange={e => setCaption(e.target.value)} /></label> : <p>{dialog?.kind === 'card' ? '已分享的内容也会一起移除。' : '评论也会一并移除。'}</p>}<div className="fp-dialog-actions"><button type="button" className="fp-ghost" data-fp-dialog-cancel disabled={busy} onClick={() => setDialog(null)}>取消</button><button type="submit" className={dialog?.kind === 'share' ? 'fp-ghost' : 'fp-danger'} disabled={busy}>{busy ? '处理中…' : dialog?.kind === 'share' ? '确认分享' : '确认删除'}</button></div></form></Modal>
-  </section>
+  </motion.section>
 })
 
 export default FootprintPage

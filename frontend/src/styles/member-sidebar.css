@@ -1,4 +1,7 @@
 /* React Bits LineSidebar：保留官方线条/文字同相位距离衰减，不导入另一套主题。 */
+.user-page, .footprint-page { transition: none; background: radial-gradient(ellipse at 60% 16%, var(--color-surface-40), var(--color-surface-22) 63%, var(--color-surface-23)); }
+.section-content { opacity: 1; transform: translateY(0); transition: opacity 190ms ease, transform 190ms ease; }
+.section-content.is-changing { opacity: 0; transform: translateY(8px); }
 .line-sidebar { position: relative; display: flex; justify-content: flex-start; min-width: 0; min-height: 0; }
 .line-sidebar--markers { padding-left: calc(var(--marker-length) + var(--marker-gap)); }
 .line-sidebar__list { position: relative; width: 100%; list-style: none; margin: 0; padding: 1rem 0; display: flex; flex-direction: column; gap: var(--item-gap); }
@@ -59,6 +62,7 @@
   .sidebar-layout--user .line-sidebar__marker, .sidebar-layout--user .line-sidebar__item::after, .sidebar-layout--user .line-sidebar__text small { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .section-content { transition: none; }
   .sidebar-layout, .sidebar-layout > aside, .sidebar-divider-arrow { transition: none; }
   .line-sidebar__label { transform: none; }
 }
