@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const Database = require('better-sqlite3')
+const { initializeFootprintSchema } = require('./footprint')
 
 function createDatabase(databasePath) {
   if (!databasePath) {
@@ -177,6 +178,7 @@ function initializeSchema(database) {
       UNIQUE (user_id, code_hash)
     );
   `)
+  initializeFootprintSchema(database)
 }
 
 module.exports = {

@@ -7,6 +7,7 @@ import { MusicQueue } from '../features/queue/model.ts'
 import { createPlayerController, type PlayerController } from '../features/player/player-core.ts'
 import { resolvePlaybackUrl } from '../services/music/search.ts'
 import { ErrorBoundary } from '../shared/react/ErrorBoundary.tsx'
+import { createFootprintClient, durationToMs } from '../services/music/footprint.ts'
 
 const Workspace = lazy(() => import('./Workspace.tsx'))
 type Role = 'admin' | 'user'
@@ -20,14 +21,29 @@ export interface AppServices {
 const services: AppServices = { restore: restoreSession, login: loginAndVerify, logout: logoutSession }
 
 function SessionWorkspace({ onLogout }: { onLogout(): Promise<void> }) {
-  const [session, setSession] = useState<{ queue: MusicQueue; player: PlayerController } | null>(null)
+  const [session, setSession] = useState<{ queue: MusicQueue; player: PlayerController; footprintClient: ReturnType<typeof createFootprintClient> } | null>(null)
+  const [footprintRevision, setFootprintRevision] = useState(0)
   useEffect(() => {
     const queue = new MusicQueue()
-    const player = createPlayerController({ queue, resolveUrl: (track, signal) => resolvePlaybackUrl(track, undefined, signal) })
-    setSession({ queue, player })
-    return () => player.destroy()
+    const footprintClient = createFootprintClient()
+    const reports = new Set<AbortController>()
+    let disposed = false
+    const player = createPlayerController({
+      queue, resolveUrl: (track, signal) => resolvePlaybackUrl(track, undefined, signal),
+      onPlayed: async track => {
+        if (disposed || track.kind !== 'song') return
+        const controller = new AbortController()
+        reports.add(controller)
+        try {
+          await footprintClient.report({ ...track, durationMs: durationToMs(track.duration) }, controller.signal)
+          if (!disposed) setFootprintRevision(value => value + 1)
+        } finally { reports.delete(controller) }
+      },
+    })
+    setSession({ queue, player, footprintClient })
+    return () => { disposed = true; reports.forEach(controller => controller.abort()); reports.clear(); player.destroy() }
   }, [])
-  return session && <ErrorBoundary><Suspense fallback={null}><Workspace {...session} onLogout={onLogout} /></Suspense></ErrorBoundary>
+  return session && <ErrorBoundary><Suspense fallback={null}><Workspace {...session} footprintRevision={footprintRevision} onLogout={onLogout} /></Suspense></ErrorBoundary>
 }
 
 // App 只调度身份和会话；音频属于认证后的会话，不属于任何单个页面。

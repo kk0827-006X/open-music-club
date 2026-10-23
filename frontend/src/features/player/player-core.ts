@@ -17,6 +17,7 @@ export function createPlayerController(options: {
   queue: MusicQueue
   resolveUrl: (track: MusicItem, signal: AbortSignal) => Promise<string>
   createAudio?: () => HTMLAudioElement
+  onPlayed?: (track: MusicItem) => void | Promise<void>
 }) {
   const audio = options.createAudio?.() ?? new Audio()
   audio.preload = 'none'
@@ -41,6 +42,11 @@ export function createPlayerController(options: {
     track = next; error = null
     update()
     await audio.play()
+    // 只通知仍属于本次请求的成功开播；附属记录失败不能打断音频。
+    if (!disposed && current === request) {
+      try { void Promise.resolve(options.onPlayed?.(next)).catch(() => undefined) }
+      catch { /* 足迹是附属记录，不替代播放器自身的错误状态。 */ }
+    }
   }
   const next = async () => { const item = track && options.queue.next(track.key); if (item) await play(item) }
   const previous = async () => { const item = track && options.queue.previous(track.key); if (item) await play(item) }

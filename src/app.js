@@ -22,6 +22,7 @@ const { createLocalMusicConfig } = require('./config/localMusic')
 const { createLocalMusicRouter } = require('./routes/localMusic.routes')
 const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes')
 const { createUserProfileRouter } = require('./routes/userProfile.routes')
+const { createFootprintRouter } = require('./routes/footprint.routes')
 const {
   createCsrfProtection,
   createHttpsEnforcement,
@@ -143,6 +144,12 @@ function createApp({
   )
   if (rateLimiters) app.use('/api/netease', rateLimiters.netease)
   app.use('/api/netease', requireLogin, createNeteaseRouter(neteaseService))
+  app.use(
+    '/api/footprint',
+    requireLogin,
+    ...(rateLimiters ? [rateLimiters.footprint] : []),
+    createFootprintRouter({ database }),
+  )
   if (rateLimiters) app.put('/api/me/avatar', requireLogin, rateLimiters.upload)
   app.use(
     '/api/me',
@@ -185,7 +192,9 @@ function createApp({
     if (res.headersSent) return next(error)
     const payloadTooLarge =
       error?.type === 'entity.too.large' || error?.status === 413
-    const status = payloadTooLarge ? 413 : 500
+    const invalidFootprintJson = error?.type === 'entity.parse.failed' &&
+      (req.path === '/api/footprint' || req.path.startsWith('/api/footprint/'))
+    const status = payloadTooLarge ? 413 : invalidFootprintJson ? 400 : 500
     securityConfig.logger.error({
       event: 'request_failed',
       requestId: req.requestId,
@@ -196,7 +205,7 @@ function createApp({
     })
     return res.status(status).json({
       success: false,
-      message: payloadTooLarge ? '请求内容过大' : '服务器内部错误',
+      message: payloadTooLarge ? '请求内容过大' : invalidFootprintJson ? '请求内容格式无效' : '服务器内部错误',
       requestId: req.requestId,
     })
   })

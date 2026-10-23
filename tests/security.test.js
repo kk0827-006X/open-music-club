@@ -137,6 +137,7 @@ describe('公网通信安全基线', () => {
       'download',
       'netease',
       'personalLibrary',
+      'footprint',
       'twoFactor',
     ])
   })
