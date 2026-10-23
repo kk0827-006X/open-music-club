@@ -3,6 +3,8 @@ import type { ChangeEvent, FocusEvent, FormEvent, KeyboardEvent, MouseEvent, Rea
 import { motion } from 'motion/react'
 import { Icon, Modal } from '../../shared/react/ui.tsx'
 import { usePageVisibility, useReducedMotion } from '../../shared/react/hooks.ts'
+import LineSidebar from '../../shared/react/LineSidebar.tsx'
+import { CollapsibleSidebarLayout } from '../../shared/react/CollapsibleSidebarLayout.tsx'
 import {
   createPersonalLibraryClient,
   PersonalLibraryError,
@@ -738,7 +740,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
       animate={active ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
       transition={reduced ? { duration: 0 } : { duration: 0.3, ease: [0.2, 0.7, 0.2, 1] as [number, number, number, number] }}
     >
-      <aside className="user-sidebar">
+      <CollapsibleSidebarLayout active={active} variant="user" sidebarClassName="user-sidebar" sidebar={expanded => <>
         <p className="user-eyebrow">MEMBER ARCHIVE / 个人音乐空间</p>
         <div className="user-profile">
           <button type="button" className="user-avatar" data-user-avatar-choose aria-label="选择本地图片作为头像" onClick={() => { if (!avatarBusyRef.current) avatarInputRef.current?.click() }}>
@@ -761,21 +763,14 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
           <small data-user-nickname>{nickname}</small>
           <p data-user-avatar-feedback role="status">{avatarFeedback}</p>
         </div>
-        <nav className="user-section-nav" aria-label="个人音乐分类">
-          {sections.map(({ id, label, english }) => (
-            <button
-              key={id}
-              type="button"
-              data-user-tab={id}
-              aria-current={section === id ? 'page' : undefined}
-              onClick={() => changeSection(id)}
-            >
-              <strong>{label}</strong><small>{english}</small><b aria-hidden="true"><Icon name="open" /></b>
-            </button>
-          ))}
-        </nav>
+        <LineSidebar ariaLabel="个人音乐分类" items={sections.map(item => item.label)}
+          activeIndex={sections.findIndex(item => item.id === section)} enabled={active && expanded}
+          showIndex={false} markerLength={26} markerGap={12} maxShift={12} itemGap={16} fontSize={.83}
+          className="member-line-sidebar" getItemProps={index => ({ 'data-user-tab': sections[index].id, title: sections[index].label })}
+          renderLabel={(label, index) => <><strong>{label}</strong><small>{sections[index].english}</small></>}
+          onItemClick={index => changeSection(sections[index].id)} />
         <p className="user-sidebar-foot"><i></i> YOUR MUSIC, YOUR ARCHIVE<br />音乐从这里开始归档</p>
-      </aside>
+      </>}>
       <div className="user-content-shell">
         <header className="user-content-header">
           <div><p>PERSONAL COLLECTION / 个人收藏</p><h2 data-user-heading>{headings[section]}</h2><span data-user-subtitle>{subtitles[section]}</span></div>
@@ -785,6 +780,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
         </div>
         <p className="user-preview-note" data-user-feedback role="status" data-error={String(feedback.error)}>{feedback.message}</p>
       </div>
+      </CollapsibleSidebarLayout>
 
       <Modal
         open={createOpen}

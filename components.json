@@ -1,0 +1,22 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "frontend/src/style.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "./frontend/src/shared/react",
+    "ui": "./frontend/src/shared/react",
+    "utils": "./frontend/src/shared/utils",
+    "lib": "./frontend/src/shared",
+    "hooks": "./frontend/src/shared/react"
+  },
+  "registries": {
+    "@react-bits": "https://reactbits.dev/r/{name}.json"
+  }
+}

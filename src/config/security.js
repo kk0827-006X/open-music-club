@@ -6,6 +6,7 @@ const DEFAULT_RATE_LIMITS = Object.freeze({
   download: { windowMs: 15 * 60 * 1000, limit: 120 },
   netease: { windowMs: 15 * 60 * 1000, limit: 120 },
   personalLibrary: { windowMs: 15 * 60 * 1000, limit: 120 },
+  footprint: { windowMs: 15 * 60 * 1000, limit: 180 },
 })
 
 function parsePositiveInteger(value, name, fallback) {

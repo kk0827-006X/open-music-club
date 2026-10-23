@@ -32,6 +32,11 @@ async function mockWorkspace(page) {
     else if (url.pathname.startsWith('/api/me/likes/')) body = { liked: false }
     else if (url.pathname === '/api/me/playlists') body = { playlists: [] }
     else if (url.pathname === '/api/me/likes') body = { tracks: [] }
+    else if (url.pathname === '/api/footprint/timeline') body = { events: [], total: 0, timezoneOffsetMinutes: 480 }
+    else if (url.pathname === '/api/footprint/milestone') body = { milestone: { totalPlays: 0 }, timezoneOffsetMinutes: 480 }
+    else if (url.pathname === '/api/footprint/cards') body = { cards: [], total: 0 }
+    else if (url.pathname === '/api/footprint/posts') body = { posts: [], total: 0 }
+    else if (url.pathname === '/api/footprint/posts/mine') body = { posts: [] }
     else if (url.pathname.includes('/album')) body = { code: 200, songs: [{ id: 900001, name: '专辑测试曲目', dt: 100000 }] }
     else if (url.pathname.includes('/search')) body = { code: 200, result: { songs: [] } }
     await route.fulfill({ json: body })
@@ -72,6 +77,81 @@ async function showQueue(page) {
   await expect(page.locator('[data-player-queue-panel]')).toBeVisible()
 }
 const order = page => page.locator('[data-queue-key]').evaluateAll(rows => rows.map(row => row.dataset.queueKey))
+
+test('LineSidebar 两页复用主题，真实拖拽收展及左缘箭头不丢草稿，窄屏菜单仍可用', async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  await mockWorkspace(page)
+  for (const name of ['user', 'footprint']) {
+    await page.locator(`[data-nav="${name}"]`).click()
+    const view = page.locator(`[data-${name}-page]`)
+    await expect(view).toBeVisible()
+    const layout = view.locator('.sidebar-layout'), divider = layout.locator('.sidebar-divider')
+    const menu = view.locator('.line-sidebar')
+    await expect(menu).toBeVisible()
+    await expect(menu.locator('.line-sidebar__index')).toHaveCount(0)
+    await expect(menu.locator('button[aria-current="page"]')).toHaveCount(1)
+    const item = menu.locator('button').nth(1)
+    await item.hover()
+    await expect.poll(() => item.locator('..').evaluate(node => Number(node.style.getPropertyValue('--effect')))).toBeGreaterThan(.2)
+    await item.focus()
+    await page.keyboard.press('Enter')
+    await expect(item).toHaveAttribute('aria-current', 'page')
+    const contentSelector = name === 'user' ? '.user-content-shell' : '.fp-shell'
+    await view.locator(contentSelector).evaluate(element => { element.dataset.retained = 'yes' })
+    const before = await view.locator(contentSelector).boundingBox()
+    const bounds = await divider.boundingBox()
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(45, bounds.y + bounds.height / 2, { steps: 24 })
+    await page.mouse.up()
+    await expect(layout).toHaveAttribute('data-collapsed', 'true')
+    await expect(view.locator('aside')).toHaveAttribute('inert', '')
+    await expect.poll(async () => (await view.locator(contentSelector).boundingBox()).width).toBeGreaterThan(before.width + 100)
+    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes')
+    await page.mouse.move(1100, 200)
+    // 离开竖线后箭头不可见；只在展开入口悬停/聚焦时出现。
+    await page.locator('[data-nav="'+name+'"]').focus()
+    await expect.poll(() => divider.locator('.sidebar-divider-arrow').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(0)
+    await divider.hover()
+    await expect.poll(() => divider.locator('.sidebar-divider-arrow').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1)
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-collapsed.png`) })
+    await divider.click()
+    await expect(layout).toHaveAttribute('data-collapsed', 'false')
+    await expect(menu).toBeVisible()
+    await expect.poll(async () => Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width)).toBeLessThan(2)
+    await divider.focus()
+    await page.keyboard.press('Enter')
+    await expect(layout).toHaveAttribute('data-collapsed', 'true')
+    await page.keyboard.press('Enter')
+    await expect(layout).toHaveAttribute('data-collapsed', 'false')
+    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes')
+    await expect.poll(async () => Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width)).toBeLessThan(2)
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-expanded.png`) })
+    // 已收起时进入窄屏，菜单不能因 inert 残留而无法操作。
+    await divider.press('Home')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(view.locator('aside')).not.toHaveAttribute('inert', '')
+    await expect(divider).toBeHidden()
+    const mobileItem = menu.locator('button').last()
+    await mobileItem.click()
+    await expect(mobileItem).toHaveAttribute('aria-current', 'page')
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-mobile.png`) })
+    await page.setViewportSize({ width: 1440, height: 1000 })
+  }
+  await page.locator('[data-nav="settings"]').click()
+  await page.locator('[data-theme-preference="dark"]').click()
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  const colors = await page.locator('[data-footprint-page] .line-sidebar').evaluate(element => ({
+    accent: getComputedStyle(element).getPropertyValue('--accent-color').trim(),
+    site: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim(),
+  }))
+  expect(colors.accent).toBe(colors.site)
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
+  expect(errors).toEqual([])
+})
 
 test('React 页面反复切换保留实例；队列清空、外部点击、音量和主题不创建新 Audio', async ({ page }, info) => {
   const errors = []

@@ -155,6 +155,18 @@ function createRateLimiters(config, createStore) {
         return sendSecurityError(res, 429, '请求过于频繁，请稍后再试')
       },
     }),
+    footprint: rateLimit({
+      windowMs: config.rateLimits.footprint.windowMs,
+      limit: config.rateLimits.footprint.limit,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false,
+      keyGenerator: (req) => `user:${req.user.id}`,
+      skip: (req) => !UNSAFE_METHODS.has(req.method),
+      ...(createStore ? { store: createStore('footprint') } : {}),
+      handler(req, res) {
+        return sendSecurityError(res, 429, '请求过于频繁，请稍后再试')
+      },
+    }),
   }
 }
 

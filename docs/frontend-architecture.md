@@ -37,7 +37,7 @@ main.ts → App
            └─ SessionWorkspace（认证会话的音频所有者）
                 └─ Workspace（页面、导航、场景、动作装配）
                     ├─ LibraryView
-                    ├─ SearchPage / UserPage / UploadPage（懒加载，访问后保留实例）
+                    ├─ SearchPage / UserPage / UploadPage / FootprintPage（懒加载，访问后保留实例）
                     ├─ PlayerView → QueuePanel / QueueAddFlights
                     └─ SettingsDialog → TwoFactorPanel
 
@@ -110,13 +110,14 @@ frontend/src/
 
 - `MusicActions.play(track)` / `enqueue(track)` 是搜索、用户、专辑的统一入口。
 - 页面不读取 HTMLAudioElement，也不访问其他 Features 的内部 DOM。
-- ref 只公开必要能力：搜索 focus/refresh/ownsKeyboardTarget；用户 refresh/hasOpenDialog；库 select/navigate/openDetail；设置 show/close/open；播放器 play/enqueue/choosePlaylist/setExpanded。
+- ref 只公开必要能力：搜索 focus/refresh/ownsKeyboardTarget；用户 refresh/hasOpenDialog；足迹 hasOpenDialog；库 select/navigate/openDetail；设置 show/close/open；播放器 play/enqueue/choosePlaylist/setExpanded。
 - 退出动画使用 active 与 visible 两个状态：先 inert、开始淡出，再 hidden。重进清理旧隐藏计时。
 - 原生 dialog 的 top layer 和焦点围栏保留；180ms 退场只由所属页面拥有，不在共享 Modal 再计时一次。
 
 ### 音频与队列
 
 - 同一会话一个 Audio，唯一创建点 `features/player/player-core.ts`。
+- 音乐足迹通过可选 `onPlayed` 接收当前请求的成功开播通知；App 装配上报服务，核心不依赖足迹 API。暂停恢复、失败或迟到请求不重复通知；退出会话取消在途上报。
 - `PlayerController.get/subscribe/play/toggle/next/previous/seek/setVolume/clear/destroy` 保持接口。
 - URL 解析、歌词与异步曲目竞争保护继续由原服务/核心负责。
 - 队列继续用原 key、500 首上限、去重/排序/来源、紧凑 source/sourceId 持久化。
@@ -147,7 +148,7 @@ frontend/src/
 | style.css | 原 CSS + react-components.css | 不改原选择器/断点/优先级；普通滑杆允许库替代 | 原 2930 条声明及哈希、Theme、截图 |
 | package / lock / tsconfig / vite | React、Motion、Radix、tsx 等 | Vite7/端口/代理不变；测试显式用同一 JSX 配置 | frozen install、build、audit、全量测试 |
 
-## 验证现状
+## React 迁移基线验证（音乐足迹接入前）
 
 - 冻结安装、TypeScript/Vite 构建成功；315 项单元/集成测试通过、0 跳过。
 - 原 2930 条浅色 CSS 声明与 SHA256 保持一致，主题 token 两套对应测试通过。
@@ -162,6 +163,8 @@ frontend/src/
 ## 后续开发方法
 
 ### 新增页面
+
+音乐足迹的实际接入、接口和最新验收见 [音乐足迹接入记录](music-footprint-integration.md)。复用共享 UI；不把旧 DOM 协调器重新引入生产入口。
 
 1. 在 `features/<领域>/` 编写 JSX 组件，props 注入服务和 MusicActions。
 2. 明确 active/隐藏/卸载行为，异步操作带取消或代次校验；URL、timer、订阅归属组件。
