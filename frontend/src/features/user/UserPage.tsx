@@ -405,7 +405,11 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
       }
       return false
     } finally {
-      if (!unmountedRef.current && current === requestRef.current) setLoading(false)
+      if (!unmountedRef.current && current === requestRef.current) {
+        setLoading(false)
+        // 以最新请求为准；切换途中触发的外部刷新也能正确结束淡出。
+        if (tabTimerRef.current === null) setChanging(false)
+      }
     }
   }
   refreshRef.current = refresh
@@ -426,11 +430,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   }
 
   function changeSection(next: Section) {
-    setSection(next)
-    setSelectedId(null)
-    setPageIndex(0)
-    setTracks([])
-    // 立即让进行中的旧请求与旧播放提示失效；短暂淡出后再加载新分类。
+    // 淡出时保留旧视图，避免先换成空列表再淡出的闪烁。
     requestRef.current += 1
     playRequestRef.current += 1
     setChanging(true)
@@ -438,9 +438,12 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
     tabTimerRef.current = window.setTimeout(() => {
       tabTimerRef.current = null
       if (unmountedRef.current) return
-      setChanging(false)
+      setSection(next)
+      setSelectedId(null)
+      setPageIndex(0)
+      setTracks([])
       void refreshRef.current()
-    }, 130)
+    }, reduced ? 0 : 190)
   }
 
   function openPlaylist(id: number) {
@@ -775,7 +778,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
         <header className="user-content-header">
           <div><p>PERSONAL COLLECTION / 个人收藏</p><h2 data-user-heading>{headings[section]}</h2><span data-user-subtitle>{subtitles[section]}</span></div>
         </header>
-        <div className={`user-content${changing ? ' is-changing' : ''}`} data-user-content aria-live="polite" aria-busy={busy || loading}>
+        <div className={`user-content${changing ? ' is-changing' : ''}`} data-user-content inert={changing} aria-live="polite" aria-busy={busy || loading || changing}>
           {contentBody}
         </div>
         <p className="user-preview-note" data-user-feedback role="status" data-error={String(feedback.error)}>{feedback.message}</p>
