@@ -15,7 +15,13 @@ async function start() {
   const app = createApp({
     databasePath: path.join(directory, 'database.sqlite'), sessionSecret: 'isolated-acceptance-session-only',
     twoFactor: { encryptionKey: Buffer.alloc(32, 11).toString('base64') },
-    localMusic: { storageRoot: path.join(directory, 'storage'), maximumUploadMegabytes: 5 }, mail: { env: {} },
+    localMusic: { storageRoot: path.join(directory, 'storage'), maximumUploadMegabytes: 5 },
+    // 隔离验收只模拟 SMTP 和投递查询，不读取真实凭据或发送邮件。
+    mail: {
+      env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com' },
+      transport: { async sendMail(message) { return { accepted: [message.to] } } },
+      deliveryClient: { configured: true, async check() { return 'delivered' } },
+    },
     security: { production: false, publicOrigin: 'http://127.0.0.1:4317', csrfEnabled: true, rateLimitEnabled: true,
       logger: { info() {}, warn() {}, error(event) { console.error(JSON.stringify(event)) } } },
     // 仅在独立测试进程中注入上游适配；不添加任何生产测试后门。

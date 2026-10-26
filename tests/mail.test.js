@@ -54,3 +54,22 @@ it('历史申请中的邮箱也只能是单个收件地址，不允许地址列�
   }
   assert.equal(calls, 0)
 })
+
+it('申请 SMTP 返回接受不等于送达，使用服务端独立主题及 Message-ID 关联', async () => {
+  let sent
+  const service = createMailService({ env, transport: { async sendMail(message) { sent = message; return { accepted: [message.to] } } } })
+  assert.deepEqual(service.getDeliveryConfig(), { enabled: true, from: env.MAIL_FROM, adminTo: env.MAIL_ADMIN_TO })
+  assert.equal(await service.submitNotification(application, 'request', { subject: 'unique-subject', messageId: '<unique@example.com>' }), 'accepted')
+  assert.equal(sent.subject, 'unique-subject')
+  assert.equal(sent.messageId, '<unique@example.com>')
+})
+
+it('明确 SMTP 拒绝允许重试，DATA 后断线或总超时必须保留未知', async () => {
+  for (const [error, expected] of [[{ code: 'EAUTH' }, 'failed'], [{ code: 'ECONNECTION', command: 'CONN' }, 'unknown'], [{ command: 'RCPT TO', responseCode: 550 }, 'failed'], [{ command: 'DATA', responseCode: 554 }, 'failed'], [{ command: 'DATA', code: 'ETIMEDOUT' }, 'unknown'], [Error('socket close'), 'unknown']]) {
+    const service = createMailService({ env, transport: { async sendMail() { throw error } }, logger: { warn() {} } })
+    assert.equal(await service.submitNotification(application, 'request', { subject: 'unique', messageId: '<unique@example.com>' }), expected)
+  }
+  const service = createMailService({ env, transport: { sendMail: () => new Promise(() => {}) }, sendTimeoutMs: 10, logger: { warn() {} } })
+  assert.equal(await service.submitNotification(application, 'request', { subject: 'unique', messageId: '<unique@example.com>' }), 'unknown')
+  assert.equal(await createMailService({ env: {} }).submitNotification(application), 'disabled')
+})

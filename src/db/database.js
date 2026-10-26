@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const Database = require('better-sqlite3')
 const { initializeFootprintSchema } = require('./footprint')
+const { initializeApplicationNotificationSchema } = require('./applicationNotifications')
 
 function createDatabase(databasePath) {
   if (!databasePath) {
@@ -179,6 +180,7 @@ function initializeSchema(database) {
     );
   `)
   initializeFootprintSchema(database)
+  initializeApplicationNotificationSchema(database)
 }
 
 module.exports = {

@@ -9,6 +9,8 @@ allowBuilds:
   core-js: true
   esbuild: true
   es5-ext: true
+  # 仅为 Node 10/12 安装开发用类型；本项目 Node >=22 无需执行。
+  '@alicloud/openapi-core': false
 
 minimumReleaseAgeExclude:
   - nodemailer@10.1.2
@@ -25,3 +27,5 @@ overrides:
   'source-map-js@<1.2.2': 1.2.2
   'follow-redirects@>=1.16.0 <1.16.1': 1.16.1
   'vite@>=7.0.0 <7.3.7': 7.3.7
+  'body-parser@<1.20.9': 1.20.9
+  'body-parser@>=2.0.0 <2.4.0': 2.4.0
