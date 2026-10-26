@@ -18,6 +18,8 @@ const {
 const { createNeteaseRouter } = require('./routes/netease.routes')
 const { createNeteaseService } = require('./services/netease.service')
 const { createMailService } = require('./services/mail.service')
+const { createAliyunDeliveryClient } = require('./services/aliyunDelivery.service')
+const { createAccessApplicationService } = require('./services/accessApplication.service')
 const { createLocalMusicConfig } = require('./config/localMusic')
 const { createLocalMusicRouter } = require('./routes/localMusic.routes')
 const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes')
@@ -94,6 +96,11 @@ function createApp({
   app.locals.security = securityConfig
   app.locals.twoFactor = twoFactorService
   app.locals.mail = mailService
+  app.locals.applicationDelivery = createAccessApplicationService({
+    database,
+    mail: mailService,
+    deliveryClient: mail.deliveryClient || createAliyunDeliveryClient({ env: mail.env, logger: securityConfig.logger }),
+  })
   if (!twoFactorService.available) securityConfig.logger.warn?.({ event: 'two_factor_key_missing', message: '未配置 TOTP_ENCRYPTION_KEY，无法绑定认证器；公网管理员不能获得正式登录权限' })
 
   app.use(requestIdMiddleware)
@@ -134,7 +141,7 @@ function createApp({
   app.get('/health', (req, res) => res.json({ status: 'ok' }))
   if (rateLimiters) app.use('/api/auth/login', rateLimiters.login)
   app.use('/api/auth', createAuthRouter())
-  if (rateLimiters) app.use('/api/applications', rateLimiters.applications)
+  if (rateLimiters) app.post('/api/applications', rateLimiters.applications)
   app.use('/api/applications', createApplicationsRouter())
   app.use(
     '/api/admin/applications',

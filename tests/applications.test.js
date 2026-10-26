@@ -30,6 +30,7 @@ describe('访问申请与管理员审核 API', () => {
       sessionDatabasePath: path.join(directory, 'sessions.sqlite'),
       sessionSecret: 'test-session-secret',
       mail: {
+        deliveryClient: { configured: true, async check() { return 'delivered' } },
         env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com' },
         transport: { async sendMail(message) {
           // 通知触发时，另一个连接必须已经能读到已提交的数据。
@@ -37,7 +38,7 @@ describe('访问申请与管理员审核 API', () => {
           const reader = createDatabase(path.join(directory, 'database.sqlite'))
           try { notifications.push({ message, stored: reader.prepare('SELECT status FROM access_requests ORDER BY id DESC LIMIT 1').get().status }) }
           finally { reader.close() }
-          if (mailFailure) throw new Error('smtp-secret-password /private/database.sqlite')
+          if (mailFailure) throw Object.assign(new Error('smtp-secret-password /private/database.sqlite'), { code: 'EAUTH' })
           return { accepted: [message.to] }
         } },
       },
@@ -214,23 +215,33 @@ describe('访问申请与管理员审核 API', () => {
     assert.equal(notifications.length, 1)
   })
 
-  it('申请先提交数据库再通知管理员，邮件失败仍返回成功且可审批', async () => {
+  it('申请先落库，明确邮件失败不报成功也不可审批，重试确认后才可审批', async () => {
     mailFailure = true
     const submitted = await submitApplication()
-    assert.equal(submitted.status, 201)
+    assert.equal(submitted.status, 502)
+    assert.equal(submitted.body.success, false)
+    assert.equal(submitted.body.retryable, true)
+    assert.equal(submitted.body.notification.status, 'failed')
     assert.equal(notifications.length, 1)
     assert.equal(notifications[0].stored, 'pending')
     assert.equal(notifications[0].message.to, 'admin@example.com')
+    const premature = await adminAgent.post(`/api/admin/applications/${submitted.body.application.id}/approve`).send({ initialPassword: INITIAL_PASSWORD })
+    assert.equal(premature.status, 409)
+    assert.equal(findUserByEmail(database, 'candidate@example.com'), undefined)
+    mailFailure = false
+    const retried = await submitApplication()
+    assert.equal(retried.status, 201)
+    assert.equal(retried.body.application.id, submitted.body.application.id)
     const approved = await adminAgent.post(`/api/admin/applications/${submitted.body.application.id}/approve`).send({ initialPassword: INITIAL_PASSWORD })
     assert.equal(approved.status, 200)
-    assert.equal(notifications.length, 2)
-    assert.equal(notifications[1].stored, 'approved')
-    assert.equal(notifications[1].message.to, 'candidate@example.com')
+    assert.equal(notifications.length, 3)
+    assert.equal(notifications[2].stored, 'approved')
+    assert.equal(notifications[2].message.to, 'candidate@example.com')
     assert.doesNotMatch(JSON.stringify(notifications), /initial-password|smtp-secret|password_hash/)
     assert.doesNotMatch(JSON.stringify(approved.body), /smtp|private|notification/)
     assert.equal((await login(request.agent(app), 'candidate@example.com', INITIAL_PASSWORD)).status, 200)
     assert.equal((await adminAgent.post(`/api/admin/applications/${submitted.body.application.id}/approve`).send({ initialPassword: INITIAL_PASSWORD })).status, 409)
-    assert.equal(notifications.length, 2)
+    assert.equal(notifications.length, 3)
   })
 
   it('申请 INSERT 失败不发送邮件，也不暴露数据库内部错误', async () => {
@@ -251,6 +262,7 @@ describe('访问申请与管理员审核 API', () => {
     assert.equal(notifications[0].stored, 'rejected')
     assert.equal((await adminAgent.post(`/api/admin/applications/${id}/reject`)).status, 409)
     assert.equal(notifications.length, 1)
+    mailFailure = false
     assert.equal((await submitApplication()).status, 201)
   })
 
