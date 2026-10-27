@@ -113,6 +113,17 @@ function toTrack(music) {
   }
 }
 
+function getRandomMusic(database) {
+  return database
+    .prepare(
+      `SELECT uploaded_music.*, users.nickname AS uploader_nickname
+       FROM uploaded_music
+       JOIN users ON users.id = uploaded_music.uploader_id
+       ORDER BY RANDOM() LIMIT 1`,
+    )
+    .get()
+}
+
 module.exports = {
   createMusic,
   deleteMusicRecord,
@@ -120,4 +131,5 @@ module.exports = {
   listMusic,
   recordDownload,
   toTrack,
+  getRandomMusic,
 }

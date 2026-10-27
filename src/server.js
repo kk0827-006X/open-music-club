@@ -36,10 +36,7 @@ async function start() {
     throw new Error('HEADERS_TIMEOUT_MS 必须大于 KEEP_ALIVE_TIMEOUT_MS')
   }
 
-  const infrastructure = await createRedisInfrastructure({
-    redisUrl: process.env.REDIS_URL,
-    production,
-  })
+  const infrastructure = {};
 
   let initializationError
   let runtimeCredentials
