@@ -9,7 +9,6 @@ const {
   listMusic,
   recordDownload,
   toTrack,
-  getRandomMusic,
 } = require('../db/localMusic')
 const { readMusicMetadata } = require('./metadata.service')
 
@@ -101,14 +100,6 @@ function createLocalMusicService({ database, config, metadataReader }) {
   }
 
   const readMetadata = metadataReader || readMusicMetadata
-
-  function getRandomTrack() {
-    const music = getRandomMusic(database) 
-    if (!music) {
-      throw new LocalMusicError('曲库空空如也，快去上传第一首歌吧！', 404)
-    }
-    return toTrack(music)
-  }
 
   async function uploadMusic({ file, fields, uploaderId }) {
     if (!file) throw new LocalMusicError('请选择音乐文件')
@@ -262,7 +253,6 @@ function createLocalMusicService({ database, config, metadataReader }) {
     parseRange,
     registerDownload,
     uploadMusic,
-    getRandomTrack,
   }
 }
 
