@@ -1,555 +1,215 @@
 const assert = require('node:assert/strict')
 const { afterEach, beforeEach, describe, it } = require('node:test')
-const fs = require('node:fs')
-const os = require('node:os')
-const path = require('node:path')
 const bcrypt = require('bcrypt')
 const request = require('supertest')
-
+const { generateSync } = require('otplib')
 const { createApp } = require('../src/app')
 const { createUser, findUserByEmail } = require('../src/db/users')
+const PASSWORD = 'test-password'
+const NEW_PASSWORD = 'a-long-private-password'
+const KEY = Buffer.alloc(32, 9).toString('base64')
+const CANDIDATE = { email: 'candidate@example.com', nickname: '候选成员', reason: '小组成员申请' }
 
-const TEST_PASSWORD = 'test-password'
-const INITIAL_PASSWORD = 'initial-password'
-
-describe('访问申请与管理员审核 API', () => {
-  let directory
-  let app
-  let database
-  let adminAgent
-  let memberAgent
-  let notifications
-  let mailFailure
-
+describe('申请、审核与一次性激活 HTTP 闭环', () => {
+  let app, database, admin, member, messages, clock
   beforeEach(async () => {
-    directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-applications-'))
-    notifications = []
-    mailFailure = false
-    app = createApp({
-      databasePath: path.join(directory, 'database.sqlite'),
-      sessionDatabasePath: path.join(directory, 'sessions.sqlite'),
-      sessionSecret: 'test-session-secret',
-      mail: {
-        env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com' },
-        transport: { async sendMail(message) {
-          // 通知触发时，另一个连接必须已经能读到已提交的数据。
-          const { createDatabase } = require('../src/db/database')
-          const reader = createDatabase(path.join(directory, 'database.sqlite'))
-          try { notifications.push({ message, stored: reader.prepare('SELECT status FROM access_requests ORDER BY id DESC LIMIT 1').get().status }) }
-          finally { reader.close() }
-          if (mailFailure) throw new Error('smtp-secret-password /private/database.sqlite')
-          return { accepted: [message.to] }
-        } },
+    messages = []; clock = 1800000000000
+    app = createApp({ databasePath: ':memory:', sessionSecret: 'isolated-application-test',
+      security: { publicOrigin: 'https://club.example.com', logger: { warn() {}, info() {}, error() {} } },
+      twoFactor: { encryptionKey: KEY, now: () => clock },
+      mail: { now: () => clock,
+        env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com', APPLICATION_MAIL_ENCRYPTION_KEY: KEY },
+        transport: { async sendMail(message) { messages.push(message); return { accepted: [message.to] } } },
+        deliveryClient: { configured: true, async check() { return 'delivered' } },
       },
     })
     database = app.locals.database
-
-    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 4)
-    createUser(database, {
-      email: 'admin@example.com',
-      nickname: '管理员',
-      passwordHash,
-      role: 'admin',
-      status: 'active',
-      mustChangePassword: true,
-    })
-    createUser(database, {
-      email: 'member@example.com',
-      nickname: '普通成员',
-      passwordHash,
-      role: 'user',
-      status: 'active',
-      mustChangePassword: false,
-    })
-
-    adminAgent = request.agent(app)
-    memberAgent = request.agent(app)
-    await login(adminAgent, 'admin@example.com')
-    await login(memberAgent, 'member@example.com')
+    const passwordHash = await bcrypt.hash(PASSWORD, 4)
+    for (const [email, role] of [['admin@example.com', 'admin'], ['member@example.com', 'user']]) createUser(database, { email, nickname: role, passwordHash, role, status: 'active', mustChangePassword: false })
+    admin = request.agent(app); member = request.agent(app)
+    await admin.post('/api/auth/login').send({ email: 'admin@example.com', password: PASSWORD }).expect(200)
+    const setup = await admin.post('/api/auth/2fa/setup').send({ password: PASSWORD }).expect(200)
+    await admin.post('/api/auth/2fa/confirm').send({ code: generateSync({ secret: setup.body.secret, epoch: clock / 1000 }) }).expect(200)
+    await member.post('/api/auth/login').send({ email: 'member@example.com', password: PASSWORD }).expect(200)
   })
-
-  afterEach(async () => {
-    if (database?.open) database.close()
-    if (app?.locals.sessionStore?.db?.open) {
-      await new Promise((resolve) => app.locals.sessionStore.db.close(resolve))
-    }
-    fs.rmSync(directory, { recursive: true, force: true })
-  })
-
-  function login(agent, email, password = TEST_PASSWORD) {
-    return agent.post('/api/auth/login').send({ email, password })
+  afterEach(() => { app.locals.accessLifecycle.stop(); database.close(); app.locals.sessionStore.stopInterval?.() })
+  const submit = (overrides = {}) => request(app).post('/api/applications').send({ ...CANDIDATE, ...overrides })
+  const stored = () => database.prepare('SELECT * FROM access_requests WHERE email = ? ORDER BY id DESC LIMIT 1').get(CANDIDATE.email)
+  async function token(purpose) {
+    await app.locals.accessLifecycle.tick()
+    const route = purpose === 'verify' ? 'verify-email' : 'activate'
+    const message = messages.filter(item => item.to === CANDIDATE.email && item.text.includes(`/${route}#`)).at(-1)
+    assert.ok(message, `${purpose} 邮件必须发给申请人`)
+    const match = message.text.match(new RegExp(`https://club\\.example\\.com/${route}#token=([A-Za-z0-9_-]+)`))
+    assert.ok(match, '链接使用 PUBLIC_ORIGIN 和 fragment')
+    assert.equal(Buffer.from(match[1], 'base64url').length, 32)
+    return match[1]
   }
-
-  function submitApplication(overrides = {}) {
-    return request(app)
-      .post('/api/applications')
-      .send({
-        email: 'candidate@example.com',
-        nickname: '候选成员',
-        reason: 'Open Music Club 小组成员',
-        ...overrides,
-      })
+  async function verified() {
+    await submit().expect(202)
+    await request(app).post('/api/applications/verify-email').send({ token: await token('verify') }).expect(200)
+    return stored().id
   }
-
-  function insertApplication({
-    email = 'candidate@example.com',
-    nickname = '候选成员',
-    reason = '申请理由',
-    status = 'pending',
-    reviewedBy = null,
-    reviewedAt = null,
-    createdAt,
-  } = {}) {
-    const result = database
-      .prepare(
-        `INSERT INTO access_requests (
-          email,
-          nickname,
-          reason,
-          status,
-          reviewed_by,
-          reviewed_at,
-          created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
-      )
-      .run(
-        email,
-        nickname,
-        reason,
-        status,
-        reviewedBy,
-        reviewedAt,
-        createdAt || null,
-      )
-    return Number(result.lastInsertRowid)
+  async function approved() {
+    const id = await verified()
+    await admin.post(`/api/admin/applications/${id}/approve`).send({}).expect(200)
+    return { id, credential: await token('activate') }
   }
-
-  function findApplication(id) {
-    return database.prepare('SELECT * FROM access_requests WHERE id = ?').get(id)
+  function privateResponse(body) {
+    assert.doesNotMatch(JSON.stringify(body), /candidate@example\.com|password_hash|token_hash|ciphertext|initialPassword/)
+    assert.equal(body.user, undefined)
   }
-
-  it('初始化 access_requests 表、状态约束、外键和 pending 唯一索引', () => {
-    const columns = database
-      .prepare('PRAGMA table_info(access_requests)')
-      .all()
-      .map((column) => column.name)
-    const foreignKeys = database.prepare('PRAGMA foreign_key_list(access_requests)').all()
-
-    assert.deepEqual(columns, [
-      'id',
-      'email',
-      'nickname',
-      'reason',
-      'status',
-      'reviewed_by',
-      'reviewed_at',
-      'created_at',
-    ])
-    assert.equal(foreignKeys.some((key) => key.table === 'users'), true)
-    assert.throws(
-      () => insertApplication({ status: 'invalid' }),
-      /CHECK constraint failed/,
-    )
-
-    insertApplication()
-    assert.throws(() => insertApplication(), /UNIQUE constraint failed/)
-  })
-
-  it('未登录访客可以提交申请，禁止字段不会生效', async () => {
-    const response = await submitApplication({
-      email: '  New.User@Example.COM  ',
-      nickname: '  测试用户  ',
-      reason: '  小组成员  ',
-      status: 'approved',
-      role: 'admin',
-      reviewed_by: 1,
-    })
-
-    assert.equal(response.status, 201)
+  it('提交统一返回提示，归一化字段且验证前不可审核', async () => {
+    const response = await submit({ email: ' CANDIDATE@EXAMPLE.COM ', nickname: ' 候选成员 ', reason: ' 申请理由 ', role: 'admin', status: 'approved' }).expect(202)
     assert.equal(response.body.success, true)
-    assert.deepEqual(response.body.application, {
-      id: 1,
-      email: 'new.user@example.com',
-      nickname: '测试用户',
-      status: 'pending',
-      createdAt: response.body.application.createdAt,
-    })
-    assert.match(response.body.application.createdAt, /^\d{4}-\d{2}-\d{2}T/)
-
-    const stored = findApplication(1)
-    assert.equal(stored.reason, '小组成员')
-    assert.equal(stored.reviewed_by, null)
+    for (const key of ['application', 'email', 'id']) assert.equal(response.body[key], undefined)
+    assert.equal(messages.length, 0)
+    const row = stored()
+    assert.equal(row.status, 'pending'); assert.equal(row.nickname, '候选成员'); assert.equal(row.reason, '申请理由'); assert.equal(row.reviewed_by, null)
+    assert.equal(database.prepare('SELECT verified_at FROM access_workflow WHERE application_id = ?').get(row.id).verified_at, null)
+    assert.equal((await admin.get('/api/admin/applications?status=pending').expect(200)).body.total, 0)
+    await admin.post(`/api/admin/applications/${row.id}/approve`).send({}).expect(409)
+    assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
   })
-
-  it('缺少 email、缺少 nickname、空昵称和非法邮箱返回 400', async () => {
-    const missingEmail = await submitApplication({ email: undefined })
-    const missingNickname = await submitApplication({ nickname: undefined })
-    const emptyNickname = await submitApplication({ nickname: '   ' })
-    const invalidEmail = await submitApplication({ email: 'invalid-email' })
-
-    assert.equal(missingEmail.status, 400)
-    assert.equal(missingNickname.status, 400)
-    assert.equal(emptyNickname.status, 400)
-    assert.equal(invalidEmail.status, 400)
+  it('非法申请不产生数据库申请与邮件', async () => {
+    for (const fields of [{ email: undefined }, { email: 'invalid' }, { nickname: '  ' }, { nickname: undefined }, { reason: 42 }]) await submit(fields).expect(400)
+    assert.equal(database.prepare('SELECT count(*) count FROM access_requests').get().count, 0); assert.equal(messages.length, 0)
   })
-
-  it('reason 提供非字符串值时返回 400', async () => {
-    const response = await submitApplication({ reason: 123 })
-
-    assert.equal(response.status, 400)
+  it('验证仅主动 POST 消费，重复验证及用途混用失败', async () => {
+    await submit().expect(202)
+    const credential = await token('verify')
+    await request(app).get(`/api/applications/verify-email?token=${credential}`).expect(404)
+    await request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(400)
+    await request(app).post('/api/applications/verify-email').send({ token: credential }).expect(200)
+    await request(app).post('/api/applications/verify-email').send({ token: credential }).expect(400)
+    const rows = (await admin.get('/api/admin/applications?status=pending').expect(200)).body
+    assert.equal(rows.total, 1); assert.equal(rows.applications[0].emailVerified, true); privateResponse(rows)
   })
-
-  it('users 已存在相同邮箱时拒绝申请', async () => {
-    const response = await submitApplication({ email: ' MEMBER@example.com ' })
-
-    assert.equal(response.status, 409)
+  it('通过只发激活链接，激活才创建 bcrypt 账号且不自动登录', async () => {
+    const { id, credential } = await approved()
+    assert.equal(stored().status, 'approved'); assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
+    const visitor = request.agent(app)
+    await visitor.post('/api/auth/login').send({ email: CANDIDATE.email, password: NEW_PASSWORD }).expect(401)
+    privateResponse((await visitor.post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(200)).body)
+    await visitor.get('/api/protected').expect(401)
+    const user = findUserByEmail(database, CANDIDATE.email)
+    assert.equal(user.role, 'user'); assert.equal(user.must_change_password, 0); assert.equal(bcrypt.getRounds(user.password_hash), 12)
+    assert.equal(await bcrypt.compare(NEW_PASSWORD, user.password_hash), true)
+    assert.ok(database.prepare('SELECT activated_at FROM access_workflow WHERE application_id = ?').get(id).activated_at)
+    await visitor.post('/api/auth/login').send({ email: CANDIDATE.email, password: NEW_PASSWORD }).expect(200)
+    await visitor.post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(400)
+    assert.equal((await admin.get('/api/admin/applications?status=activated').expect(200)).body.total, 1)
   })
-
-  it('同邮箱已有 pending 申请时拒绝重复提交', async () => {
-    const first = await submitApplication()
-    const second = await submitApplication({ email: ' CANDIDATE@example.com ' })
-
-    assert.equal(first.status, 201)
-    assert.equal(second.status, 409)
-    assert.equal(notifications.length, 1)
-  })
-
-  it('申请先提交数据库再通知管理员，邮件失败仍返回成功且可审批', async () => {
-    mailFailure = true
-    const submitted = await submitApplication()
-    assert.equal(submitted.status, 201)
-    assert.equal(notifications.length, 1)
-    assert.equal(notifications[0].stored, 'pending')
-    assert.equal(notifications[0].message.to, 'admin@example.com')
-    const approved = await adminAgent.post(`/api/admin/applications/${submitted.body.application.id}/approve`).send({ initialPassword: INITIAL_PASSWORD })
-    assert.equal(approved.status, 200)
-    assert.equal(notifications.length, 2)
-    assert.equal(notifications[1].stored, 'approved')
-    assert.equal(notifications[1].message.to, 'candidate@example.com')
-    assert.doesNotMatch(JSON.stringify(notifications), /initial-password|smtp-secret|password_hash/)
-    assert.doesNotMatch(JSON.stringify(approved.body), /smtp|private|notification/)
-    assert.equal((await login(request.agent(app), 'candidate@example.com', INITIAL_PASSWORD)).status, 200)
-    assert.equal((await adminAgent.post(`/api/admin/applications/${submitted.body.application.id}/approve`).send({ initialPassword: INITIAL_PASSWORD })).status, 409)
-    assert.equal(notifications.length, 2)
-  })
-
-  it('申请 INSERT 失败不发送邮件，也不暴露数据库内部错误', async () => {
-    database.exec("CREATE TRIGGER fail_application BEFORE INSERT ON access_requests BEGIN SELECT RAISE(ABORT, 'private-database-path'); END")
-    const response = await submitApplication()
-    assert.equal(response.status, 500)
-    assert.equal(notifications.length, 0)
-    assert.equal(database.prepare('SELECT count(*) AS count FROM access_requests').get().count, 0)
-    assert.doesNotMatch(JSON.stringify(response.body), /private-database-path|sqlite|stack/)
-  })
-
-  it('拒绝邮件失败也保留拒绝结果，允许申请人重新申请', async () => {
-    const id = insertApplication()
-    mailFailure = true
-    const response = await adminAgent.post(`/api/admin/applications/${id}/reject`)
-    assert.equal(response.status, 200)
-    assert.equal(findApplication(id).status, 'rejected')
-    assert.equal(notifications[0].stored, 'rejected')
-    assert.equal((await adminAgent.post(`/api/admin/applications/${id}/reject`)).status, 409)
-    assert.equal(notifications.length, 1)
-    assert.equal((await submitApplication()).status, 201)
-  })
-
-  it('先前申请 rejected 后允许创建新的 pending 申请', async () => {
-    insertApplication({
-      status: 'rejected',
-      reviewedBy: 1,
-      reviewedAt: '2026-01-01 00:00:00',
-    })
-
-    const response = await submitApplication()
-    const applications = database
-      .prepare('SELECT status FROM access_requests ORDER BY id')
-      .all()
-
-    assert.equal(response.status, 201)
-    assert.deepEqual(
-      applications.map((item) => item.status),
-      ['rejected', 'pending'],
-    )
-  })
-
-  it('未登录用户不能查看申请列表', async () => {
-    const response = await request(app).get('/api/admin/applications')
-
-    assert.equal(response.status, 401)
-  })
-
-  it('普通用户不能查看申请列表', async () => {
-    const response = await memberAgent.get('/api/admin/applications')
-
-    assert.equal(response.status, 403)
-  })
-
-  it('管理员可以按创建时间倒序查看精简申请列表', async () => {
-    insertApplication({
-      email: 'old@example.com',
-      createdAt: '2025-01-01 00:00:00',
-    })
-    insertApplication({
-      email: 'new@example.com',
-      status: 'rejected',
-      reviewedBy: 1,
-      reviewedAt: '2026-01-02 00:00:00',
-      createdAt: '2026-01-01 00:00:00',
-    })
-
-    const response = await adminAgent.get('/api/admin/applications')
-
-    assert.equal(response.status, 200)
-    assert.equal(response.body.success, true)
-    assert.deepEqual(
-      response.body.applications.map((item) => item.email),
-      ['new@example.com', 'old@example.com'],
-    )
-    assert.deepEqual(Object.keys(response.body.applications[0]), [
-      'id',
-      'email',
-      'nickname',
-      'reason',
-      'status',
-      'createdAt',
-      'reviewedAt',
-      'reviewedBy',
-    ])
-    assert.equal(response.body.applications[0].reviewedBy, 1)
-    assert.match(response.body.applications[0].reviewedAt, /^\d{4}-\d{2}-\d{2}T/)
-  })
-
-  it('管理员可以按合法 status 过滤，非法 status 返回 400', async () => {
-    insertApplication({ email: 'pending@example.com' })
-    insertApplication({
-      email: 'rejected@example.com',
-      status: 'rejected',
-      reviewedBy: 1,
-      reviewedAt: '2026-01-01 00:00:00',
-    })
-
-    const filtered = await adminAgent.get(
-      '/api/admin/applications?status=pending',
-    )
-    const invalid = await adminAgent.get(
-      '/api/admin/applications?status=invalid',
-    )
-
-    assert.equal(filtered.status, 200)
-    assert.deepEqual(
-      filtered.body.applications.map((item) => item.status),
-      ['pending'],
-    )
-    assert.equal(invalid.status, 400)
-  })
-
-  it('管理员批准 pending 申请并原子创建普通用户', async () => {
-    const applicationId = insertApplication()
-
-    const response = await adminAgent
-      .post(`/api/admin/applications/${applicationId}/approve`)
-      .send({ initialPassword: INITIAL_PASSWORD })
-    const application = findApplication(applicationId)
-    const user = findUserByEmail(database, 'candidate@example.com')
-
-    assert.equal(response.status, 200)
-    assert.deepEqual(response.body.user, {
-      id: user.id,
-      email: 'candidate@example.com',
-      nickname: '候选成员',
-      role: 'user',
-      mustChangePassword: true,
-    })
-    assert.equal(JSON.stringify(response.body).includes('password'), false)
-    assert.equal(user.role, 'user')
-    assert.equal(user.status, 'active')
-    assert.equal(user.must_change_password, 1)
-    assert.equal(await bcrypt.compare(INITIAL_PASSWORD, user.password_hash), true)
-    assert.equal(bcrypt.getRounds(user.password_hash), 12)
-    assert.equal(application.status, 'approved')
-    assert.equal(application.reviewed_by, 1)
-    assert.notEqual(application.reviewed_at, null)
-  })
-
-  it('批准创建的普通用户复用现有登录，并且没有管理员权限', async () => {
-    const applicationId = insertApplication()
-    await adminAgent
-      .post(`/api/admin/applications/${applicationId}/approve`)
-      .send({ initialPassword: INITIAL_PASSWORD })
-
-    const newUserAgent = request.agent(app)
-    const loginResponse = await login(
-      newUserAgent,
-      'candidate@example.com',
-      INITIAL_PASSWORD,
-    )
-
-    assert.equal(loginResponse.status, 200)
-    assert.equal((await newUserAgent.get('/api/protected')).status, 200)
-    assert.equal((await newUserAgent.get('/api/admin/test')).status, 403)
-  })
-
-  it('批准接口校验申请 id、申请存在性和初始密码', async () => {
-    const applicationId = insertApplication()
-    const invalidId = await adminAgent
-      .post('/api/admin/applications/not-a-number/approve')
-      .send({ initialPassword: INITIAL_PASSWORD })
-    const notFound = await adminAgent
-      .post('/api/admin/applications/999/approve')
-      .send({ initialPassword: INITIAL_PASSWORD })
-    const shortPassword = await adminAgent
-      .post(`/api/admin/applications/${applicationId}/approve`)
-      .send({ initialPassword: 'short' })
-
-    assert.equal(invalidId.status, 400)
-    assert.equal(notFound.status, 404)
-    assert.equal(shortPassword.status, 400)
-  })
-
-  it('已 approved 或 rejected 的申请不能批准', async () => {
-    const approvedId = insertApplication({
-      email: 'approved@example.com',
-      status: 'approved',
-      reviewedBy: 1,
-      reviewedAt: '2026-01-01 00:00:00',
-    })
-    const rejectedId = insertApplication({
-      email: 'rejected@example.com',
-      status: 'rejected',
-      reviewedBy: 1,
-      reviewedAt: '2026-01-01 00:00:00',
-    })
-
-    const approved = await adminAgent
-      .post(`/api/admin/applications/${approvedId}/approve`)
-      .send({ initialPassword: INITIAL_PASSWORD })
-    const rejected = await adminAgent
-      .post(`/api/admin/applications/${rejectedId}/approve`)
-      .send({ initialPassword: INITIAL_PASSWORD })
-
-    assert.equal(approved.status, 409)
-    assert.equal(rejected.status, 409)
-  })
-
-  it('批准前发现 users 已有相同邮箱时返回 409', async () => {
-    const applicationId = insertApplication({ email: 'member@example.com' })
-
-    const response = await adminAgent
-      .post(`/api/admin/applications/${applicationId}/approve`)
-      .send({ initialPassword: INITIAL_PASSWORD })
-
-    assert.equal(response.status, 409)
-    assert.equal(findApplication(applicationId).status, 'pending')
-  })
-
-  it('批准过程中更新申请失败时回滚已创建用户', async () => {
-    const applicationId = insertApplication({ email: 'rollback@example.com' })
-    database.exec(`
-      CREATE TRIGGER reject_test_approval
-      BEFORE UPDATE OF status ON access_requests
-      WHEN NEW.id = ${applicationId} AND NEW.status = 'approved'
-      BEGIN
-        SELECT RAISE(ABORT, '测试强制回滚');
-      END;
-    `)
-
-    const originalConsoleError = console.error
-    console.error = () => {}
-    let response
-    try {
-      response = await adminAgent
-        .post(`/api/admin/applications/${applicationId}/approve`)
-        .send({ initialPassword: INITIAL_PASSWORD })
-    } finally {
-      console.error = originalConsoleError
+  it('密码按 UTF-8 字节校验，失败不消费 Token', async () => {
+    const { credential } = await approved()
+    for (const password of ['a'.repeat(14), 'a'.repeat(73), '密'.repeat(25), null]) {
+      await request(app).post('/api/auth/activate').send({ token: credential, password }).expect(400)
+      assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
     }
-
-    assert.equal(response.status, 500)
-    assert.deepEqual(response.body, {
-      success: false,
-      message: '服务器内部错误',
-      requestId: response.headers['x-request-id'],
-    })
-    assert.equal(findApplication(applicationId).status, 'pending')
-    assert.equal(findUserByEmail(database, 'rollback@example.com'), undefined)
-    assert.equal(notifications.length, 0)
+    await request(app).post('/api/auth/activate').send({ token: credential, password: '密'.repeat(24) }).expect(200)
+    assert.equal(await bcrypt.compare('密'.repeat(24), findUserByEmail(database, CANDIDATE.email).password_hash), true)
+  })
+  it('并发审批只允许一个结果，不能覆盖审核记录', async () => {
+    const id = await verified()
+    const reviews = await Promise.all([admin.post(`/api/admin/applications/${id}/approve`).send({}), admin.post(`/api/admin/applications/${id}/reject`).send({})])
+    assert.deepEqual(reviews.map(item => item.status).sort(), [200, 409])
+    assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
+  })
+  it('并发激活只消费一次并创建一个账号', async () => {
+    const { credential } = await approved()
+    const results = await Promise.all([1, 2].map(() => request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD })))
+    assert.deepEqual(results.map(item => item.status).sort(), [200, 400])
+    assert.equal(database.prepare('SELECT count(*) count FROM users WHERE email = ?').get(CANDIDATE.email).count, 1)
+  })
+  it('重发撤销旧链接，未知邮箱及冷却响应保持一致', async () => {
+    await submit().expect(202)
+    const first = await token('verify'); clock += 61000
+    const resent = await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'verify' }).expect(202)
+    const second = await token('verify'); assert.notEqual(first, second)
+    await request(app).post('/api/applications/verify-email').send({ token: first }).expect(400)
+    for (const email of ['missing@example.com', CANDIDATE.email]) {
+      const response = await request(app).post('/api/applications/resend').send({ email, purpose: 'verify' }).expect(202)
+      assert.deepEqual(response.body, resent.body)
+    }
+    await request(app).post('/api/applications/verify-email').send({ token: second }).expect(200)
+  })
+  it('验证 30 分钟、激活 24 小时后过期，激活重发无需重新审核', async () => {
+    await submit().expect(202)
+    const first = await token('verify'); clock += 30 * 60000 + 1
+    await request(app).post('/api/applications/verify-email').send({ token: first }).expect(400)
+    await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'verify' }).expect(202)
+    await request(app).post('/api/applications/verify-email').send({ token: await token('verify') }).expect(200)
+    await admin.post(`/api/admin/applications/${stored().id}/approve`).send({}).expect(200)
+    const activation = await token('activate'); clock += 24 * 60 * 60000 + 1
+    await request(app).post('/api/auth/activate').send({ token: activation, password: NEW_PASSWORD }).expect(400)
+    await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
+    await request(app).post('/api/auth/activate').send({ token: await token('activate'), password: NEW_PASSWORD }).expect(200)
+  })
+  it('拒绝后七天冷却，不能借重发修改资料或获得激活资格', async () => {
+    const id = await verified()
+    await admin.post(`/api/admin/applications/${id}/reject`).send({}).expect(200)
+    await app.locals.accessLifecycle.tick()
+    assert.doesNotMatch(messages.filter(item => item.to === CANDIDATE.email).at(-1).text, /#token=|initial-password/)
+    await submit({ nickname: '被篡改' })
+    await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
+    assert.equal(stored().status, 'rejected'); assert.equal(stored().nickname, CANDIDATE.nickname)
+    clock += 7 * 24 * 60 * 60000 + 1
+    await submit().expect(202)
+    assert.equal(stored().status, 'pending'); assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
+  })
+  it('后台使用脱敏字段，管理员提醒不含申请邮箱、理由与 Token', async () => {
+    const id = await verified(); await app.locals.accessLifecycle.tick()
+    const response = await admin.get('/api/admin/applications?status=pending&page=1').expect(200)
+    assert.equal(response.body.page, 1); assert.equal(response.body.pageSize, 20); privateResponse(response.body)
+    assert.match(response.body.applications[0].createdAt, /T.*Z$/)
+    assert.equal(new Date(response.body.applications[0].createdAt).getTime(), Date.parse(`${stored().created_at.replace(' ', 'T')}Z`))
+    assert.deepEqual(Object.keys(response.body.applications[0]).sort(), ['id', 'nickname', 'reason', 'status', 'emailVerified', 'createdAt', 'reviewedAt', 'reviewedBy', 'activatedAt', 'notificationStatus'].sort())
+    privateResponse((await admin.post(`/api/admin/applications/${id}/approve`).send({}).expect(200)).body)
+    const reminders = messages.filter(item => item.to === 'admin@example.com'); assert.ok(reminders.length)
+    for (const message of reminders) assert.doesNotMatch(message.text, /candidate@example\.com|小组成员申请|#token=/)
+  })
+  it('访客、普通成员与未完成 2FA 的管理员不能读写后台', async () => {
+    const id = await verified()
+    const unverified = request.agent(app)
+    createUser(database, { email: 'unenrolled@example.com', nickname: '未绑定管理员', passwordHash: await bcrypt.hash(PASSWORD, 4), role: 'admin', status: 'active', mustChangePassword: false })
+    const unenrolled = request.agent(app)
+    await unenrolled.post('/api/auth/login').send({ email: 'unenrolled@example.com', password: PASSWORD }).expect(200)
+    await unverified.post('/api/auth/login').send({ email: 'admin@example.com', password: PASSWORD }).expect(200)
+    for (const client of [request(app), member, unverified, unenrolled]) {
+      for (const response of [await client.get('/api/admin/applications'), await client.post(`/api/admin/applications/${id}/approve`).send({}), await client.post(`/api/admin/applications/${id}/reject`).send({})]) assert.ok([401, 403].includes(response.status))
+    }
+    assert.equal(stored().status, 'pending')
+  })
+  it('CSRF 覆盖全部新写接口并拒绝跨站来源', async () => {
+    app.locals.security.csrfEnabled = true
+    for (const route of ['/api/applications', '/api/applications/verify-email', '/api/applications/resend', '/api/auth/activate']) {
+      await request(app).post(route).send({ ...CANDIDATE, token: 'invalid', password: NEW_PASSWORD, purpose: 'verify' }).expect(403)
+      await request(app).post(route).set('Origin', 'https://evil.example').send({}).expect(403)
+    }
+    const visitor = request.agent(app), csrf = await visitor.get('/api/security/csrf-token').expect(200)
+    await visitor.post('/api/applications').set('Origin', 'https://club.example.com').set('X-CSRF-Token', csrf.body.csrfToken).send(CANDIDATE).expect(202)
+  })
+  it('Host 伪造不影响邮件链接且敏感接口禁止缓存', async () => {
+    const response = await request(app).post('/api/applications').set('Host', 'evil.example').send(CANDIDATE).expect(202)
+    assert.match(response.headers['cache-control'], /no-store/); await token('verify')
+    assert.equal(messages.some(message => message.text.includes('evil.example')), false)
+    assert.match((await admin.get('/api/admin/applications').expect(200)).headers['cache-control'], /no-store/)
+  })
+  it('激活事务后半段失败时回滚用户与凭证消费，修复后仍可激活', async () => {
+    const { credential } = await approved()
+    database.exec("CREATE TRIGGER fail_activation BEFORE UPDATE OF activated_at ON access_workflow WHEN NEW.activated_at IS NOT NULL BEGIN SELECT RAISE(ABORT, 'isolated-failure'); END")
+    const failed = await request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(500)
+    assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
+    assert.doesNotMatch(JSON.stringify(failed.body), /isolated-failure|sqlite|stack/)
+    database.exec('DROP TRIGGER fail_activation')
+    await request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(200)
+  })
+  it('审批不再接受手动初始密码，分页和状态参数不能注入', async () => {
+    const id = await verified()
+    await admin.post(`/api/admin/applications/${id}/approve`).send({ initialPassword: 'administrator-known-password' }).expect(400)
+    assert.equal(stored().status, 'pending')
+    for (const query of ['page=0', 'page=1.5', 'page=-1', 'status=invalid', 'status[]=pending']) await admin.get(`/api/admin/applications?${query}`).expect(400)
+    await admin.post(`/api/admin/applications/${id}/approve`).send({}).expect(200)
   })
 
-  it('管理员可以拒绝 pending 申请且不会创建用户', async () => {
-    const applicationId = insertApplication({ email: 'reject-me@example.com' })
-
-    const response = await adminAgent.post(
-      `/api/admin/applications/${applicationId}/reject`,
-    )
-    const application = findApplication(applicationId)
-
-    assert.equal(response.status, 200)
-    assert.equal(response.body.application.status, 'rejected')
-    assert.equal(response.body.application.reviewedBy, 1)
-    assert.equal(application.status, 'rejected')
-    assert.equal(application.reviewed_by, 1)
-    assert.notEqual(application.reviewed_at, null)
-    assert.equal(findUserByEmail(database, 'reject-me@example.com'), undefined)
-    assert.equal(notifications.length, 1)
-    assert.equal(notifications[0].stored, 'rejected')
-  })
-
-  it('不存在的申请返回 404，已处理申请不能再次 reject', async () => {
-    const approvedId = insertApplication({
-      email: 'approved@example.com',
-      status: 'approved',
-      reviewedBy: 1,
-      reviewedAt: '2026-01-01 00:00:00',
-    })
-    const rejectedId = insertApplication({
-      email: 'rejected@example.com',
-      status: 'rejected',
-      reviewedBy: 1,
-      reviewedAt: '2026-01-01 00:00:00',
-    })
-
-    assert.equal(
-      (await adminAgent.post('/api/admin/applications/999/reject')).status,
-      404,
-    )
-    assert.equal(
-      (
-        await adminAgent.post(
-          `/api/admin/applications/${approvedId}/reject`,
-        )
-      ).status,
-      409,
-    )
-    assert.equal(
-      (
-        await adminAgent.post(
-          `/api/admin/applications/${rejectedId}/reject`,
-        )
-      ).status,
-      409,
-    )
-  })
-
-  it('未登录和普通用户都不能 approve 或 reject', async () => {
-    const applicationId = insertApplication()
-    const anonymousApprove = await request(app)
-      .post(`/api/admin/applications/${applicationId}/approve`)
-      .send({ initialPassword: INITIAL_PASSWORD })
-    const memberApprove = await memberAgent
-      .post(`/api/admin/applications/${applicationId}/approve`)
-      .send({ initialPassword: INITIAL_PASSWORD })
-    const anonymousReject = await request(app).post(
-      `/api/admin/applications/${applicationId}/reject`,
-    )
-    const memberReject = await memberAgent.post(
-      `/api/admin/applications/${applicationId}/reject`,
-    )
-
-    assert.equal(anonymousApprove.status, 401)
-    assert.equal(memberApprove.status, 403)
-    assert.equal(anonymousReject.status, 401)
-    assert.equal(memberReject.status, 403)
-    assert.equal(findApplication(applicationId).status, 'pending')
-  })
 })

@@ -21,6 +21,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@alicloud/dm20151123": "1.11.0",
     "@neteasecloudmusicapienhanced/api": "workspace:*",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",

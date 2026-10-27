@@ -220,6 +220,11 @@ location ^~ /api/ {
     proxy_send_timeout 300s;
 }
 location = /health { return 404; }
+location = /index.html {
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    # 完整站点仍须配置并继承本节要求的 CSP/HSTS 等安全头。
+}
 location / {
     try_files $uri $uri/ /index.html;
 }
@@ -293,3 +298,7 @@ Nginx `add_header` 在子 location 定义新头时可能不继承父级集合；
 未执行：安装、生成密钥、申请证书、修改 DNS/路由/安全组/防火墙、部署、迁移数据库、真实生产 Redis/网易云/压力验收。未读取真实环境文件、数据库、上传文件或私钥。本文配置片段未在服务器应用或验证语法，不能当作已上线配置。
 
 下一步需用户确认：是否按该分工正式实施；确认国内服务商对混合部署的要求、两云控制台及域名操作权限、Azure 公网 IP 与带宽配额。确认前只保留本文，不主动部署。
+
+### 申请验证与激活入口
+
+`/verify-email`、`/activate`、`/admin/applications` 必须使用同版本 SPA fallback，HTML 禁止缓存并设置 no-referrer；不要记录页面 fragment 或 POST 中的凭证。新增独立 `APPLICATION_MAIL_ENCRYPTION_KEY`，服务启动后会自动补发历史待审申请的验证邀请，因此生产启用前先确认邮件配置与迁移范围。详见 [申请审核与自动激活](application-activation.md)。此处是配置建议，未执行真实部署或 nginx -t。

@@ -1,6 +1,7 @@
 // 全部为隔离验收账号和合成音频，绝不读取本地 .env 或真实数据库。
 const ADMIN = { email: 'acceptance-admin@example.com', password: 'Acceptance-admin-only-2026!' }
 const MEMBER = { email: 'acceptance-member@example.com', password: 'Acceptance-member-only-2026!' }
+const REVIEWER = { email: 'acceptance-reviewer@example.com', password: 'Acceptance-reviewer-only-2026!' }
 const CLOUD = { id: 900001, name: '验收云端歌曲', ar: [{ id: 1, name: '验收歌手' }], al: { id: 1, name: '验收专辑', picUrl: 'https://e2e.music.126.net/cover.svg' }, dt: 60000 }
 function wave() {
   const buffer = Buffer.alloc(44 + 8000 * 60 * 2)
@@ -11,4 +12,16 @@ function wave() {
   buffer.writeUInt32LE(buffer.length - 44, 40)
   return buffer
 }
-module.exports = { ADMIN, MEMBER, CLOUD, wave }
+module.exports = { ADMIN, MEMBER, REVIEWER, CLOUD, wave }
+
+// 仅从隔离服务的模拟邮件产物读取，不增加生产路由或发送真实邮件。
+function readApplicationLink(email, purpose) {
+  const fs = require('node:fs'), path = require('node:path')
+  const file = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json')
+  const route = purpose === 'verify' ? 'verify-email' : 'activate'
+  try {
+    const message = JSON.parse(fs.readFileSync(file,'utf8')).filter(item => item.to === email && item.text.includes(`/${route}#`)).at(-1)
+    return message?.text.match(/http:\/\/127\.0\.0\.1:4317\/(?:verify-email|activate)#token=[A-Za-z0-9_-]+/)?.[0] || ''
+  } catch { return '' }
+}
+module.exports.readApplicationLink = readApplicationLink

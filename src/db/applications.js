@@ -112,6 +112,9 @@ function approveApplication(database, { id, reviewerId, passwordHash }) {
     const application = findApplicationById(database, id)
     if (!application) return { type: 'not_found' }
     if (application.status !== 'pending') return { type: 'not_pending' }
+    // 老申请没有通知行，保留审批能力；新申请必须得到最终送达确认。
+    const notification = database.prepare('SELECT status FROM application_notifications WHERE application_id = ?').get(id)
+    if (notification && notification.status !== 'delivered') return { type: 'not_pending' }
     if (findUserByEmail(database, application.email)) {
       return { type: 'user_exists' }
     }

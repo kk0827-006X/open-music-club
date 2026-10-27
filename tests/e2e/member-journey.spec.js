@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test')
 const { generateSync } = require('otplib')
-const { ADMIN, MEMBER, wave } = require('./fixtures')
+const { ADMIN, MEMBER, wave, readApplicationLink } = require('./fixtures')
 const { graphicsProfile } = require('./graphics-profile')
 
 const origin = 'http://127.0.0.1:4317'
@@ -46,19 +46,26 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
   const client = page.request
   const adminContext = await browser.newContext({ baseURL: origin })
   try {
-    await test.step('申请和审批走现有真实 API（尚无申请/管理 UI）', async () => {
+    await test.step('申请、邮箱验证、审批和激活走真实隔离 API', async () => {
       expect((await client.post('/api/applications', { data: { email: MEMBER.email, nickname: '验收成员' } })).status()).toBe(403)
       const submitted = await post(client, '/api/applications', { email: MEMBER.email, nickname: '验收成员' })
-      expect(submitted.status()).toBe(201)
-      const id = (await submitted.json()).application.id
+      expect(submitted.status()).toBe(202)
+      await expect.poll(() => readApplicationLink(MEMBER.email, 'verify')).not.toBe('')
+      const verificationToken = new URL(readApplicationLink(MEMBER.email, 'verify')).hash.slice('#token='.length)
+      expect((await post(client, '/api/applications/verify-email', { token: verificationToken })).status()).toBe(200)
       expect((await post(client, '/api/auth/login', MEMBER)).status()).toBe(401)
-      expect((await post(client, `/api/admin/applications/${id}/approve`, { initialPassword: MEMBER.password })).status()).toBe(401)
+      expect((await post(client, '/api/admin/applications/1/approve', {})).status()).toBe(401)
       const admin = adminContext.request
       expect((await post(admin, '/api/auth/login', ADMIN)).status()).toBe(200)
       const setup = await post(admin, '/api/auth/2fa/setup', { password: ADMIN.password })
       const secret = (await setup.json()).secret
       expect((await post(admin, '/api/auth/2fa/confirm', { code: generateSync({ secret }) })).status()).toBe(200)
-      expect((await post(admin, `/api/admin/applications/${id}/approve`, { initialPassword: MEMBER.password })).status()).toBe(200)
+      const pending = (await (await admin.get('/api/admin/applications?status=pending')).json()).applications
+      const id = pending.find(item => item.nickname === '验收成员').id
+      expect((await post(admin, `/api/admin/applications/${id}/approve`, {})).status()).toBe(200)
+      await expect.poll(() => readApplicationLink(MEMBER.email, 'activate')).not.toBe('')
+      const activationToken = new URL(readApplicationLink(MEMBER.email, 'activate')).hash.slice('#token='.length)
+      expect((await post(client, '/api/auth/activate', { token: activationToken, password: MEMBER.password })).status()).toBe(200)
     })
     let secret, confirmationStep, confirmationCode, recoveryCode
     await test.step('浏览器登录、设置中绑定认证器，密码错误不能绑定', async () => {

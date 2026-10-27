@@ -9,6 +9,8 @@ allowBuilds:
   core-js: true
   esbuild: true
   es5-ext: true
+  # 仅为 Node 10/12 安装开发用类型；本项目 Node >=22 无需执行。
+  '@alicloud/openapi-core': false
 
 minimumReleaseAgeExclude:
   - nodemailer@10.1.2

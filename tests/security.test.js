@@ -33,12 +33,13 @@ describe('公网通信安全基线', () => {
     fs.rmSync(directory, { recursive: true, force: true })
   })
 
-  function buildApp(overrides = {}) {
+  function buildApp(overrides = {}, mail = {}) {
     const index = applications.length
     const rateLimitScopes = []
     const app = createApp({
       databasePath: path.join(directory, `database-${index}.sqlite`),
       sessionSecret: 'security-test-session-secret',
+      mail,
       localMusic: { storageRoot: path.join(directory, `storage-${index}`) },
       infrastructure: {
         sessionStore: new session.MemoryStore(),
@@ -130,6 +131,10 @@ describe('公网通信安全基线', () => {
   it('所有分层限流器使用各自的 Redis 命名空间 Store', () => {
     const app = buildApp()
     assert.deepEqual(app.locals.rateLimitScopes, [
+      'applicationTokens',
+      'applicationActivation',
+      'applicationResend',
+      'applicationReview',
       'global',
       'login',
       'applications',
@@ -197,7 +202,11 @@ describe('公网通信安全基线', () => {
   })
 
   it('修改数据的接口要求同源 CSRF Token', async () => {
-    const app = buildApp()
+    const app = buildApp({}, {
+      env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com', APPLICATION_MAIL_ENCRYPTION_KEY: Buffer.alloc(32, 5).toString('base64') },
+      transport: { async sendMail(message) { return { accepted: [message.to] } } },
+      deliveryClient: { configured: true, async check() { return 'delivered' } },
+    })
     const missing = await asHttps(
       request(app).post('/api/applications').send({
         email: 'candidate@example.com',
@@ -218,7 +227,7 @@ describe('公网通信安全基线', () => {
 
     assert.equal(missing.status, 403)
     assert.equal(missing.body.message, 'CSRF 校验失败')
-    assert.equal(accepted.status, 201)
+    assert.equal(accepted.status, 202)
   })
 
   it('生产登录 Cookie 使用 __Host 前缀和安全属性', async () => {

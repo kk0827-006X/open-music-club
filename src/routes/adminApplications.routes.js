@@ -1,118 +1,25 @@
-const bcrypt = require('bcrypt')
 const express = require('express')
-const {
-  APPLICATION_STATUSES,
-  approveApplication,
-  findApplicationById,
-  listApplications,
-  rejectApplication,
-  toApplicationDetails,
-} = require('../db/applications')
-const { BCRYPT_COST } = require('../db/init')
-const { toSafeUser } = require('../db/users')
-
-function parseApplicationId(value) {
-  const id = Number(value)
-  return Number.isInteger(id) && id > 0 ? id : null
-}
-
+const { lifecycleResponse } = require('./applications.routes')
 function createAdminApplicationsRouter() {
   const router = express.Router()
-
-  router.get('/', (req, res, next) => {
-    try {
-      const { status } = req.query
-      if (
-        status !== undefined &&
-        (typeof status !== 'string' || !APPLICATION_STATUSES.has(status))
-      ) {
-        return res.status(400).json({ success: false, message: '申请状态无效' })
-      }
-
-      const applications = listApplications(req.app.locals.database, status).map(
-        toApplicationDetails,
-      )
-      return res.status(200).json({ success: true, applications })
-    } catch (error) {
-      return next(error)
-    }
+  router.use((req,res,next) => {
+    res.set('Cache-Control','no-store')
+    const factor = req.app.locals.twoFactor.state(req.user.id)
+    if (factor?.enabled !== 1 || req.session.twoFactorVerified !== true) return res.status(403).json({success:false,message:'请启用并完成管理员两步验证'})
+    return next()
   })
-
-  router.post('/:id/approve', async (req, res, next) => {
-    try {
-      const id = parseApplicationId(req.params.id)
-      if (!id) {
-        return res.status(400).json({ success: false, message: '申请 ID 无效' })
-      }
-
-      const database = req.app.locals.database
-      const application = findApplicationById(database, id)
-      if (!application) {
-        return res.status(404).json({ success: false, message: '申请不存在' })
-      }
-      if (application.status !== 'pending') {
-        return res.status(409).json({ success: false, message: '该申请已处理' })
-      }
-
-      const { initialPassword } = req.body ?? {}
-      if (typeof initialPassword !== 'string' || initialPassword.length < 8) {
-        return res.status(400).json({ success: false, message: '初始密码至少需要 8 位' })
-      }
-
-      const passwordHash = await bcrypt.hash(initialPassword, BCRYPT_COST)
-      const result = approveApplication(database, {
-        id,
-        reviewerId: req.user.id,
-        passwordHash,
-      })
-
-      if (result.type === 'not_found') {
-        return res.status(404).json({ success: false, message: '申请不存在' })
-      }
-      if (result.type === 'not_pending') {
-        return res.status(409).json({ success: false, message: '该申请已处理' })
-      }
-      if (result.type === 'user_exists') {
-        return res.status(409).json({ success: false, message: '该邮箱已注册' })
-      }
-
-      await req.app.locals.mail.applicationReviewed({ ...application, status: 'approved' }, req.requestId)
-      return res.status(200).json({ success: true, user: toSafeUser(result.user) })
-    } catch (error) {
-      return next(error)
-    }
+  router.get('/', (req,res,next) => {
+    if (Object.keys(req.query).some(key => !['page', 'status'].includes(key))) return res.status(400).json({success:false,message:'查询参数无效'})
+    const page = req.query.page === undefined ? 1 : Number(req.query.page)
+    if (!Number.isSafeInteger(page) || page < 1 || page > 100000 || (req.query.status !== undefined && typeof req.query.status !== 'string')) return res.status(400).json({success:false,message:'分页或状态无效'})
+    return lifecycleResponse(res,next,()=>req.app.locals.accessLifecycle.list(req.query.status,page))
   })
-
-  router.post('/:id/reject', async (req, res, next) => {
-    try {
-      const id = parseApplicationId(req.params.id)
-      if (!id) {
-        return res.status(400).json({ success: false, message: '申请 ID 无效' })
-      }
-
-      const result = rejectApplication(req.app.locals.database, {
-        id,
-        reviewerId: req.user.id,
-      })
-
-      if (result.type === 'not_found') {
-        return res.status(404).json({ success: false, message: '申请不存在' })
-      }
-      if (result.type === 'not_pending') {
-        return res.status(409).json({ success: false, message: '该申请已处理' })
-      }
-
-      await req.app.locals.mail.applicationReviewed(result.application, req.requestId)
-      return res.status(200).json({
-        success: true,
-        application: toApplicationDetails(result.application),
-      })
-    } catch (error) {
-      return next(error)
-    }
+  for (const action of ['approve','reject']) router.post(`/:id/${action}`, (req,res,next) => {
+    const id = Number(req.params.id)
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({success:false,message:'申请 ID 无效'})
+    if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length)) return res.status(400).json({success:false,message:'审批无需提供密码或其他参数'})
+    return lifecycleResponse(res,next,()=>({application:req.app.locals.accessLifecycle.review(id,req.user.id,action === 'approve')}))
   })
-
   return router
 }
-
 module.exports = { createAdminApplicationsRouter }

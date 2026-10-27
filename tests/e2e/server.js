@@ -5,17 +5,30 @@ const express = require('express')
 const bcrypt = require('bcrypt')
 const { createApp } = require('../../src/app')
 const { createUser } = require('../../src/db/users')
-const { ADMIN, CLOUD } = require('./fixtures')
+const { ADMIN, REVIEWER, CLOUD } = require('./fixtures')
+const mailbox = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json')
 
 async function start() {
   if (process.env.NODE_ENV === 'production') throw new Error('隔离验收服务禁止在生产环境启动')
   const dist = path.resolve(__dirname, '../../frontend/dist')
   if (!fs.existsSync(path.join(dist, 'index.html'))) throw new Error('请先运行 pnpm build:web')
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'omc-e2e-'))
+  fs.mkdirSync(path.dirname(mailbox), { recursive: true })
+  fs.writeFileSync(mailbox, '[]')
+  const messages = []
   const app = createApp({
     databasePath: path.join(directory, 'database.sqlite'), sessionSecret: 'isolated-acceptance-session-only',
     twoFactor: { encryptionKey: Buffer.alloc(32, 11).toString('base64') },
-    localMusic: { storageRoot: path.join(directory, 'storage'), maximumUploadMegabytes: 5 }, mail: { env: {} },
+    localMusic: { storageRoot: path.join(directory, 'storage'), maximumUploadMegabytes: 5 },
+    mail: {
+      env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com', APPLICATION_MAIL_ENCRYPTION_KEY: Buffer.alloc(32, 21).toString('base64') },
+      transport: { async sendMail(message) {
+        messages.push(message)
+        fs.writeFileSync(mailbox, JSON.stringify(messages))
+        return { accepted: [message.to] }
+      } },
+      deliveryClient: { configured: true, async check() { return 'delivered' } },
+    },
     security: { production: false, publicOrigin: 'http://127.0.0.1:4317', csrfEnabled: true, rateLimitEnabled: true,
       logger: { info() {}, warn() {}, error(event) { console.error(JSON.stringify(event)) } } },
     // 仅在独立测试进程中注入上游适配；不添加任何生产测试后门。
@@ -29,15 +42,20 @@ async function start() {
     } },
   })
   createUser(app.locals.database, { ...ADMIN, nickname: '验收管理员', passwordHash: await bcrypt.hash(ADMIN.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
+  createUser(app.locals.database, { ...REVIEWER, nickname: '审核界面验收管理员', passwordHash: await bcrypt.hash(REVIEWER.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
   const web = express()
+  app.locals.accessLifecycle.start()
   web.use((req, res, next) => req.path.startsWith('/api/') || req.path === '/health' ? app(req, res, next) : next())
+  web.use((req,res,next) => { res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy':'no-referrer' }); next() })
   web.use(express.static(dist))
+  for (const route of ['/verify-email', '/activate', '/admin/applications']) web.get(route, (req,res) => res.sendFile(path.join(dist,'index.html')))
   const server = web.listen(4317, '127.0.0.1')
   let closing = false
   const close = () => {
     if (closing) return
     closing = true
-    server.close(() => {
+    server.close(async () => {
+      await app.locals.accessLifecycle.stop()
       app.locals.sessionStore.stopInterval?.()
       app.locals.database.close()
       fs.rmSync(directory, { recursive: true, force: true })

@@ -25,6 +25,7 @@ type Page = 'archive' | 'search' | 'upload' | 'user' | 'footprint'
 const tabs = [['library', '音乐库', 'library'], ['search', '搜索', 'search'], ['upload', '上传音乐', 'upload'], ['footprint', '音乐足迹', 'route'], ['user', '用户', 'user']] as const
 
 export interface WorkspaceProps {
+  role?: 'admin' | 'user'
   player: PlayerController
   queue: MusicQueue
   personalLibrary?: ReturnType<typeof createPersonalLibraryClient>
@@ -34,7 +35,7 @@ export interface WorkspaceProps {
   loadScene?: () => Promise<ArchiveSceneController>
   initialIndex?: number
 }
-export default function Workspace({ player, queue, personalLibrary, footprintClient, footprintRevision = 0, onLogout, loadScene, initialIndex = 0 }: WorkspaceProps) {
+export default function Workspace({ role = 'user', player, queue, personalLibrary, footprintClient, footprintRevision = 0, onLogout, loadScene, initialIndex = 0 }: WorkspaceProps) {
   const archive = useRef<HTMLElement>(null)
   const sceneContainer = useRef<HTMLDivElement>(null)
   const library = useRef<LibraryViewHandle>(null)
@@ -120,6 +121,7 @@ export default function Workspace({ player, queue, personalLibrary, footprintCli
     <Brand statistics />
     <nav className="archive-nav" data-archive-navigation aria-label="音乐功能预览">
       {tabs.map(([id, label, icon]) => <button key={id} type="button" data-nav={id} aria-current={page === (id === 'library' ? 'archive' : id) ? 'page' : undefined} onClick={() => show(id === 'library' ? 'archive' : id)}><Icon name={icon} /><span>{label}</span></button>)}
+      {role === 'admin' && <a className="application-admin-entry" href="/admin/applications"><Icon name="user" /><span>申请审核</span></a>}
       <i aria-hidden="true" />
       <button type="button" data-nav="settings" onClick={event => { playerView.current?.closeQueue(); settings.current?.show(event.currentTarget) }}><Icon name="settings" /><span>设置</span></button>
     </nav>

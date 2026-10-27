@@ -74,6 +74,7 @@ async function start() {
   app.locals.redisClient = infrastructure.client
 
   const server = http.createServer(app)
+  app.locals.accessLifecycle.start()
   server.requestTimeout = requestTimeout
   server.headersTimeout = headersTimeout
   server.keepAliveTimeout = keepAliveTimeout
@@ -84,6 +85,7 @@ async function start() {
     console.log(`Open Music Club 已启动：${visibleAddress}`)
   })
   server.on('close', () => {
+    app.locals.accessLifecycle.stop().catch(() => console.error('申请邮件任务停止失败'))
     infrastructure.close().catch(() => {
       console.error('Redis 连接关闭失败')
     })

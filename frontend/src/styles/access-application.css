@@ -1,0 +1,13 @@
+/* 申请弹窗为新增业务样式，不覆盖原登录页布局与 2FA 动效。 */
+.login-application-entry { display: inline-flex; align-items: center; gap: 6px; }
+.login-application-entry:disabled { cursor: default; opacity: .5; }
+.login-application-dialog .access-panel { border: 0; }
+.login-application-dialog .access-panel::before, .login-application-dialog .access-panel::after { display: none; }
+.login-application-dialog .panel-rail > button { display: grid; place-items: center; padding: 0; border: 0; background: transparent; }
+.application-heading h2 { font-size: clamp(1.4rem, 1.7vw, 1.85rem); letter-spacing: -.035em; }
+.login-application-dialog fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.login-application-dialog textarea { display: block; width: 100%; min-height: 88px; max-height: 180px; padding: 12px 15px; resize: vertical; border: 1px solid var(--color-border-06); border-radius: 0; background: var(--color-highlight-01); color: var(--ink); font: inherit; transition: border-color .22s ease, background .22s ease, box-shadow .22s ease; }
+.login-application-dialog textarea:focus-visible { outline: none; border-color: var(--amber); background: var(--color-highlight-02); box-shadow: inset 3px 0 0 var(--amber); }
+.login-application-dialog textarea::placeholder { color: var(--color-text-13); }
+.application-note, .application-feedback { margin-block: 16px; color: var(--muted); font-size: .75rem; line-height: 1.7; overflow-wrap: anywhere; }
+.application-feedback { margin-bottom: 0; color: var(--amber); }

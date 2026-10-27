@@ -1,56 +1,28 @@
 const express = require('express')
-const {
-  submitApplication,
-  toApplicationSummary,
-} = require('../db/applications')
 const { normalizeEmail } = require('../db/users')
-
-const BASIC_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
+const validEmail = value => typeof value === 'string' && value.trim().length <= 254 && /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(value.trim())
+function lifecycleResponse(res, next, operation, status = 200) {
+  return Promise.resolve().then(operation).then(result => res.status(status).json({success:true,...result})).catch(error => {
+    if (error.accessLifecycleError) return res.status(error.status).json({success:false,message:error.message})
+    return next(error)
+  })
+}
 function createApplicationsRouter() {
   const router = express.Router()
-
-  router.post('/', async (req, res, next) => {
-    try {
-      const { email, nickname, reason } = req.body ?? {}
-      const normalizedEmail = typeof email === 'string' ? normalizeEmail(email) : ''
-      const normalizedNickname = typeof nickname === 'string' ? nickname.trim() : ''
-
-      if (!normalizedEmail || !BASIC_EMAIL_PATTERN.test(normalizedEmail)) {
-        return res.status(400).json({ success: false, message: '请提供有效的邮箱' })
-      }
-      if (!normalizedNickname) {
-        return res.status(400).json({ success: false, message: '昵称不能为空' })
-      }
-      if (reason !== undefined && reason !== null && typeof reason !== 'string') {
-        return res.status(400).json({ success: false, message: '申请理由格式不正确' })
-      }
-
-      const result = submitApplication(req.app.locals.database, {
-        email: normalizedEmail,
-        nickname: normalizedNickname,
-        reason: typeof reason === 'string' ? reason.trim() || null : null,
-      })
-
-      if (result.type === 'user_exists') {
-        return res.status(409).json({ success: false, message: '该邮箱已注册' })
-      }
-      if (result.type === 'pending_exists') {
-        return res.status(409).json({ success: false, message: '该邮箱已有待审核申请' })
-      }
-
-      // submitApplication 返回前已经提交事务，通知失败不得改变申请结果。
-      await req.app.locals.mail.applicationSubmitted(result.application, req.requestId)
-      return res.status(201).json({
-        success: true,
-        application: toApplicationSummary(result.application),
-      })
-    } catch (error) {
-      return next(error)
-    }
+  router.use((req,res,next) => { res.set('Cache-Control','no-store'); next() })
+  router.post('/', (req,res,next) => {
+    const {email,nickname,reason} = req.body || {}
+    if (!validEmail(email)) return res.status(400).json({success:false,message:'请提供有效的邮箱'})
+    if (typeof nickname !== 'string' || !nickname.trim() || nickname.trim().length > 80) return res.status(400).json({success:false,message:'昵称需为 1～80 个字符'})
+    if (reason != null && (typeof reason !== 'string' || reason.length > 2000)) return res.status(400).json({success:false,message:'申请理由不能超过 2000 个字符'})
+    return lifecycleResponse(res,next,()=>req.app.locals.accessLifecycle.submit({email:normalizeEmail(email),nickname:nickname.trim(),reason:reason?.trim() || null}),202)
   })
-
+  router.post('/verify-email', (req,res,next) => lifecycleResponse(res,next,()=>req.app.locals.accessLifecycle.verify(req.body?.token)))
+  router.post('/resend', (req,res,next) => {
+    const {email,purpose} = req.body || {}
+    if (!validEmail(email) || !['verify','activate'].includes(purpose)) return res.status(400).json({success:false,message:'请提供有效的邮箱和邮件用途'})
+    return lifecycleResponse(res,next,()=>req.app.locals.accessLifecycle.resend(email,purpose),202)
+  })
   return router
 }
-
-module.exports = { createApplicationsRouter }
+module.exports = { createApplicationsRouter, lifecycleResponse }

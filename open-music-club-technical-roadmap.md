@@ -21,9 +21,9 @@
 | 安装、构建和现有测试基线 | 已实现 | `package.json`、`scripts/acceptance-baseline.js`；锁版本与逐步退出码/日志/JSON 结果 | 新机器执行同一命令；结果见 `docs/acceptance-baseline.md` |
 | CI | 已实现／待验收 | `.github/workflows/acceptance.yml`；验收与依赖安全独立作业，保留产物 | 推送后首次 GitHub 托管运行尚待确认；已有高危依赖会使安全门禁失败 |
 | 阶段 0–2：初始化、网易云白名单、数据库 | 已实现 | `src/app.js`、`src/services/netease.service.js`、`src/db/`；database/netease/security 测试 | 真实网易云/VIP/网络可用性，不属于 Mock 的证明范围 |
-| 阶段 3：申请、审批与账号创建 | 已实现 | applications/adminApplications 路由、`tests/applications.test.js`；浏览器验收通过真实 API 完成申请和审批 | 申请表和管理员审批前端尚未实现，不能标记为浏览器 UI 已验收 |
+| 阶段 3：申请、审批与账号创建 | 已实现，隔离验收通过 | 邮箱验证、管理员 GUI 审核、用户自设密码激活；见 `docs/application-activation.md` | 真实邮件及生产部署待单独验收 |
 | Session、登录、TOTP、一次性恢复码 | 已实现 | auth/twoFactor 路由；auth/twoFactor/security 测试；浏览器走真实登录和 2FA 页面 | 生产 Redis、真实 HTTPS Cookie、首次管理员引导环境仍待验收 |
-| 阶段 4：邮件通知 | 已实现／待验收 | `src/services/mail.service.js`、`tests/mail.test.js`、申请集成测试；事务提交后通知，失败仍成功 | 默认关闭；真实 SMTP 凭据、TLS、送达/垃圾箱验收尚未执行；暂无持久重试/投递保证 |
+| 阶段 4：邮件通知 | 已实现／待验收 | SMTP、阿里云最终投递查询、通知状态落库；新申请送达才成功，明确失败可重试，未知不重发 | RAM 凭据及真实最终投递待验收，详见 `docs/mail-delivery.md`；审核结果通知失败不回滚审批 |
 | 阶段 5：本地音乐上传、封面、元数据、下载 | 已实现 | localMusic/metadata/uploadGuard；localMusic 与 frontendUpload 测试 | 浏览器主流程用真实上传 API 和合成 WAV；不同真实编码、全量上传 UI 和下载 UI 仍待人工验收 |
 | 阶段 6：Range、单一播放器、混合队列、歌词 | 已实现 | player/queue 模块与 playbackQueue；浏览器验证真实 Audio、模拟 CDN、Range 和重新登录恢复 | 真正网易云音频/VIP 权限及不同浏览器音频策略仍待验收 |
 | 搜索（歌曲／专辑／歌手） | 已实现 | services/music/search、search-page；frontendMusicSearch、netease 测试 | 浏览器主流程覆盖歌曲；专辑、歌手真实上游验收仍待进行 |
@@ -322,6 +322,8 @@ pnpm add music-metadata
 ---
 
 ## 4.6 邮件通知
+
+> 2026-10-26 更新：下述早期“附加通知”方案对新申请已被 [最终投递方案](docs/mail-delivery.md) 替代。仍先落库，但新申请必须由阿里云确认管理员邮件最终投递成功才对申请人报成功；明确失败可重试，未知只查询。审核结果通知仍为附加通知，不回滚审批。
 
 推荐：
 
@@ -1903,11 +1905,11 @@ data/open-music-club.sqlite
 
 # 阶段 4：邮件提醒
 
-**当前状态：已实现（自动化）／待验收（真实 SMTP）。** 代码见 `src/services/mail.service.js`。申请提交通知管理员；审批通过或拒绝后通知申请人。保持既有 API 响应协议，不邮件发送初始密码。
+**当前状态：已实现／待验收（真实最终投递）。** 代码见 `src/services/mail.service.js`、`aliyunDelivery.service.js`、`accessApplication.service.js`。新申请按最终投递返回 201/202/502/503；审核后仍通知申请人，不邮件发送初始密码。此处更新覆盖下面的早期任务清单。
 
 默认 `MAIL_ENABLED=false`。启用后要求配置 SMTP、发件人与管理员收件地址；465 使用隐式 TLS，其他端口必须 STARTTLS。连接和总发送时间均有上限，错误日志只记录事件、申请 ID 和请求 ID。
 
-所有通知均在数据库事务返回后执行。数据库失败不发信；通知异常、拒收或超时不回滚已提交业务。无自动重试或投递成功保证，管理员必须以申请表为准。真实送达、TLS 与垃圾箱测试尚未执行。
+所有通知均在数据库事务返回后执行。数据库失败不发信；新申请失败不删除落库记录，但不报成功、不允许提前批准。同邮箱明确失败可重试；未决或未知不能自动重发。通知关联已持久化，原 Session 及管理员可受控查询，尚未完成真实 RAM/送达验收。
 
 目标：
 
@@ -2596,3 +2598,7 @@ HTTPS 反向代理部署
 > **网易云音乐是外部音乐数据源，本地上传音乐是 Open Music Club 自己管理的资源。两者在存储、API 和来源标识层保持独立，在前端展示、播放队列和用户操作层通过统一 Track 模型协作；系统始终只使用一个播放器，不为本地音乐建立第二套播放链路。公网只暴露经过 HTTPS、认证、限流和错误脱敏保护的必要接口。**
 
 这将使项目后续扩展、维护和课程展示都更清晰。
+
+## 2026-10-27 申请审核流程更新
+
+现行方案见 [申请审核与自动激活](docs/application-activation.md)。该方案覆盖上文手动 initialPassword、管理员提醒送达才允许审批及旧 notification 查询协议；不改变既有账号或音乐数据。当前代码集中验收结果以对应交付记录为准。
