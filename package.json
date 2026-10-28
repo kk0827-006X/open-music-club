@@ -21,6 +21,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@alicloud/dm20151123": "1.11.0",
     "@neteasecloudmusicapienhanced/api": "workspace:*",
     "bcrypt": "^6.0.0",
     "better-sqlite3": "^13.0.3",
@@ -37,8 +38,7 @@
     "qrcode": "^1.5.4",
     "rate-limit-redis": "^6.0.1",
     "redis": "^6.2.1",
-    "sharp": "^0.35.5",
-    "@alicloud/dm20151123": "1.11.0"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

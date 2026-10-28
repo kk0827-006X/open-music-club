@@ -113,6 +113,8 @@ function createRateLimiters(config, createStore) {
   }
 
   return {
+    ...Object.fromEntries(['applicationTokens', 'applicationActivation', 'applicationResend', 'applicationReview'].map(name =>
+      [name, createRateLimiter(config.rateLimits[name], byIp, createStore?.(name))])),
     global: createRateLimiter(
       config.rateLimits.global,
       byIp,

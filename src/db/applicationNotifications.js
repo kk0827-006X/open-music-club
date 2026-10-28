@@ -31,7 +31,7 @@ function claimNotification(database, { application, ownerHash, subject, messageI
     const existing = database.prepare("SELECT * FROM access_requests WHERE email = ? AND status = 'pending'").get(application.email)
     if (existing) {
       const notification = findNotification(database, existing.id)
-      if (!notification || notification.status === 'delivered') return { type: 'pending_exists' }
+      if (!notification) return { type: 'pending_exists' }
       if (notification.status !== 'failed') {
         return notification.owner_hash === ownerHash
           ? { type: 'resumed', application: existing, notification }

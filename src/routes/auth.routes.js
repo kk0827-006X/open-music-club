@@ -39,6 +39,10 @@ function createAuthRouter() {
     res.set('Cache-Control', 'no-store')
     next()
   })
+  router.post('/activate', (req, res, next) => {
+    const { lifecycleResponse } = require('./applications.routes')
+    return lifecycleResponse(res, next, () => req.app.locals.accessLifecycle.activate(req.body?.token, req.body?.password))
+  })
 
   router.post('/login', async (req, res, next) => {
     try {

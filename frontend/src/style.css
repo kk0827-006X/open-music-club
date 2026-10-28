@@ -1,5 +1,6 @@
 @import './styles/tokens-global.css';
 @import './styles/login.css';
+@import './styles/access-application.css';
 @import './styles/entry-authorized.css';
 @import './styles/archive-shell.css';
 @import './styles/player.css';
@@ -13,3 +14,4 @@
 @import './styles/react-components.css';
 @import './styles/footprint.css';
 @import './styles/member-sidebar.css';
+@import './styles/application-activation.css';

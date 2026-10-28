@@ -44,8 +44,20 @@ function createMailService({ env = process.env, transport, logger = console, sen
         // 不转发理由、密码、内部路径；纯文本也避免昵称等用户内容形成 HTML 注入。
         text: submitted
           ? `新的访问申请已保存，编号 ${application.id}。请登录管理员账号查看和审批。`
-          : `你的访问申请（编号 ${application.id}）${approved ? '已通过。请通过与管理员约定的安全渠道取得初始密码。' : '未通过。需要进一步了解时请联系管理员。'}`,
+          : `你的访问申请（编号 ${application.id}）${approved ? '已通过审核，请查看激活邮件并自行设置密码。' : '未通过。需要进一步了解时请联系管理员。'}`,
         disableFileAccess: true, disableUrlAccess: true,
+      }
+      if (metadata?.kind) {
+        message.to = metadata.kind === 'admin' ? config.adminTo : mailbox(application.email, '通知邮箱')
+        message.subject = metadata.subject
+        message.messageId = metadata.messageId
+        // 简化流程不再生成邮箱验证链接；只有激活邮件携带一次性凭证。
+        const link = metadata.token ? `${metadata.origin}/activate#token=${metadata.token}` : null
+        message.text = metadata.kind === 'activate'
+          ? `你的 Open Music Club 申请已通过。请在 24 小时内自行设置密码：\n${link}\n请勿转发此链接，管理员不会索取你的密码。`
+          : metadata.kind === 'admin'
+            ? `编号 ${application.id} 的申请已提交，请登录管理员后台审核。`
+            : '你的 Open Music Club 申请未通过审核。如有需要，可在 7 天后重新申请。'
       }
       // 总超时覆盖任何传输实现；晚到的拒绝由 Promise.race 接管，不会成为未处理异常。
       const result = await Promise.race([
@@ -60,8 +72,10 @@ function createMailService({ env = process.env, transport, logger = console, sen
     } catch (error) {
       // SMTP 错误可能包含凭据与收件人；只保留可关联到落库记录的安全字段。
       try { logger.warn?.({ event: 'mail_delivery_failed', applicationId: application.id, notification, requestId }) } catch { /* 日志故障同样不能回滚业务结果。 */ }
-      // 只有明确拒绝或确定发生在发信前的错误才允许重试；DATA 后断线可能已被接收。
-      return ['EAUTH', 'EDNS', 'ETLS', 'EENVELOPE'].includes(error?.code)
+      // Nodemailer 的通用 socket 故障也可能标为 CONN，不能只凭 command 推断未发信。
+      // 系统 connect 调用失败才能证明连接尚未建立；DATA 后的 read/write 故障仍属未知。
+      const connectFailure = error?.syscall === 'connect' && ['ESOCKET', 'ECONNECTION', 'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH', 'ETIMEDOUT'].includes(error?.code)
+      return connectFailure || ['EAUTH', 'EDNS', 'ETLS', 'EENVELOPE'].includes(error?.code)
         || Number.isInteger(error?.responseCode) && error.responseCode >= 400 && error.responseCode <= 599
         ? 'failed' : 'unknown'
     } finally { clearTimeout(timer) }
@@ -75,6 +89,7 @@ function createMailService({ env = process.env, transport, logger = console, sen
     submitNotification: (application, requestId, metadata) => deliver(application, 'submitted', requestId, metadata),
     applicationSubmitted: (application, requestId) => legacy(application, 'submitted', requestId),
     applicationReviewed: (application, requestId) => legacy(application, 'reviewed', requestId),
+    sendAccessMessage: (application, metadata) => deliver(application, 'lifecycle', undefined, metadata),
   }
 }
 

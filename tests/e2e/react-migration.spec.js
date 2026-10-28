@@ -3,7 +3,7 @@ const { graphicsProfile } = require('./graphics-profile')
 test.use({ deviceScaleFactor: 1 })
 
 // 交互回归用合成接口；安全认证和真实音频由 member-journey 独立覆盖。
-async function mockWorkspace(page) {
+async function mockWorkspace(page, role = 'user') {
   const tracks = Array.from({ length: 24 }, (_, index) => ({
     source: index % 2 ? 'netease' : 'local', sourceId: String(index + 1),
     trackKey: `${index % 2 ? 'netease' : 'local'}:${index + 1}`,
@@ -21,7 +21,7 @@ async function mockWorkspace(page) {
   await page.route('**/api/**', async route => {
     const request = route.request(), url = new URL(request.url())
     let body = { success: true }
-    if (url.pathname === '/api/auth/me') body = { authenticated: true, user: { id: 1, email: 'isolated@example.test', role: 'user' } }
+    if (url.pathname === '/api/auth/me') body = { authenticated: true, user: { id: 1, email: 'isolated@example.test', role } }
     else if (url.pathname === '/api/auth/login') body = { success: true }
     else if (url.pathname === '/api/security/csrf-token') body = { csrfToken: 'isolated-csrf' }
     else if (url.pathname === '/api/me/queue') {
@@ -317,4 +317,49 @@ test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与�
   await expect(page.locator('.login-library-glass')).toBeAttached()
   await page.screenshot({ path: info.outputPath('react-login-glass.png') })
   expect(errors).toEqual([])
+})
+
+test('用户左侧栏进入审核不重载、不重播授权动画，保留队列与同一音频', async ({page}, info) => {
+  await mockWorkspace(page, 'admin')
+  await page.route('**/api/admin/applications?**', route => route.fulfill({json:{success:true,total:1,applications:[{
+    id:81,nickname:'左侧栏审核验收',reason:'检查原页面内切换',status:'pending',emailVerified:false,canReview:true,canResendActivation:false,
+    activationMailStatus:null,createdAt:'2026-10-27T00:00:00Z',reviewedAt:null,reviewedBy:null,activatedAt:null,notificationStatus:'delivered',
+  }]}}))
+  await page.locator('[data-nav="user"]').click()
+  const side = page.locator('.user-sidebar')
+  await expect(side.locator('[data-user-tab="admin"]')).toBeVisible()
+  await expect(side.locator('.line-sidebar__item').last()).toContainText('申请审核')
+  await expect(page.locator('[data-archive-navigation] .application-admin-entry')).toHaveCount(0)
+  const before = await page.evaluate(()=>({timeOrigin:performance.timeOrigin,audio:window.__migrationAudios.length,url:location.href}))
+  const queueCount = await page.locator('[data-queue-count]').textContent()
+  await page.evaluate(()=>{
+    window.__replayedAuthorization = false
+    window.__reviewNavigationObserver = new MutationObserver(()=>{ if(document.querySelector('[data-authorized-stage]')) window.__replayedAuthorization = true })
+    window.__reviewNavigationObserver.observe(document.body,{childList:true,subtree:true})
+  })
+  await side.locator('[data-user-tab="admin"]').click()
+  const panel = page.locator('[data-admin-applications]')
+  await expect(panel).toBeVisible()
+  await expect(panel.locator('.archive-brand')).toHaveCount(0)
+  await panel.getByRole('button',{name:/左侧栏审核验收/}).click()
+  await panel.getByRole('button',{name:'通过审核',exact:true}).click()
+  await expect(page.getByRole('dialog',{name:'确认通过申请？'})).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog',{name:'确认通过申请？'})).not.toBeVisible()
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view','user')
+  await expect(panel.getByRole('button',{name:'通过审核',exact:true}).locator('span')).toHaveCSS('z-index','1')
+  await page.screenshot({path:info.outputPath('user-sidebar-admin-light.png')})
+  await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'))
+  await page.screenshot({path:info.outputPath('user-sidebar-admin-dark.png')})
+  await side.locator('[data-user-tab="playlists"]').click()
+  await expect(page.locator('[data-user-create]')).toBeVisible()
+  await expect(panel).toHaveCount(0)
+  await side.locator('[data-user-tab="admin"]').click()
+  await expect(panel).toBeVisible()
+  expect(await page.locator('[data-queue-count]').textContent()).toBe(queueCount)
+  expect(await page.evaluate(()=>({timeOrigin:performance.timeOrigin,audio:window.__migrationAudios.length,url:location.href}))).toEqual(before)
+  expect(await page.evaluate(()=>window.__replayedAuthorization)).toBe(false)
+  await page.evaluate(()=>window.__reviewNavigationObserver.disconnect())
+  await page.setViewportSize({width:390,height:844})
+  expect(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth)).toBe(true)
 })

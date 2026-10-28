@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, FocusEvent, FormEvent, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 import { motion } from 'motion/react'
 import { Icon, Modal } from '../../shared/react/ui.tsx'
@@ -14,8 +14,9 @@ import {
   type UserProfile,
 } from '../../services/music/personal-library.ts'
 import { safeCoverUrl, type SearchItem } from '../../services/music/search.ts'
+import { AdminApplicationsPage } from '../auth/AdminApplicationsPage.tsx'
 
-type Section = 'playlists' | 'favorites' | 'recent' | 'uploads'
+type Section = 'playlists' | 'favorites' | 'recent' | 'uploads' | 'admin'
 const sections: { id: Section; label: string; english: string }[] = [
   { id: 'playlists', label: '歌单', english: 'PLAYLISTS' },
   { id: 'favorites', label: '喜爱', english: 'FAVORITES' },
@@ -27,12 +28,14 @@ const headings: Record<Section, string> = {
   favorites: '我的喜爱',
   recent: '最近播放',
   uploads: '我的上传',
+  admin: '申请审核',
 }
 const subtitles: Record<Section, string> = {
   playlists: '把喜欢的音乐，收进自己的档案。',
   favorites: '那些一次又一次想重听的声音。',
   recent: '沿着声音，回到刚刚经过的时刻。',
   uploads: '由你带进社区的每一首音乐。',
+  admin: '审核加入申请，系统自动处理验证、激活与通知。',
 }
 const cover = '/images/album-placeholder-01.svg'
 
@@ -219,6 +222,7 @@ function Pagination({ index, more, disabled, onStep }: {
 
 export interface UserPageProps {
   active: boolean
+  role?: 'admin' | 'user'
   play?: (song: SearchItem) => Promise<unknown>
   enqueue?: (song: SearchItem) => void
   choosePlaylist?: (song: SearchItem) => void
@@ -232,7 +236,7 @@ export interface UserPageHandle {
 }
 
 export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserPage(
-  { active, play, enqueue, choosePlaylist: _choosePlaylist, changed, client },
+  { active, role = 'user', play, enqueue, choosePlaylist: _choosePlaylist, changed, client },
   ref,
 ) {
   const pageMotion = usePageMotion(active)
@@ -261,6 +265,9 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   const profileRef = useRef<UserProfile | null>(null)
   const coverCacheRef = useRef(new Map<number, string>())
   const openDialogRef = useRef(false)
+  const adminDialogRef = useRef(false)
+  const adminDialogChanged = useCallback((open: boolean) => { adminDialogRef.current = open }, [])
+  const visibleSections = role === 'admin' ? [...sections, { id: 'admin' as const, label: '申请审核', english: 'ADMINISTRATION' }] : sections
   const refreshRef = useRef<() => Promise<boolean>>(async () => false)
 
   const [section, setSectionState] = useState<Section>('playlists')
@@ -335,6 +342,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
 
   async function refresh(): Promise<boolean> {
     if (unmountedRef.current) return false
+    if (sectionRef.current === 'admin') { setLoading(false); finishSection(); return true }
     const current = ++requestRef.current
     // 重新读取数据时让更早的播放反馈失效，避免旧错误覆盖新的同步结果。
     playRequestRef.current += 1
@@ -624,7 +632,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
 
   useImperativeHandle(ref, () => ({
     refresh: () => refreshRef.current(),
-    get hasOpenDialog() { return openDialogRef.current },
+    get hasOpenDialog() { return openDialogRef.current || adminDialogRef.current },
   }), [])
 
   openDialogRef.current = createOpen || deleteOpen
@@ -637,7 +645,9 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   const renameSession = renameSessionRef.current
 
   let contentBody: ReactNode
-  if (section === 'playlists' && selectedId === null) {
+  if (section === 'admin') {
+    contentBody = active && role === 'admin' ? <AdminApplicationsPage embedded onDialogChange={adminDialogChanged} /> : null
+  } else if (section === 'playlists' && selectedId === null) {
     const maxPage = Math.max(0, Math.ceil(lists.length / 3) - 1)
     const visibleIndex = Math.min(pageIndex, maxPage)
     contentBody = (
@@ -754,22 +764,22 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
           <small data-user-nickname>{nickname}</small>
           <p data-user-avatar-feedback role="status">{avatarFeedback}</p>
         </div>
-        <LineSidebar ariaLabel="个人音乐分类" items={sections.map(item => item.label)}
-          activeIndex={sections.findIndex(item => item.id === section)} enabled={active && expanded}
+        <LineSidebar ariaLabel="个人音乐分类" items={visibleSections.map(item => item.label)}
+          activeIndex={visibleSections.findIndex(item => item.id === section)} enabled={active && expanded}
           showIndex={false} markerLength={26} markerGap={12} maxShift={12} itemGap={16} fontSize={.83}
-          className="member-line-sidebar" getItemProps={index => ({ 'data-user-tab': sections[index].id, title: sections[index].label })}
-          renderLabel={(label, index) => <><strong>{label}</strong><small>{sections[index].english}</small></>}
-          onItemClick={index => changeSection(sections[index].id)} />
+          className="member-line-sidebar" getItemProps={index => ({ 'data-user-tab': visibleSections[index].id, title: visibleSections[index].label })}
+          renderLabel={(label, index) => <><strong>{label}</strong><small>{visibleSections[index].english}</small></>}
+          onItemClick={index => changeSection(visibleSections[index].id)} />
         <p className="user-sidebar-foot"><i></i> YOUR MUSIC, YOUR ARCHIVE<br />音乐从这里开始归档</p>
       </>}>
       <div className="user-content-shell">
         <header className="user-content-header">
-          <div><p>PERSONAL COLLECTION / 个人收藏</p><h2 data-user-heading>{headings[section]}</h2><span data-user-subtitle>{subtitles[section]}</span></div>
+          <div><p>{section === 'admin' ? 'ADMINISTRATION / 成员审核' : 'PERSONAL COLLECTION / 个人收藏'}</p><h2 data-user-heading>{headings[section]}</h2><span data-user-subtitle>{subtitles[section]}</span></div>
         </header>
         <div className={`user-content section-content${changing ? ' is-changing' : ''}`} data-user-content inert={changing} aria-live="polite" aria-busy={busy || loading || changing}>
           {contentBody}
         </div>
-        <p className="user-preview-note" data-user-feedback role="status" data-error={String(feedback.error)}>{feedback.message}</p>
+        <p className="user-preview-note" data-user-feedback role="status" data-error={String(feedback.error)}>{section === 'admin' ? '' : feedback.message}</p>
       </div>
       </CollapsibleSidebarLayout>
 

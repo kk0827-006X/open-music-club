@@ -19,7 +19,7 @@ const { createNeteaseRouter } = require('./routes/netease.routes')
 const { createNeteaseService } = require('./services/netease.service')
 const { createMailService } = require('./services/mail.service')
 const { createAliyunDeliveryClient } = require('./services/aliyunDelivery.service')
-const { createAccessApplicationService } = require('./services/accessApplication.service')
+const { createAccessLifecycleService } = require('./services/accessLifecycle.service')
 const { createLocalMusicConfig } = require('./config/localMusic')
 const { createLocalMusicRouter } = require('./routes/localMusic.routes')
 const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes')
@@ -96,11 +96,15 @@ function createApp({
   app.locals.security = securityConfig
   app.locals.twoFactor = twoFactorService
   app.locals.mail = mailService
-  app.locals.applicationDelivery = createAccessApplicationService({
+  try { app.locals.accessLifecycle = createAccessLifecycleService({
     database,
     mail: mailService,
     deliveryClient: mail.deliveryClient || createAliyunDeliveryClient({ env: mail.env, logger: securityConfig.logger }),
-  })
+    encryptionKey: mail.encryptionKey ?? (mail.env || process.env).APPLICATION_MAIL_ENCRYPTION_KEY,
+    publicOrigin: securityConfig.publicOrigin,
+    now: mail.now,
+    logger: securityConfig.logger,
+  }) } catch (error) { database.close(); throw error }
   if (!twoFactorService.available) securityConfig.logger.warn?.({ event: 'two_factor_key_missing', message: '未配置 TOTP_ENCRYPTION_KEY，无法绑定认证器；公网管理员不能获得正式登录权限' })
 
   app.use(requestIdMiddleware)
@@ -140,8 +144,14 @@ function createApp({
 
   app.get('/health', (req, res) => res.json({ status: 'ok' }))
   if (rateLimiters) app.use('/api/auth/login', rateLimiters.login)
+  if (rateLimiters) app.use('/api/auth/activate', rateLimiters.applicationActivation)
   app.use('/api/auth', createAuthRouter())
   if (rateLimiters) app.post('/api/applications', rateLimiters.applications)
+  if (rateLimiters) {
+    app.use('/api/applications/verify-email', rateLimiters.applicationTokens)
+    app.use('/api/applications/resend', rateLimiters.applicationResend)
+    app.use('/api/admin/applications', rateLimiters.applicationReview)
+  }
   app.use('/api/applications', createApplicationsRouter())
   app.use(
     '/api/admin/applications',

@@ -25,6 +25,7 @@ type Page = 'archive' | 'search' | 'upload' | 'user' | 'footprint'
 const tabs = [['library', '音乐库', 'library'], ['search', '搜索', 'search'], ['upload', '上传音乐', 'upload'], ['footprint', '音乐足迹', 'route'], ['user', '用户', 'user']] as const
 
 export interface WorkspaceProps {
+  role?: 'admin' | 'user'
   player: PlayerController
   queue: MusicQueue
   personalLibrary?: ReturnType<typeof createPersonalLibraryClient>
@@ -34,7 +35,7 @@ export interface WorkspaceProps {
   loadScene?: () => Promise<ArchiveSceneController>
   initialIndex?: number
 }
-export default function Workspace({ player, queue, personalLibrary, footprintClient, footprintRevision = 0, onLogout, loadScene, initialIndex = 0 }: WorkspaceProps) {
+export default function Workspace({ role = 'user', player, queue, personalLibrary, footprintClient, footprintRevision = 0, onLogout, loadScene, initialIndex = 0 }: WorkspaceProps) {
   const archive = useRef<HTMLElement>(null)
   const sceneContainer = useRef<HTMLDivElement>(null)
   const library = useRef<LibraryViewHandle>(null)
@@ -128,7 +129,7 @@ export default function Workspace({ player, queue, personalLibrary, footprintCli
     <ErrorBoundary><Suspense fallback={null}>
       <div data-search-host>{visited.has('search') && <SearchPage ref={search} active={page === 'search'} {...actions} />}</div>
       <div data-upload-host onClick={event => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) show('archive') }}>{visited.has('upload') && <UploadPage active={page === 'upload'} />}</div>
-      <div data-user-host>{visited.has('user') && <UserPage ref={user} active={page === 'user'} {...actions} client={client} choosePlaylist={track => { void playerView.current?.choosePlaylist(track) }} changed={() => { void playerView.current?.syncLiked() }} />}</div>
+      <div data-user-host>{visited.has('user') && <UserPage ref={user} active={page === 'user'} role={role} {...actions} client={client} choosePlaylist={track => { void playerView.current?.choosePlaylist(track) }} changed={() => { void playerView.current?.syncLiked() }} />}</div>
       <div data-footprint-host>{visited.has('footprint') && <FootprintPage ref={footprint} active={page === 'footprint'} {...actions} client={footprints} revision={footprintRevision} />}</div>
     </Suspense></ErrorBoundary>
     <PlayerView ref={playerView} player={player} queue={queue} personalLibrary={client} root={archive} selectedAlbum={selected} defaultTrack={albumTrack(selected)} onExpandedChanged={setExpanded} collectionChanged={collectionChanged} />
