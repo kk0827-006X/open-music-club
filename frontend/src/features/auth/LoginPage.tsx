@@ -3,7 +3,7 @@ import { motion } from 'motion/react'
 import { verifyTwoFactor, type LoginCredentials } from '../../services/auth/session.ts'
 import { Brand, Icon, IconButton, Modal } from '../../shared/react/ui.tsx'
 import { useReducedMotion } from '../../shared/react/hooks.ts'
-import { LoginGlassEffect } from '../../shared/react/LoginGlassEffect.tsx'
+import { LoginBackgroundEffect } from '../../shared/react/LoginBackgroundEffect.tsx'
 import { TwoFactorPanel } from './TwoFactorPanel.tsx'
 import { AccessApplicationDialog } from './AccessApplicationDialog.tsx'
 
@@ -182,7 +182,7 @@ export function LoginPage({ onAuthenticate, onVerified }: {
     }
   }
   return <div className="login-shell" data-login-shell style={{ '--panel-progress': 1 } as CSSProperties}>
-    <LoginGlassEffect paused={factor !== null || applicationOpen} />
+    <LoginBackgroundEffect />
     <Brand statistics={false} />
     <div className="brand-lockup login-layout-spacer" aria-hidden="true" inert>
       <p className="brand-name">OPEN MUSIC CLUB</p><p className="brand-subtitle">MUSIC ARCHIVE&nbsp;&nbsp;/&nbsp;&nbsp;社区音乐终端</p>

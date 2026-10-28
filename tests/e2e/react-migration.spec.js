@@ -263,7 +263,12 @@ test('退出重进释放旧场景与音频；后台页面不持续驱动场景�
     expect(await page.evaluate(() => window.__migrationScenes.filter(item => item.live).length)).toBe(0)
     expect(await page.evaluate(() => window.__migrationAudios.every(audio => audio.paused && !audio.getAttribute('src')))).toBe(true)
     await page.locator('#email').fill('isolated@example.test')
-    await page.locator('#password').fill('synthetic-secret')
+    await expect(page.locator('.letter-glitch canvas')).toBeAttached()
+  await page.locator('.letter-glitch canvas').evaluate(node => { node.dataset.continuity = 'login-background' })
+  await page.locator('#email').focus()
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
+  await page.locator('#password').fill('synthetic-secret')
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
     await page.locator('[data-login-form] [type="submit"]').click()
     await expect(page.locator('[data-album-archive]')).toBeVisible()
   }
@@ -273,7 +278,7 @@ test('退出重进释放旧场景与音频；后台页面不持续驱动场景�
   await info.attach('react-resource-samples.json', { contentType: 'application/json', body: JSON.stringify(samples, null, 2) })
 })
 
-test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与登录玻璃不遮挡操作', async ({ page }, info) => {
+test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与登录字符背景不遮挡操作', async ({ page }, info) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' })
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -309,13 +314,18 @@ test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与�
   await expect(page.locator('[data-login-form]')).toBeVisible()
   // 可见边界盒不等于入场动画已完成；截图必须等待真实表单透明度达到最终值。
   await expect.poll(() => page.locator('.access-stack').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1)
+  await expect(page.locator('.letter-glitch canvas')).toBeAttached()
+  await page.locator('.letter-glitch canvas').evaluate(node => { node.dataset.continuity = 'login-background' })
+  await page.locator('#email').focus()
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
   await page.locator('#password').fill('synthetic-secret')
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
   await page.locator('[data-reveal-password]').click()
   await expect(page.locator('#password')).toHaveAttribute('type', 'text')
   await expect(page.locator('#password')).toHaveValue('synthetic-secret')
   await page.locator('#password').blur()
-  await expect(page.locator('.login-library-glass')).toBeAttached()
-  await page.screenshot({ path: info.outputPath('react-login-glass.png') })
+  await expect(page.locator('.letter-glitch')).toBeAttached()
+  await page.screenshot({ path: info.outputPath('react-login-letter-glitch.png') })
   expect(errors).toEqual([])
 })
 

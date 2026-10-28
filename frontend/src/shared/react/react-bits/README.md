@@ -13,3 +13,5 @@
 仓库根目录 `components.json` 为 shadcn MCP 配置官方 `@react-bits` 注册表，源码别名均指向 `frontend/src`。组件以源码引入，不是安装名为 react-bits 的运行时包；项目不使用 Tailwind，请继续选择 `TS-CSS` 变体。CSS 统一由 `src/style.css` 导入，便于现有 Node TSX 测试独立加载组件。
 
 `CollapsibleSidebarLayout` 是共用布局适配，管理可拖动分隔线及收展状态，不拥有页面业务数据。桌面向左拖过阈值收起；收起后左缘悬停或键盘聚焦显示展开箭头，点击或向右拖动恢复。可用 Enter/空格切换、方向键调节、Home 收起、End 展开。窄屏保留全部横排菜单；收展不会销毁右侧内容。
+
+`LetterGlitch.tsx` 来自官方 <https://reactbits.dev/r/LetterGlitch-TS-CSS.json>（2026-10-28），使用同目录许可证；仅将 CSS 导入移至登录页样式表。登录页适配层配置暖灰与橙色、透明背景及较低强度，不启用鼠标交互；输入和弹窗期间保持同一个背景；隐藏标签与减少动态效果时卸载装饰。无新增依赖。
