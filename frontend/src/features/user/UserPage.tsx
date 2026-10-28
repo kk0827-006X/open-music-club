@@ -3,6 +3,7 @@ import type { ChangeEvent, FocusEvent, FormEvent, KeyboardEvent, MouseEvent, Rea
 import { motion } from 'motion/react'
 import { Icon, Modal } from '../../shared/react/ui.tsx'
 import { usePageMotion, useSectionTransition } from '../../shared/react/page-transitions.ts'
+import { PlaylistCardDeck } from './PlaylistCardDeck.tsx'
 import LineSidebar from '../../shared/react/LineSidebar.tsx'
 import { CollapsibleSidebarLayout } from '../../shared/react/CollapsibleSidebarLayout.tsx'
 import {
@@ -13,7 +14,7 @@ import {
   type UserPlaylist,
   type UserProfile,
 } from '../../services/music/personal-library.ts'
-import { safeCoverUrl, type SearchItem } from '../../services/music/search.ts'
+import type { SearchItem } from '../../services/music/search.ts'
 import { AdminApplicationsPage } from '../auth/AdminApplicationsPage.tsx'
 
 type Section = 'playlists' | 'favorites' | 'recent' | 'uploads' | 'admin'
@@ -37,7 +38,6 @@ const subtitles: Record<Section, string> = {
   uploads: '由你带进社区的每一首音乐。',
   admin: '审核加入申请，系统自动处理验证、激活与通知。',
 }
-const cover = '/images/album-placeholder-01.svg'
 
 export function validateAvatarFile(file: Pick<File, 'type' | 'size'>): string | null {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return '请选择 JPG、PNG 或 WebP 图片。'
@@ -263,7 +263,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   const listsRef = useRef<UserPlaylist[]>([])
   const tracksRef = useRef<PersonalTrack[]>([])
   const profileRef = useRef<UserProfile | null>(null)
-  const coverCacheRef = useRef(new Map<number, string>())
   const openDialogRef = useRef(false)
   const adminDialogRef = useRef(false)
   const adminDialogChanged = useCallback((open: boolean) => { adminDialogRef.current = open }, [])
@@ -359,7 +358,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
         tracksRef.current = []; setTracksState([])
         selectedIdRef.current = null; setSelectedIdState(null)
         pageIndexRef.current = 0; setPageIndexState(0)
-        coverCacheRef.current.clear()
       }
       if (profileRevision === profileRevisionRef.current) {
         profileRef.current = nextProfile
@@ -373,7 +371,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
         if (unmountedRef.current || current !== requestRef.current) return false
         setLists(nextLists)
         setTracks(detail?.tracks || [])
-        if (detail?.tracks[0]) coverCacheRef.current.set(detail.playlist.id, safeCoverUrl(detail.tracks[0].coverUrl))
       } else if (sectionRef.current === 'favorites') {
         let favoritePage = pageIndexRef.current
         let nextTracks = await api.likes(favoritePage * 5)
@@ -402,7 +399,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
           pageIndexRef.current = 0; setPageIndexState(0)
           profileRef.current = null
           profileRevisionRef.current += 1
-          coverCacheRef.current.clear()
           setNickname('会话已失效')
           setAvatarUrl(null)
         }
@@ -448,24 +444,23 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
     })
   }
 
-  function openPlaylist(id: number) {
+  function changePlaylist(id: number | null) {
     if (busyRef.current || loadingRef.current) return
     cancelRename()
+    requestRef.current += 1
     playRequestRef.current += 1
-    setSelectedId(id)
-    setPageIndex(0)
-    setTracks([])
-    void refreshRef.current()
+    // 与分类切换共用过渡：旧内容淡出后再换视图，由最新数据请求触发淡入。
+    transitionSection(() => {
+      if (unmountedRef.current) return
+      setSelectedId(id)
+      setPageIndex(0)
+      setTracks([])
+      void refreshRef.current()
+    })
   }
 
-  function backToPlaylists() {
-    if (busyRef.current || loadingRef.current) return
-    cancelRename()
-    playRequestRef.current += 1
-    setSelectedId(null)
-    setPageIndex(0)
-    void refreshRef.current()
-  }
+  function openPlaylist(id: number) { changePlaylist(id) }
+  function backToPlaylists() { changePlaylist(null) }
 
   function onStep(step: number) {
     if (busyRef.current || loadingRef.current) return
@@ -623,13 +618,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
     pageRef.current?.querySelector<HTMLButtonElement>(`[data-user-rename="${id}"]`)?.focus()
   }, [renameId])
 
-  useEffect(() => {
-    // 歌单数量变化时把页码收回有效范围，避免停在已不存在的页。
-    if (section !== 'playlists' || selectedId !== null) return
-    const maxPage = Math.max(0, Math.ceil(lists.length / 3) - 1)
-    if (pageIndexRef.current > maxPage) setPageIndex(maxPage)
-  }, [lists.length, section, selectedId])
-
   useImperativeHandle(ref, () => ({
     refresh: () => refreshRef.current(),
     get hasOpenDialog() { return openDialogRef.current || adminDialogRef.current },
@@ -648,30 +636,11 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   if (section === 'admin') {
     contentBody = active && role === 'admin' ? <AdminApplicationsPage embedded onDialogChange={adminDialogChanged} /> : null
   } else if (section === 'playlists' && selectedId === null) {
-    const maxPage = Math.max(0, Math.ceil(lists.length / 3) - 1)
-    const visibleIndex = Math.min(pageIndex, maxPage)
     contentBody = (
       <>
         <div className="user-collection-intro"><span>MY PLAYLISTS</span><strong>{lists.length} <small>份声音档案</small></strong></div>
-        <div className="user-playlist-grid">
-          {lists.slice(visibleIndex * 3, visibleIndex * 3 + 3).map((list, index) => (
-            <button
-              key={list.id}
-              type="button"
-              className={`user-playlist-card${index === 0 ? ' is-featured' : ''}`}
-              data-user-list={list.id}
-              disabled={contentDisabled}
-              onClick={() => openPlaylist(list.id)}
-            >
-              <span className="user-playlist-art"><img src={coverCacheRef.current.get(list.id) || cover} alt="" loading="lazy" /></span>
-              <span className="user-playlist-meta"><strong>{list.name}</strong><small>{list.trackCount} 首歌曲</small><b><Icon name="open" /></b></span>
-            </button>
-          ))}
-          <button type="button" className="user-new-card" data-user-create disabled={contentDisabled} onClick={openCreateDialog}>
-            <span><Icon name="plus" /></span><strong>新建歌单</strong><small>CREATE A NEW ARCHIVE</small>
-          </button>
-        </div>
-        <Pagination index={visibleIndex} more={(visibleIndex + 1) * 3 < lists.length} disabled={contentDisabled} onStep={onStep} />
+        <PlaylistCardDeck lists={lists}
+          disabled={contentDisabled} onOpen={openPlaylist} onCreate={openCreateDialog} />
       </>
     )
   } else if (section === 'recent') {

@@ -64,3 +64,70 @@ it('连续切换时旧分类的迟到响应不能提前结束新分类的淡出'
     assert.doesNotMatch(h.require('[data-user-content]').textContent, /过期喜爱/)
   })
 })
+
+
+it('进入和返回歌单复用先淡出再淡入，网络等待期间不闪现空歌曲列表', async () => {
+  await withReactHarness(async h => {
+    h.window.matchMedia = query => ({ media: query, matches: false, addEventListener() {}, removeEventListener() {} })
+    const list = { id: 1, name: '过渡歌单', trackCount: 1, coverUrl: null }
+    let resolveDetail, resolveLists
+    let returning = false
+    const api = client({
+      playlists: async () => returning ? new Promise(resolve => { resolveLists = resolve }) : [list],
+      playlist: () => new Promise(resolve => { resolveDetail = resolve }),
+    })
+    const { UserPage } = await import('../frontend/src/features/user/UserPage.tsx')
+    await h.render(h.React.createElement(UserPage, { active: true, client: api }))
+    await h.click('[data-user-list="1"]')
+    assert.ok(h.query('[data-user-list="1"]'), '淡出时仍保留原卡片')
+    assert.equal(resolveDetail, undefined, '淡出完成前不读取详情')
+    assert.ok(h.require('[data-user-content]').hasAttribute('inert'))
+    await h.until(() => resolveDetail, '淡出结束后请求详情')
+    assert.ok(h.require('[data-user-content]').classList.contains('is-changing'))
+    await h.React.act(async () => resolveDetail({ playlist: list, tracks: [track('等待后出现的歌曲')] }))
+    await h.until(() => !h.require('[data-user-content]').classList.contains('is-changing'), '数据就绪后淡入')
+    assert.match(h.require('[data-user-content]').textContent, /等待后出现的歌曲/)
+    assert.equal(h.require('[data-user-content]').hasAttribute('inert'), false)
+    returning = true
+    await h.click('[data-user-back]')
+    assert.match(h.require('[data-user-content]').textContent, /等待后出现的歌曲/, '返回时仍保留详情淡出')
+    assert.equal(resolveLists, undefined)
+    await h.until(() => resolveLists, '返回淡出完成后刷新列表')
+    assert.ok(h.require('[data-user-content]').classList.contains('is-changing'))
+    await h.React.act(async () => resolveLists([list]))
+    await h.until(() => !h.require('[data-user-content]').classList.contains('is-changing'), '列表就绪后淡入')
+    assert.ok(h.query('[data-user-list="1"]'))
+  })
+})
+
+it('歌单详情读取失败仍结束过渡，减少动态效果时不等待淡出计时', async () => {
+  await withReactHarness(async h => {
+    const list = { id: 1, name: '失败歌单', trackCount: 0 }
+    let detailCalls = 0
+    const api = client({ playlists: async () => [list], playlist: async () => { detailCalls++; throw new Error('隔离读取失败') } })
+    const { UserPage } = await import('../frontend/src/features/user/UserPage.tsx')
+    await h.render(h.React.createElement(UserPage, { active: true, client: api }))
+    await h.click('[data-user-list="1"]')
+    assert.equal(detailCalls, 1, '减少动态效果时直接发起详情请求')
+    assert.equal(h.require('[data-user-content]').classList.contains('is-changing'), false)
+    assert.equal(h.require('[data-user-content]').hasAttribute('inert'), false)
+    assert.match(h.require('[data-user-feedback]').textContent, /隔离读取失败/)
+    await h.click('[data-user-back]')
+    assert.ok(h.query('[data-user-list="1"]'))
+  })
+})
+
+it('歌单淡出期间离开用户页，取消尚未开始的详情请求', async () => {
+  await withReactHarness(async h => {
+    h.window.matchMedia = query => ({ media: query, matches: false, addEventListener() {}, removeEventListener() {} })
+    let detailCalls = 0
+    const api = client({ playlists: async () => [{ id: 1, name: '离页歌单', trackCount: 0 }], playlist: async () => { detailCalls++; return null } })
+    const { UserPage } = await import('../frontend/src/features/user/UserPage.tsx')
+    await h.render(h.React.createElement(UserPage, { active: true, client: api }))
+    await h.click('[data-user-list="1"]')
+    await h.render(h.React.createElement(UserPage, { active: false, client: api }))
+    await h.wait(230)
+    assert.equal(detailCalls, 0)
+    assert.equal(h.require('[data-user-content]').classList.contains('is-changing'), false)
+  })
+})

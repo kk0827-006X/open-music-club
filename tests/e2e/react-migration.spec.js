@@ -373,3 +373,107 @@ test('用户左侧栏进入审核不重载、不重播授权动画，保留队�
   await page.setViewportSize({width:390,height:844})
   expect(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth)).toBe(true)
 })
+
+test('歌单散放卡片首屏显示封面，拖动不进入详情，点击、键盘与窄屏所有歌单同页可用', async ({ page }, info) => {
+  await mockWorkspace(page)
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  const lists = Array.from({ length: 6 }, (_, index) => ({ id: index + 1, name: `唱片档案 ${index + 1}`, trackCount: 1,
+    coverUrl: `https://p.music.126.net/playlist-${index + 1}.svg`, createdAt: '', updatedAt: '' }))
+  let detailCalls = 0
+  await page.route('**/api/me/playlists**', async route => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/me/playlists') return route.fulfill({ json: { playlists: lists } })
+    detailCalls++
+    return route.fulfill({ json: { playlist: lists.find(list => list.id === Number(url.pathname.split('/').at(-1))), tracks: [] } })
+  })
+  await page.locator('[data-nav="user"]').click()
+  await expect(page.locator('[data-user-list]')).toHaveCount(6)
+  for (let id = 1; id <= 6; id++) {
+    const image = page.locator(`[data-user-list="${id}"] img`)
+    await expect(image).toHaveAttribute('src', `https://p.music.126.net/playlist-${id}.svg`)
+    await expect.poll(() => image.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true)
+  }
+  expect(detailCalls).toBe(0)
+  const card = page.locator('[data-user-list="3"]')
+  await card.focus()
+  const before = await card.boundingBox()
+  const start = { x: before.x + before.width * .65, y: before.y + before.height * .5 }
+  await page.mouse.move(start.x, start.y)
+  await page.mouse.down()
+  await page.mouse.move(start.x - 65, start.y + 22, { steps: 12 })
+  await page.mouse.up()
+  const after = await card.boundingBox()
+  expect(Math.abs(after.x - before.x)).toBeGreaterThan(30)
+  expect(detailCalls).toBe(0)
+  await page.screenshot({ path: info.outputPath('playlist-draggable-desktop.png') })
+  await card.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('[data-user-back]')).toBeVisible()
+  await expect.poll(() => detailCalls).toBe(1)
+  await page.locator('[data-user-back]').click()
+  await expect(page.locator('[data-user-list="3"]')).toBeEnabled()
+  // 先将目标置顶，避免随机重叠的其他卡片挡住本次普通点击验收。
+  await page.locator('[data-user-list="3"]').focus()
+  await page.locator('[data-user-list="3"]').click()
+  await expect(page.locator('[data-user-back]')).toBeVisible()
+  await page.locator('[data-user-back]').click()
+  await expect(page.locator('[data-user-list="3"]')).toBeEnabled()
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+  await page.screenshot({ path: info.outputPath('playlist-draggable-dark.png') })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('[data-user-list="3"]')).toBeVisible()
+  await expect(page.locator('[data-user-create]')).toBeInViewport()
+  const board = page.locator('[data-playlist-deck]')
+  // 在同一帧采样全部边界，等待侧栏响应式过渡完成，不能混用不同帧的坐标。
+  await expect.poll(() => board.evaluate(node => {
+    const bounds = node.getBoundingClientRect()
+    return [...node.querySelectorAll('[data-draggable-card]')].every(card => {
+      const box = card.getBoundingClientRect()
+      return box.left >= bounds.left - 4 && box.right <= bounds.right + 4
+    })
+  })).toBe(true)
+  await page.screenshot({ path: info.outputPath('playlist-draggable-mobile.png') })
+  await expect(page.locator('[data-user-list]')).toHaveCount(6)
+  await expect(page.locator('[data-user-page-step]')).toHaveCount(0)
+  await expect.poll(() => board.evaluate(node => {
+    const bounds = node.getBoundingClientRect()
+    return [...node.querySelectorAll('[data-draggable-card]')].slice(3).every(card => {
+      const box = card.getBoundingClientRect()
+      return box.top >= bounds.top - 4 && box.bottom <= bounds.bottom + 4
+    })
+  })).toBe(true)
+  await page.locator('[data-user-list="6"]').focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('[data-user-back]')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+
+test('歌单进入及返回沿用分类淡出淡入，等待详情期间内容保持透明', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await mockWorkspace(page)
+  const list = { id: 1, name: '过渡验收歌单', trackCount: 0, coverUrl: null }
+  let releaseDetail
+  await page.route('**/api/me/playlists**', async route => {
+    if (new URL(route.request().url()).pathname === '/api/me/playlists') return route.fulfill({ json: { playlists: [list] } })
+    await new Promise(resolve => { releaseDetail = resolve })
+    return route.fulfill({ json: { playlist: list, tracks: [] } })
+  })
+  await page.locator('[data-nav="user"]').click()
+  const content = page.locator('[data-user-content]')
+  await expect(page.locator('[data-user-list="1"]')).toBeEnabled()
+  await page.locator('[data-user-list="1"]').click()
+  await expect(content).toHaveClass(/is-changing/)
+  await expect.poll(() => Boolean(releaseDetail)).toBe(true)
+  await expect(content).toHaveCSS('opacity', '0')
+  await expect(content).toHaveAttribute('inert', '')
+  releaseDetail()
+  await expect(content).not.toHaveClass(/is-changing/)
+  await expect(content).toHaveCSS('opacity', '1')
+  await page.locator('[data-user-back]').click()
+  await expect(content).toHaveClass(/is-changing/)
+  await expect(page.locator('[data-user-list="1"]')).toBeEnabled()
+  await expect(content).toHaveCSS('opacity', '1')
+  await expect(content).not.toHaveAttribute('inert', '')
+})

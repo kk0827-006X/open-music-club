@@ -4,7 +4,7 @@ import type { TrackReference } from "../../shared/music.ts"
 export type { TrackReference } from "../../shared/music.ts"
 export type PersonalTrack = TrackReference & { trackKey: string; title: string; artists: { name: string }[];
   album: { name: string | null }; durationMs: number; coverUrl: string | null; playable: boolean; liked?: boolean; entryId?: number }
-export type UserPlaylist = { id: number; name: string; description: string | null; trackCount: number; createdAt: string; updatedAt: string }
+export type UserPlaylist = { id: number; name: string; description: string | null; trackCount: number; coverUrl?: string | null; createdAt: string; updatedAt: string }
 export type UserProfile = { id: number; nickname: string; avatarUrl: string | null }
 type Fetcher = (url: string, init?: RequestInit) => Promise<Pick<Response, 'ok' | 'status' | 'json'>>
 

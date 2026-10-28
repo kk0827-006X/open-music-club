@@ -40,21 +40,37 @@
 .user-collection-intro { display: flex; flex-shrink: 0; justify-content: space-between; align-items: baseline; padding: 12px 0; }
 .user-collection-intro strong { font-size: 1rem; font-weight: 600; }
 .user-collection-intro strong small { color: var(--color-text-73); font-size: .58rem; font-weight: 400; }
-.user-playlist-grid { display: grid; flex: 1; min-height: 0; grid-template-columns: repeat(3,minmax(0,1fr)); grid-template-rows: repeat(3,minmax(0,1fr)); gap: 12px; }
-.user-playlist-card, .user-new-card { min-width: 0; min-height: 0; padding: 0; border: 1px solid var(--color-border-47); background: var(--color-surface-43); text-align: left; cursor: pointer; transition: transform 260ms cubic-bezier(.2,.7,.2,1), border-color 260ms ease, box-shadow 260ms ease; }
-.user-playlist-card { display: flex; flex-direction: column; }
-.user-playlist-card:hover, .user-playlist-card:focus-visible, .user-new-card:hover, .user-new-card:focus-visible { transform: translateY(-5px); border-color: var(--color-accent-21); box-shadow: 0 15px 28px var(--color-shadow-14); }
-.user-playlist-card:active, .user-new-card:active { transform: translateY(-1px) scale(.99); }
-.user-playlist-card.is-featured { grid-column: span 2; grid-row: span 3; }
-.user-playlist-art { position: relative; display: block; flex: 1; min-height: 0; overflow: hidden; margin: 6px; background: var(--color-surface-44); }
-.user-playlist-art img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.7); transition: transform 500ms cubic-bezier(.2,.7,.2,1), filter 400ms ease; }
-.user-playlist-card:hover img { transform: scale(1.045); filter: saturate(.92); }
-.user-playlist-art i { position: absolute; top: 12px; left: 13px; padding: 5px 7px; background: var(--color-surface-45); font-size: .51rem; font-style: normal; letter-spacing: .1em; }
-.user-playlist-meta { position: relative; display: flex; flex-shrink: 0; flex-direction: column; gap: 3px; min-height: 44px; padding: 3px 10px 9px; }
-.user-playlist-meta strong { overflow: hidden; padding-right: 20px; font-size: .86rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.user-playlist-meta small { overflow: hidden; color: var(--color-text-74); font-size: .62rem; text-overflow: ellipsis; white-space: nowrap; }
-.user-playlist-meta b { position: absolute; top: 10px; right: 14px; font-size: 1.1rem; font-weight: 400; }
-.user-new-card { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; border-style: dashed; text-align: center; }
+.user-playlist-collection { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 8px; }
+.user-playlist-deck { position: relative; flex: 1; min-height: 220px; overflow: hidden; perspective: 3000px; container-type: size; }
+.user-playlist-deck-note { position: absolute; right: 0; bottom: 12px; left: 0; color: var(--color-text-74); font-size: .63rem; letter-spacing: .15em; text-align: center; pointer-events: none; }
+.user-draggable-card { position: absolute; width: min(42cqw, 65cqh, 280px); padding: clamp(8px, 1.8cqw, 18px); overflow: hidden; border: 1px solid var(--color-border-47); border-radius: 6px; background: var(--color-surface-43); box-shadow: 0 16px 30px var(--color-shadow-14); transform-style: preserve-3d; touch-action: none; user-select: none; cursor: grab; }
+.user-draggable-card:active { cursor: grabbing; }
+.user-draggable-card-0 { top: 8%; left: 5%; }
+.user-draggable-card-1 { top: 18%; left: 31%; }
+.user-draggable-card-2 { top: 5%; left: 55%; }
+.user-draggable-card:focus-within { outline: 2px solid var(--color-accent-21); outline-offset: -2px; }
+.user-draggable-glare { position: absolute; inset: 0; background: var(--color-inverse-04); pointer-events: none; }
+.user-playlist-card, .user-new-card { min-width: 0; min-height: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.user-playlist-card { display: flex; flex-direction: column; width: 100%; padding: 0; text-align: left; touch-action: none; }
+.user-playlist-card:focus-visible { outline: 0; }
+.user-playlist-art { position: relative; display: block; width: 100%; aspect-ratio: 1; overflow: hidden; background: var(--color-surface-44); pointer-events: none; }
+.user-playlist-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.user-playlist-meta { position: relative; display: flex; flex-direction: column; gap: 5px; width: 100%; padding: 14px 0 2px; }
+.user-playlist-meta strong { overflow: hidden; padding-right: 20px; font-size: clamp(.72rem, 1.8cqw, 1.12rem); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.user-playlist-meta small { color: var(--color-text-74); font-size: .62rem; }
+.user-playlist-meta b { position: absolute; top: 14px; right: 0; font-size: 1rem; font-weight: 400; }
+.user-new-card { display: flex; flex-shrink: 0; justify-content: center; align-items: center; gap: 10px; min-height: 46px; padding: 8px 12px; border: 1px dashed var(--color-border-47); text-align: center; }
+.user-new-card:hover, .user-new-card:focus-visible { border-color: var(--color-accent-21); background: var(--color-highlight-10); }
+@media (max-width: 600px) {
+  .user-playlist-deck { min-height: 200px; }
+  .user-draggable-card { width: min(44cqw, 60cqh, 220px); }
+  .user-draggable-card-0 { left: 5%; }
+  .user-draggable-card-1 { left: 29%; top: 20%; }
+  .user-draggable-card-2 { left: 52%; }
+  .user-playlist-meta { padding-top: 8px; }
+  .user-playlist-meta b { top: 8px; }
+  .user-new-card small { display: none; }
+}
 .user-new-card > span { font-size: 2rem; font-weight: 200; line-height: 1; }
 .user-new-card strong { font-size: .85rem; }
 .user-new-card small { color: var(--color-text-75); font-size: .52rem; letter-spacing: .13em; }

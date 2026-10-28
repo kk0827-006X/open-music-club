@@ -18,10 +18,14 @@ describe('个人音乐库 API', () => {
   let neteaseUnavailable
   let calls
   let limitedApp
+  let songCovers
+  let missingIds
 
   beforeEach(async () => {
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-personal-'))
     calls = []
+    songCovers = new Map()
+    missingIds = new Set()
     neteaseUnavailable = false
     app = createApp({
       databasePath: path.join(directory, 'database.sqlite'),
@@ -33,11 +37,11 @@ describe('个人音乐库 API', () => {
           const ids = String(parameters.ids).split(',').map(Number)
           return {
             code: 200,
-            songs: ids.map((id) => ({
+            songs: ids.filter(id => !missingIds.has(id)).map((id) => ({
               id,
               name: `网易云歌曲 ${id}`,
               ar: [{ id: 8, name: '测试歌手' }],
-              al: { id: 9, name: '测试专辑', picUrl: 'http://p.music.126.net/a.jpg' },
+              al: { id: 9, name: '测试专辑', picUrl: songCovers.get(id) ?? 'http://p.music.126.net/a.jpg' },
               dt: 180000,
             })),
           }
@@ -174,6 +178,104 @@ describe('个人音乐库 API', () => {
     const after = await member.put(`/api/me/playlists/${id}/tracks/order`).send({ trackIds: [before[1].entryId, before[0].entryId] })
     assert.equal(after.status, 200)
     assert.deepEqual((await member.get(`/api/me/playlists/${id}`)).body.tracks.map((track) => track.entryId), [before[1].entryId, before[0].entryId])
+  })
+
+  it('未打开详情就批量返回本地和网易云首曲封面，同数字 ID 不串来源且隔离他人歌单', async () => {
+    const localId = addLocalSong()
+    database.prepare("UPDATE uploaded_music SET cover_path = 'covers/synthetic.jpg' WHERE id = ?").run(localId)
+    const localList = await createPlaylist(member, '本地封面')
+    const cloudList = await createPlaylist(member, '云端封面')
+    const duplicate = await createPlaylist(member, '相同云端首曲')
+    const empty = await createPlaylist(member, '空歌单')
+    const foreign = await createPlaylist(other, '别人的歌单')
+    const repository = require('../src/db/personalLibrary')
+    repository.addPlaylistTrack(database, localList, 'local', String(localId))
+    repository.addPlaylistTrack(database, cloudList, 'netease', String(localId))
+    repository.addPlaylistTrack(database, duplicate, 'netease', String(localId))
+    repository.addPlaylistTrack(database, foreign, 'netease', '999')
+    calls.length = 0
+    const result = await member.get('/api/me/playlists?limit=50')
+    assert.equal(result.status, 200)
+    assert.equal(result.headers['cache-control'], 'no-store')
+    const covers = new Map(result.body.playlists.map(list => [list.id, list.coverUrl]))
+    assert.equal(covers.get(localList), `/api/local/music/${localId}/cover`)
+    assert.equal(covers.get(cloudList), 'https://p.music.126.net/a.jpg')
+    assert.equal(covers.get(duplicate), covers.get(cloudList))
+    assert.equal(covers.get(empty), null)
+    assert.equal(covers.has(foreign), false)
+    assert.deepEqual(calls, [{ moduleName: 'songDetail', parameters: { ids: String(localId) } }])
+    assert.equal(JSON.stringify(result.body).includes('covers/synthetic.jpg'), false)
+    assert.equal(JSON.stringify(result.body).includes('first_source'), false)
+  })
+
+  it('首曲排序和删除后列表封面实时改变，空歌单不保留旧封面', async () => {
+    const repository = require('../src/db/personalLibrary')
+    const id = await createPlaylist()
+    const first = repository.addPlaylistTrack(database, id, 'netease', '801')
+    const second = repository.addPlaylistTrack(database, id, 'netease', '802')
+    songCovers.set(801, 'https://p.music.126.net/801.jpg')
+    songCovers.set(802, 'https://p.music.126.net/802.jpg')
+    const readCover = async () => {
+      const response = await member.get('/api/me/playlists')
+      assert.equal(response.status, 200)
+      return response.body.playlists[0].coverUrl
+    }
+    assert.equal(await readCover(), 'https://p.music.126.net/801.jpg')
+    assert.equal((await member.put(`/api/me/playlists/${id}/tracks/order`).send({ trackIds: [second, first] })).status, 200)
+    assert.equal(await readCover(), 'https://p.music.126.net/802.jpg')
+    assert.equal((await member.delete(`/api/me/playlists/${id}/tracks/netease/802`)).status, 200)
+    assert.equal(await readCover(), 'https://p.music.126.net/801.jpg')
+    assert.equal((await member.delete(`/api/me/playlists/${id}/tracks/netease/801`)).status, 200)
+    assert.equal(await readCover(), null)
+  })
+
+  it('已删除或没有封面的首曲使用默认值，不改用后续曲目的封面', async () => {
+    const repository = require('../src/db/personalLibrary')
+    const id = await createPlaylist()
+    const localId = addLocalSong()
+    repository.addPlaylistTrack(database, id, 'local', String(localId))
+    repository.addPlaylistTrack(database, id, 'netease', '42')
+    const readCover = async () => (await member.get('/api/me/playlists')).body.playlists[0].coverUrl
+    assert.equal(await readCover(), null)
+    database.prepare('DELETE FROM uploaded_music WHERE id = ?').run(localId)
+    calls.length = 0
+    assert.equal(await readCover(), null)
+    assert.equal(calls.length, 0, '不为非首曲请求封面')
+  })
+
+  it('网易云上游失败、无效封面和缺失歌曲不影响列表与本地封面', async () => {
+    const repository = require('../src/db/personalLibrary')
+    const localId = addLocalSong()
+    database.prepare("UPDATE uploaded_music SET cover_path = 'covers/synthetic.jpg' WHERE id = ?").run(localId)
+    const localList = await createPlaylist(member, '本地')
+    const cloudList = await createPlaylist(member, '网易云')
+    repository.addPlaylistTrack(database, localList, 'local', String(localId))
+    repository.addPlaylistTrack(database, cloudList, 'netease', '42')
+    for (const mode of ['unsafe', 'missing', 'offline']) {
+      songCovers.set(42, 'https://invalid.example/private.jpg')
+      missingIds = new Set(mode === 'missing' ? [42] : [])
+      neteaseUnavailable = mode === 'offline'
+      const response = await member.get('/api/me/playlists')
+      assert.equal(response.status, 200)
+      const covers = new Map(response.body.playlists.map(list => [list.id, list.coverUrl]))
+      assert.equal(covers.get(localList), `/api/local/music/${localId}/cover`)
+      assert.equal(covers.get(cloudList), null)
+      assert.doesNotMatch(JSON.stringify(response.body), /上游内部错误|invalid.example|synthetic.jpg/)
+    }
+  })
+
+  it('封面解析仅处理当前分页的首曲，不加载下一页或整张歌单', async () => {
+    const repository = require('../src/db/personalLibrary')
+    const older = await createPlaylist(member, '较早')
+    const newer = await createPlaylist(member, '较新')
+    repository.addPlaylistTrack(database, older, 'netease', '51')
+    repository.addPlaylistTrack(database, newer, 'netease', '52')
+    repository.addPlaylistTrack(database, newer, 'netease', '53')
+    calls.length = 0
+    const response = await member.get('/api/me/playlists?limit=1&offset=0')
+    assert.equal(response.status, 200)
+    assert.equal(response.body.playlists[0].id, newer)
+    assert.deepEqual(calls, [{ moduleName: 'songDetail', parameters: { ids: '52' } }])
   })
 
   it('歌曲可设为喜爱并在个人列表显示，取消操作幂等', async () => {

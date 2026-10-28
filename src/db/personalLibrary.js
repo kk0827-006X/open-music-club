@@ -1,7 +1,11 @@
 function listPlaylists(database, userId, limit, offset) {
   return database.prepare(`SELECT p.id, p.name, p.description, p.created_at, p.updated_at,
-    COUNT(t.id) AS track_count
+    COUNT(t.id) AS track_count, first.source AS first_source, first.source_id AS first_source_id
     FROM user_playlists p LEFT JOIN user_playlist_tracks t ON t.playlist_id = p.id
+    LEFT JOIN user_playlist_tracks first ON first.id = (
+      SELECT entry.id FROM user_playlist_tracks entry WHERE entry.playlist_id = p.id
+      ORDER BY entry.position, entry.id LIMIT 1
+    )
     WHERE p.owner_user_id = ? GROUP BY p.id
     ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`)
     .all(userId, limit, offset)

@@ -84,11 +84,22 @@ function createPersonalLibraryRouter({ database, neteaseService }) {
     return playlist
   }
 
-  router.get('/playlists', (req, res) => {
+  router.get('/playlists', async (req, res, next) => {
     const page = parsePage(req.query)
     if (!page) return errorResponse(res, 400, '分页参数无效')
-    const playlists = repository.listPlaylists(database, req.user.id, page.limit, page.offset).map(toPlaylist)
-    return res.json({ success: true, playlists })
+    try {
+      const rows = repository.listPlaylists(database, req.user.id, page.limit, page.offset)
+      // 每页只解析首曲引用，沿用本地/网易云独立解析与批量去重，不读取完整歌单。
+      const tracks = await service.hydrate(rows.filter(row => row.first_source).map(row => ({
+        source: row.first_source, source_id: row.first_source_id,
+      })))
+      const covers = new Map(tracks.map(track => [track.trackKey, track.coverUrl]))
+      const playlists = rows.map(row => ({
+        ...toPlaylist(row), coverUrl: covers.get(`${row.first_source}:${row.first_source_id}`) || null,
+      }))
+      res.set('Cache-Control', 'no-store')
+      return res.json({ success: true, playlists })
+    } catch (error) { return next(error) }
   })
 
   router.post('/playlists', (req, res) => {

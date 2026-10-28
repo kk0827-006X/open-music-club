@@ -6,8 +6,6 @@ button:focus-visible { outline: 2px solid var(--color-accent-09); outline-offset
   .user-identity p { font-size: .53rem; }
   .user-avatar span { font-size: 1.1rem; }
   .user-section-nav button { padding-block: 7px; }
-  .user-playlist-grid { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(2,minmax(0,1fr)); }
-  .user-playlist-card.is-featured { grid-column: auto; grid-row: auto; }
   .user-content-header { padding-bottom: 10px; }
   .user-empty-symbol { width: 65px; height: 65px; margin-bottom: 12px; font-size: 2rem; }
   .user-empty-rule { margin-top: 18px; }
@@ -43,8 +41,6 @@ button:focus-visible { outline: 2px solid var(--color-accent-09); outline-offset
 @media (max-width: 900px) {
   .user-page { grid-template-columns: minmax(180px,28%) minmax(0,72%); padding: 130px 24px 86px; }
   .user-content-shell { padding-left: 25px; }
-  .user-playlist-grid { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: repeat(2,minmax(0,1fr)); }
-  .user-playlist-card.is-featured { grid-column: auto; grid-row: auto; }
   .upload-page { grid-template-columns: minmax(0,1fr); grid-template-rows: auto auto auto; padding: 134px 24px 102px; }
   .upload-heading, .upload-workspace, .upload-metadata { grid-column: 1; grid-row: auto; }
   .upload-workspace { min-height: 430px; }
@@ -100,8 +96,6 @@ button:focus-visible { outline: 2px solid var(--color-accent-09); outline-offset
   .user-content-header h2 { font-size: 1.65rem; }
   .user-content-header p { font-size: .48rem; }
   .user-content-header span { font-size: .58rem; }
-  .user-playlist-grid { gap: 9px; }
-  .user-playlist-card.is-featured { grid-column: auto; grid-row: auto; }
   .user-playlist-meta { min-height: 36px; }
   .user-playlist-meta strong { font-size: .8rem; }
   .user-new-card { min-height: 0; }
