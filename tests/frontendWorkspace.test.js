@@ -36,7 +36,7 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
     const scene = { load: async () => {}, dispose: () => { sceneDisposals++ }, setReduced() {}, setMode() {}, select() {}, resize() {}, update() {}, finishDecryption() {}, detailVisibility: 0 }
     const loadScene = async () => scene
     const footprintClient = { timeline: async () => ({ total: 0, events: [], timezoneOffsetMinutes: 480 }) }
-    const renderedWorkspace = version => h.React.createElement(Workspace, { key: version, queue, player, personalLibrary: api, footprintClient, loadScene })
+    const renderedWorkspace = version => h.React.createElement(Workspace, { key: version, role: 'admin', queue, player, personalLibrary: api, footprintClient, loadScene })
     // 仅记录工作区自己的窗口计时器，照常执行原生计时以免改变生产调度逻辑。
     const nativeSetTimeout = h.window.setTimeout.bind(h.window)
     const nativeClearTimeout = h.window.clearTimeout.bind(h.window)
@@ -77,6 +77,14 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
       await h.click('[data-nav="user"]')
       assert.equal(h.require('[data-album-archive]').dataset.view, 'user')
       assert.equal(h.require('[data-user-page]').hasAttribute('inert'), false)
+      assert.equal(h.query('[data-archive-navigation] .application-admin-entry'), null)
+      await h.click('.user-sidebar [data-user-tab="admin"]')
+      assert.ok(h.query('[data-admin-applications]'))
+      assert.equal(audios, 1, '打开审核面板不重建播放器')
+      assert.equal(sceneDisposals, 0, '打开审核面板不销毁当前会话场景')
+      assert.equal(h.query('[data-authorized-stage]'), null)
+      await h.click('[data-user-tab="playlists"]')
+      assert.equal(h.query('[data-admin-applications]'), null)
       await h.React.act(async () => player.play(toPersonalSong(track)))
       await h.flush()
       let releaseLike, lateWrites = 0
@@ -119,5 +127,5 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
       h.window.setTimeout = nativeSetTimeout
       h.window.clearTimeout = nativeClearTimeout
     }
-  }, { fetch: async url => response(url === '/api/local/music' ? { success: true, tracks: [track] } : { code: 200, result: { songs: [] } }) })
+  }, { fetch: async url => response(url.startsWith('/api/admin/applications') ? {success:true,applications:[],total:0} : url === '/api/local/music' ? { success: true, tracks: [track] } : { code: 200, result: { songs: [] } }) })
 })

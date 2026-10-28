@@ -63,7 +63,7 @@ function SessionApp({ api = services, adminRoute = false }: { api?: AppServices;
     const current = ++generation.current
     const user = await api.restore()
     if (disposed.current || current !== generation.current) return
-    if (user) { setRole(user.role); setStage('authorized') }
+    if (user) { setRole(user.role); setStage(adminRoute ? 'workspace' : 'authorized') }
     else setStage('login')
   }
   useEffect(() => { if (adminRoute) void enter() }, [adminRoute])

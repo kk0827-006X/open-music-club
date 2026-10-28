@@ -20,6 +20,13 @@ function createAdminApplicationsRouter() {
     if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length)) return res.status(400).json({success:false,message:'审批无需提供密码或其他参数'})
     return lifecycleResponse(res,next,()=>({application:req.app.locals.accessLifecycle.review(id,req.user.id,action === 'approve')}))
   })
+  // 补发只按申请 ID 查找服务端保存的邮箱；沿用父路由的 admin、Session、2FA、CSRF 与审批 IP 限流。
+  router.post('/:id/resend-activation', (req,res,next) => {
+    const id = Number(req.params.id)
+    if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({success:false,message:'申请 ID 无效'})
+    if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) || Object.keys(req.body).length)) return res.status(400).json({success:false,message:'补发无需提供邮箱或其他参数'})
+    return lifecycleResponse(res,next,()=>({application:req.app.locals.accessLifecycle.resendActivation(id)}))
+  })
   return router
 }
 module.exports = { createAdminApplicationsRouter }

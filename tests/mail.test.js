@@ -35,6 +35,22 @@ it('真实 SMTP 适配生成纯文本通知，不发送初始密码或申请理�
   assert.doesNotMatch(JSON.stringify(sent), /不发送的理由|绝不能发送/)
 })
 
+it('简化流程只发送激活链接，管理员提醒不含邮箱、理由或 Token', async () => {
+  const sent = []
+  const service = createMailService({ env, transport: { async sendMail(message) { sent.push(message); return { accepted: [message.to] } } } })
+  const origin = 'https://club.example.com', token = 'T'.repeat(43)
+  assert.equal(await service.sendAccessMessage({ ...application, status: 'approved' }, { kind: 'activate', token, subject: 'activation-subject', messageId: '<a@example.com>', origin }), 'accepted')
+  assert.match(sent[0].text, /https:\/\/club\.example\.com\/activate#token=T{43}/)
+  assert.match(sent[0].text, /24 小时内/)
+  assert.doesNotMatch(sent[0].text, /verify-email|邮箱验证/)
+  assert.equal(await service.sendAccessMessage({ ...application, status: 'pending', reason: '不发送的理由' }, { kind: 'admin', subject: 'admin-subject', messageId: '<b@example.com>', origin }), 'accepted')
+  assert.match(sent[1].text, /申请已提交/)
+  assert.doesNotMatch(sent[1].text, /member@example\.com|不发送的理由|#token=/)
+  assert.equal(await service.sendAccessMessage({ ...application, status: 'rejected' }, { kind: 'rejected', subject: 'rejected-subject', messageId: '<c@example.com>', origin }), 'accepted')
+  assert.match(sent[2].text, /未通过审核/)
+  assert.doesNotMatch(JSON.stringify(sent), /verify-email|邮箱验证|不发送的理由/)
+})
+
 it('拒收、异常与超时只记脱敏事件，不向业务抛出错误', async () => {
   const logs = []
   for (const sendMail of [() => { throw Error('password /private/secret') }, async () => ({ accepted: [] }), () => new Promise(() => {})]) {
@@ -72,4 +88,24 @@ it('明确 SMTP 拒绝允许重试，DATA 后断线或总超时必须保留未�
   const service = createMailService({ env, transport: { sendMail: () => new Promise(() => {}) }, sendTimeoutMs: 10, logger: { warn() {} } })
   assert.equal(await service.submitNotification(application, 'request', { subject: 'unique', messageId: '<unique@example.com>' }), 'unknown')
   assert.equal(await createMailService({ env: {} }).submitNotification(application), 'disabled')
+})
+
+it('仅有可证明系统 connect 失败的 SMTP socket 错误才允许重试', async () => {
+  const failures = [
+    [{ code: 'ESOCKET', command: 'CONN', syscall: 'connect', errno: -61 }, 'failed'],
+    [{ code: 'ESOCKET', command: 'CONN' }, 'unknown'],
+    [{ code: 'ESOCKET', command: 'CONN', syscall: 'read', errno: -54 }, 'unknown'],
+    [{ code: 'ESOCKET', command: 'CONN', syscall: 'write', errno: -32 }, 'unknown'],
+    [{ code: 'ESOCKET', command: 'DATA', syscall: 'read', errno: -54 }, 'unknown'],
+    [{ code: 'ESOCKET', command: 'DATA', syscall: 'write', errno: -32 }, 'unknown'],
+  ]
+  for (const [fields, expected] of failures) {
+    const logs = []
+    const service = createMailService({ env, logger: { warn: event => logs.push(event) }, transport: { async sendMail() {
+      throw Object.assign(new Error('smtp-password member@example.com /private/secret'), fields)
+    } } })
+    assert.equal(await service.submitNotification(application, 'safe-request', { subject: 'socket-regression', messageId: '<socket@example.com>' }), expected, JSON.stringify(fields))
+    assert.equal(logs.length, 1)
+    assert.doesNotMatch(JSON.stringify(logs), /smtp-password|member@example\.com|private|syscall|errno/)
+  }
 })

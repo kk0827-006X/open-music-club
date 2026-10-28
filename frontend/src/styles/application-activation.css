@@ -63,6 +63,6 @@
   .application-link-panel { margin-top: 50px; }
 }
 
-.application-admin-entry { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; color: var(--muted); text-decoration: none; font-size: .75rem; }
-.application-admin-entry:hover { color: var(--ink); }
-.application-admin-entry:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.application-admin.application-admin--embedded { min-height: 0; padding: 0; }
+.application-admin--embedded .application-admin-heading { margin-top: 0; }
+.user-content:has(> .application-admin--embedded) { overflow-y: auto; overscroll-behavior: contain; padding-top: 20px; }

@@ -121,7 +121,6 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     <Brand statistics />
     <nav className="archive-nav" data-archive-navigation aria-label="音乐功能预览">
       {tabs.map(([id, label, icon]) => <button key={id} type="button" data-nav={id} aria-current={page === (id === 'library' ? 'archive' : id) ? 'page' : undefined} onClick={() => show(id === 'library' ? 'archive' : id)}><Icon name={icon} /><span>{label}</span></button>)}
-      {role === 'admin' && <a className="application-admin-entry" href="/admin/applications"><Icon name="user" /><span>申请审核</span></a>}
       <i aria-hidden="true" />
       <button type="button" data-nav="settings" onClick={event => { playerView.current?.closeQueue(); settings.current?.show(event.currentTarget) }}><Icon name="settings" /><span>设置</span></button>
     </nav>
@@ -130,7 +129,7 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     <ErrorBoundary><Suspense fallback={null}>
       <div data-search-host>{visited.has('search') && <SearchPage ref={search} active={page === 'search'} {...actions} />}</div>
       <div data-upload-host onClick={event => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) show('archive') }}>{visited.has('upload') && <UploadPage active={page === 'upload'} />}</div>
-      <div data-user-host>{visited.has('user') && <UserPage ref={user} active={page === 'user'} {...actions} client={client} choosePlaylist={track => { void playerView.current?.choosePlaylist(track) }} changed={() => { void playerView.current?.syncLiked() }} />}</div>
+      <div data-user-host>{visited.has('user') && <UserPage ref={user} active={page === 'user'} role={role} {...actions} client={client} choosePlaylist={track => { void playerView.current?.choosePlaylist(track) }} changed={() => { void playerView.current?.syncLiked() }} />}</div>
       <div data-footprint-host>{visited.has('footprint') && <FootprintPage ref={footprint} active={page === 'footprint'} {...actions} client={footprints} revision={footprintRevision} />}</div>
     </Suspense></ErrorBoundary>
     <PlayerView ref={playerView} player={player} queue={queue} personalLibrary={client} root={archive} selectedAlbum={selected} defaultTrack={albumTrack(selected)} onExpandedChanged={setExpanded} collectionChanged={collectionChanged} />

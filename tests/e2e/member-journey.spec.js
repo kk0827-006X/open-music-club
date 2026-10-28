@@ -46,13 +46,13 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
   const client = page.request
   const adminContext = await browser.newContext({ baseURL: origin })
   try {
-    await test.step('申请、邮箱验证、审批和激活走真实隔离 API', async () => {
+    await test.step('申请后直接审批和激活走真实隔离 API，不再等待邮箱验证', async () => {
       expect((await client.post('/api/applications', { data: { email: MEMBER.email, nickname: '验收成员' } })).status()).toBe(403)
       const submitted = await post(client, '/api/applications', { email: MEMBER.email, nickname: '验收成员' })
       expect(submitted.status()).toBe(202)
-      await expect.poll(() => readApplicationLink(MEMBER.email, 'verify')).not.toBe('')
-      const verificationToken = new URL(readApplicationLink(MEMBER.email, 'verify')).hash.slice('#token='.length)
-      expect((await post(client, '/api/applications/verify-email', { token: verificationToken })).status()).toBe(200)
+      // 简化流程不再生成验证邀请或验证邮件。
+      expect(readApplicationLink(MEMBER.email, 'verify')).toBe('')
+      expect((await post(client, '/api/applications/verify-email', { token: 'a'.repeat(43) })).status()).toBe(410)
       expect((await post(client, '/api/auth/login', MEMBER)).status()).toBe(401)
       expect((await post(client, '/api/admin/applications/1/approve', {})).status()).toBe(401)
       const admin = adminContext.request
@@ -61,8 +61,9 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       const secret = (await setup.json()).secret
       expect((await post(admin, '/api/auth/2fa/confirm', { code: generateSync({ secret }) })).status()).toBe(200)
       const pending = (await (await admin.get('/api/admin/applications?status=pending')).json()).applications
-      const id = pending.find(item => item.nickname === '验收成员').id
-      expect((await post(admin, `/api/admin/applications/${id}/approve`, {})).status()).toBe(200)
+      const application = pending.find(item => item.nickname === '验收成员')
+      expect(application.canReview).toBe(true)
+      expect((await post(admin, `/api/admin/applications/${application.id}/approve`, {})).status()).toBe(200)
       await expect.poll(() => readApplicationLink(MEMBER.email, 'activate')).not.toBe('')
       const activationToken = new URL(readApplicationLink(MEMBER.email, 'activate')).hash.slice('#token='.length)
       expect((await post(client, '/api/auth/activate', { token: activationToken, password: MEMBER.password })).status()).toBe(200)
