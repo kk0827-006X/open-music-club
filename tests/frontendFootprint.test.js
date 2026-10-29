@@ -345,3 +345,26 @@ it('播放 revision 更新会等随笔保存结束再读取，不中断正在提
     assert.equal(h.require('[data-fp-feedback]').dataset.error, 'false')
   })
 })
+
+it('足迹侧栏各子页不再重复展示介绍标题，保留计数、内容与详情返回操作', async () => {
+  await withReactHarness(async h => {
+    const { FootprintPage } = await import('../frontend/src/features/footprint/FootprintPage.tsx')
+    const api = client({ timeline: async () => ({ total: 1, events: [event], timezoneOffsetMinutes: 480 }), posts: async () => ({ total: 1, posts: [post] }) })
+    await h.render(h.React.createElement(FootprintPage, { active: true, client: api }))
+    assert.ok(h.require('.fp-header h2').classList.contains('sr-only'), '保留读屏标题，不占视觉空间')
+    assert.equal(h.query('.fp-header p, .fp-header span'), null)
+    assert.equal(h.require('.fp-view-summary').textContent, '1 条播放记录')
+    for (const tab of ['timeline', 'milestone', 'studio', 'square', 'mine']) {
+      await h.click(`[data-fp-tab="${tab}"]`)
+      await h.until(() => !h.require('[data-fp-content]').hasAttribute('inert'), '分类内容应恢复交互')
+      assert.equal(h.query('.fp-view > .fp-view-header'), null, '不再出现重复的小标题块')
+    }
+    await h.click('[data-fp-tab="square"]')
+    await h.click('[data-fp-open-post="4"]')
+    assert.ok(h.require('[data-fp-content] [data-fp-back]'))
+    assert.equal(h.query('.fp-header [data-fp-back]'), null)
+    assert.match(h.require('.fp-detail-head').textContent, /十月回忆/)
+    await h.click('[data-fp-back]')
+    assert.ok(h.query('[data-fp-open-post="4"]'))
+  })
+})

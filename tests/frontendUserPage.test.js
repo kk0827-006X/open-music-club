@@ -17,6 +17,8 @@ describe('用户页面真实数据界面', () => {
     }
     assert.match(markup, /data-user-create/)
     assert.match(markup, /data-user-content/)
+    assert.match(markup, /class="sr-only" data-user-heading/)
+    assert.doesNotMatch(markup, /PERSONAL COLLECTION|data-user-subtitle|MY PLAYLISTS/)
     assert.match(markup, /data-user-feedback/)
     assert.doesNotMatch(markup, /仅供界面预览|刷新后不会保留/)
     assert.doesNotMatch(markup, /UI PREVIEW|user-preview-tag/)

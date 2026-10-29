@@ -69,7 +69,7 @@ export function AdminApplicationsPage({ onLogout, embedded = false, onDialogChan
   const Container = embedded ? 'section' : 'main'
   return <Container className={`application-admin${embedded ? ' application-admin--embedded' : ''}`} data-admin-applications>
     {!embedded && <header className="application-admin-header"><Brand /><nav aria-label="管理导航"><a href="/">返回音乐库</a><button type="button" disabled={busy} onClick={() => { void onLogout?.().catch(() => setError('退出失败，请稍后重试')) }}>退出登录</button></nav></header>}
-    <div className="application-admin-heading"><div><p className="application-eyebrow">ADMINISTRATION / MEMBER ACCESS</p>{!embedded && <h2>申请审核</h2>}<p className="application-description">提交后无需邮箱验证，待审核申请可直接通过或拒绝。激活链接与通知由系统自动处理。</p></div><button className="application-secondary" type="button" disabled={busy || loading} onClick={() => setRevision(value => value + 1)}>刷新列表</button></div>
+    <div className="application-admin-heading">{!embedded && <div><p className="application-eyebrow">ADMINISTRATION / MEMBER ACCESS</p><h2>申请审核</h2><p className="application-description">提交后无需邮箱验证，待审核申请可直接通过或拒绝。激活链接与通知由系统自动处理。</p></div>}<button className="application-secondary" type="button" disabled={busy || loading} onClick={() => setRevision(value => value + 1)}>刷新列表</button></div>
     <nav className="application-filters" aria-label="申请状态">{filters.map(([value, label]) => <button type="button" key={value} aria-pressed={filter === value} disabled={busy} onClick={() => { setFilter(value); setPage(1); setNotice(''); setReviewError('') }}>{label}</button>)}</nav>
     <p className="application-feedback" role="status" aria-live="polite">{notice}</p>
     {(error || reviewError) && <p role="alert" className="application-error">{error || reviewError}</p>}

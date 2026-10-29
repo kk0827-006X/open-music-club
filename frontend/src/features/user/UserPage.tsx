@@ -31,13 +31,6 @@ const headings: Record<Section, string> = {
   uploads: '我的上传',
   admin: '申请审核',
 }
-const subtitles: Record<Section, string> = {
-  playlists: '把喜欢的音乐，收进自己的档案。',
-  favorites: '那些一次又一次想重听的声音。',
-  recent: '沿着声音，回到刚刚经过的时刻。',
-  uploads: '由你带进社区的每一首音乐。',
-  admin: '审核加入申请，系统自动处理验证、激活与通知。',
-}
 
 export function validateAvatarFile(file: Pick<File, 'type' | 'size'>): string | null {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return '请选择 JPG、PNG 或 WebP 图片。'
@@ -638,7 +631,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   } else if (section === 'playlists' && selectedId === null) {
     contentBody = (
       <>
-        <div className="user-collection-intro"><span>MY PLAYLISTS</span><strong>{lists.length} <small>份声音档案</small></strong></div>
+        <div className="user-collection-intro"><strong>{lists.length} <small>份声音档案</small></strong></div>
         <PlaylistCardDeck lists={lists}
           disabled={contentDisabled} onOpen={openPlaylist} onCreate={openCreateDialog} />
       </>
@@ -743,7 +736,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
       </>}>
       <div className="user-content-shell">
         <header className="user-content-header">
-          <div><p>{section === 'admin' ? 'ADMINISTRATION / 成员审核' : 'PERSONAL COLLECTION / 个人收藏'}</p><h2 data-user-heading>{headings[section]}</h2><span data-user-subtitle>{subtitles[section]}</span></div>
+          <h2 className="sr-only" data-user-heading>{headings[section]}</h2>
         </header>
         <div className={`user-content section-content${changing ? ' is-changing' : ''}`} data-user-content inert={changing} aria-live="polite" aria-busy={busy || loading || changing}>
           {contentBody}

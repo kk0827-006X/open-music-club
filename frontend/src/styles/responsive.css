@@ -6,7 +6,6 @@ button:focus-visible { outline: 2px solid var(--color-accent-09); outline-offset
   .user-identity p { font-size: .53rem; }
   .user-avatar span { font-size: 1.1rem; }
   .user-section-nav button { padding-block: 7px; }
-  .user-content-header { padding-bottom: 10px; }
   .user-empty-symbol { width: 65px; height: 65px; margin-bottom: 12px; font-size: 2rem; }
   .user-empty-rule { margin-top: 18px; }
 }
@@ -93,9 +92,6 @@ button:focus-visible { outline: 2px solid var(--color-accent-09); outline-offset
   .user-section-nav button > span, .user-section-nav button small, .user-section-nav button b { display: none; }
   .user-section-nav button strong { font-size: .65rem; }
   .user-content-shell { padding: 0; }
-  .user-content-header h2 { font-size: 1.65rem; }
-  .user-content-header p { font-size: .48rem; }
-  .user-content-header span { font-size: .58rem; }
   .user-playlist-meta { min-height: 36px; }
   .user-playlist-meta strong { font-size: .8rem; }
   .user-new-card { min-height: 0; }

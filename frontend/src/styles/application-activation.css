@@ -64,5 +64,5 @@
 }
 
 .application-admin.application-admin--embedded { min-height: 0; padding: 0; }
-.application-admin--embedded .application-admin-heading { margin-top: 0; }
+.application-admin--embedded .application-admin-heading { margin-top: 0; justify-content: flex-end; }
 .user-content:has(> .application-admin--embedded) { overflow-y: auto; overscroll-behavior: contain; padding-top: 20px; }
