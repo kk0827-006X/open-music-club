@@ -16,4 +16,7 @@
 
 `LetterGlitch.tsx` 来自官方 <https://reactbits.dev/r/LetterGlitch-TS-CSS.json>（2026-10-28），使用同目录许可证；仅将 CSS 导入移至登录页样式表。登录页适配层配置暖灰与橙色、透明背景及较低强度，不启用鼠标交互；输入和弹窗期间保持同一个背景；隐藏标签与减少动态效果时卸载装饰。无新增依赖。
 
+`CodeSlots.tsx` 与 `../../../styles/code-slots.css` 基于官方 <https://reactbits.dev/r/CodeSlots-TS-CSS.json>（2026-10-30），使用同目录许可证；保留弹簧数字、光标、键盘/粘贴/自动填充与受控值逻辑。适配站点主题变量、中文读屏提示、输入名称和原生成功勾号，移除 Hugeicons 图标依赖，复用现有 Motion。登录验证码填满后自动请求既有验证接口，恢复码仍使用独立文本框手动提交，不改变后端认证协议。
+
+
 `WakeSlider.tsx` 与 `../../../styles/wake-slider.css` 基于官方 <https://reactbits.dev/r/WakeSlider-TS-CSS.json>（2026-10-30），使用同目录许可证。保留竖条、速度驱动尾波和弹簧平滑；复用已有 Motion，适配主题变量、中文音量标签、0% 全暗、主指针限制、隐藏视图禁用/释放捕获、卸载帧清理和实时减少动态效果。仅用于展开播放器音量，受控 0～100 映射回原 0～1 音量接口；迷你播放器仍使用原 Radix VolumeSlider。无新增依赖。

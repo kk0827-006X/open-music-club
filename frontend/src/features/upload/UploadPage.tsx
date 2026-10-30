@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import type { ChangeEvent, DragEvent, FormEvent } from 'react'
 import { motion } from 'motion/react'
 import { Icon } from '../../shared/react/ui.tsx'
+import { usePageMotion } from '../../shared/react/page-transitions.ts'
 import { usePageVisibility, useReducedMotion } from '../../shared/react/hooks.ts'
 import { uploadMusicFile, UploadError } from '../../services/music/upload.ts'
 import { readUploadMetadata } from './metadata.ts'
@@ -37,6 +38,7 @@ export const UploadPage = forwardRef<UploadPageHandle, UploadPageProps>(function
   const requestControllerRef = useRef<AbortController | null>(null)
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const metadataMotion = usePageMotion(selectedFile !== null)
   const [isSubmitting, setIsSubmittingState] = useState(false)
   const [isReadingMetadata, setIsReadingMetadata] = useState(false)
   const [isReady, setIsReady] = useState(false)
@@ -300,9 +302,10 @@ export const UploadPage = forwardRef<UploadPageHandle, UploadPageProps>(function
             <span className="upload-selected-progress"><i></i><small data-upload-file-status>{fileStatus}</small></span>
             <button type="button" data-upload-remove aria-label="移除所选文件" disabled={isSubmitting || !selectedFile} onClick={clearFile}><Icon name="close" /></button>
           </div>
+          <p className="upload-feedback" data-upload-feedback role="status" aria-live="polite" data-state={feedback.state}>{feedback.message}</p>
         </div>
       </section>
-      <form className="upload-metadata" data-upload-form noValidate aria-busy={isSubmitting} onSubmit={onSubmit}>
+      <motion.form className="upload-metadata" data-upload-form noValidate aria-busy={isSubmitting} onSubmit={onSubmit} {...metadataMotion}>
         <header className="upload-panel-rail"><span>03&nbsp; METADATA</span><span>FILE INFORMATION</span></header>
         <div className="upload-metadata-body">
           <div className="upload-cover-column">
@@ -333,9 +336,8 @@ export const UploadPage = forwardRef<UploadPageHandle, UploadPageProps>(function
           <div><dt>文件大小</dt><dd data-upload-size>{size}</dd></div><div><dt>比特率</dt><dd>上传后识别</dd></div>
         </dl></div>
         <button className="upload-submit" type="submit" data-upload-submit disabled={isSubmitting || isReadingMetadata || !selectedFile}><span>确认上传</span><span><Icon name="right" /></span></button>
-        <p className="upload-feedback" data-upload-feedback role="status" aria-live="polite" data-state={feedback.state}>{feedback.message}</p>
         <p className="upload-safety">◇&nbsp; 服务器会复核文件格式、完整性与元数据。</p>
-      </form>
+      </motion.form>
     </motion.section>
   )
 })

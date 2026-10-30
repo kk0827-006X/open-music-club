@@ -514,6 +514,91 @@ test('用户与足迹右侧无重复标题和顶线，设置弹窗标题保持�
   expect(errors).toEqual([])
 })
 
+
+test('上传页初始保留01和02，选择音频后03沿用页面动效显示，移除后隐藏', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await mockWorkspace(page)
+  await page.locator('[data-nav="upload"]').click()
+  const form = page.locator('[data-upload-form]')
+  const workspace = page.locator('.upload-workspace')
+  await expect(workspace).toBeVisible()
+  await expect(page.locator('[data-upload-selected-row]')).toBeVisible()
+  await expect(form).toBeHidden()
+  await expect.poll(() => page.locator('[data-upload-page]').evaluate(node => getComputedStyle(node).opacity)).toBe('1')
+  const before = await workspace.boundingBox()
+  await page.locator('[data-upload-file]').setInputFiles({ name: 'isolated.wav', mimeType: 'audio/wav', buffer: require('./fixtures').wave() })
+  await expect(form).toBeVisible()
+  await expect(form).toHaveCSS('opacity', '1')
+  await expect(form).toHaveCSS('transform', 'none')
+  const after = await workspace.boundingBox()
+  expect(Math.abs(before.x - after.x)).toBeLessThan(1)
+  expect(Math.abs(before.y - after.y)).toBeLessThan(1)
+  expect(Math.abs(before.width - after.width)).toBeLessThan(1)
+  await page.locator('[data-upload-remove]').click()
+  await expect(form).toHaveAttribute('inert', '')
+  await expect(form).toBeHidden()
+  await expect(page.locator('[data-upload-selected-row]')).toBeVisible()
+  await expect(page.locator('[data-upload-feedback]')).toBeVisible()
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.locator('[data-upload-file]').setInputFiles({ name: 'reduced.wav', mimeType: 'audio/wav', buffer: require('./fixtures').wave() })
+  await expect(form).toBeVisible()
+  await expect(form).toHaveCSS('opacity', '1')
+})
+
+test('登录 Code Slots 自动验证、错误重试、恢复码切换与窄屏主题正常', async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  let verified = false, attempts = []
+  await page.route('**/api/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    let body = { success: true }, status = 200
+    if (path === '/api/auth/me') body = verified ? { authenticated: true, user: { role: 'user' } } : { authenticated: false }
+    else if (path === '/api/security/csrf-token') body = { csrfToken: 'isolated-token' }
+    else if (path === '/api/auth/login') body = { requiresTwoFactor: true }
+    else if (path === '/api/auth/2fa/verify') {
+      const code = route.request().postDataJSON().code
+      attempts.push(code)
+      if (code === '000000') { status = 401; body = { message: '验证失败' } }
+      else { verified = true }
+    }
+    await route.fulfill({ status, json: body })
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: /点击进入/ }).click()
+  await page.locator('#email').fill('isolated@example.test')
+  await page.locator('#password').fill('synthetic-password')
+  await page.locator('[data-login-form] [type="submit"]').click()
+  const dialog = page.locator('[data-login-factor-dialog]')
+  const input = dialog.getByLabel('验证码', { exact: true })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('.code-slots__slot')).toHaveCount(6)
+  await expect(dialog.locator('.factor-confirm')).toHaveCount(0)
+  await input.fill('000000')
+  await expect(dialog.locator('[data-factor-feedback]')).toContainText('验证失败')
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0)
+  expect(attempts).toEqual(['000000'])
+  await dialog.locator('[name=recovery]').check()
+  await expect(dialog.getByLabel('恢复码', { exact: true })).toBeVisible()
+  await expect(dialog.locator('.factor-confirm')).toBeVisible()
+  await dialog.getByLabel('恢复码', { exact: true }).fill('synthetic-unused-code')
+  await dialog.locator('[name=recovery]').uncheck()
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0)
+  await input.fill('123')
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(3)
+  await expect(dialog.locator('.code-slots__digit').nth(2)).toHaveCSS('opacity', '1')
+  await expect(dialog.locator('.code-slots__fill').nth(2)).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)')
+  await page.screenshot({ path: info.outputPath('code-slots-light.png') })
+  await page.setViewportSize({ width: 320, height: 740 })
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+  const bounds = await dialog.boundingBox()
+  const slots = await dialog.locator('.code-slots').boundingBox()
+  expect(slots.x).toBeGreaterThanOrEqual(bounds.x)
+  expect(slots.x + slots.width).toBeLessThanOrEqual(bounds.x + bounds.width)
+  await expect(dialog.locator('.code-slots__slot').nth(4)).toHaveCSS('background-color', 'rgba(24, 33, 38, 0.75)')
+  await page.screenshot({ path: info.outputPath('code-slots-dark-mobile.png') })
+  await dialog.locator('[data-login-factor-close]').click()
+  await expect(dialog).not.toBeVisible()
+})
+
 test('展开播放器封面环境取色、交叉淡入、缓存与收藏正常，CORS失败不影响播放', async ({ page }, info) => {
   await mockWorkspace(page, 'user', [])
   const errors = [], extractions = [], likes = []

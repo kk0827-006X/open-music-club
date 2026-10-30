@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { verifyTwoFactor, type LoginCredentials } from '../../services/auth/session.ts'
 import { Brand, Icon, IconButton, Modal } from '../../shared/react/ui.tsx'
 import { useReducedMotion } from '../../shared/react/hooks.ts'
+import CodeSlots, { type CodeSlotsStatus } from '../../shared/react/react-bits/CodeSlots.tsx'
 import { LoginBackgroundEffect } from '../../shared/react/LoginBackgroundEffect.tsx'
 import { TwoFactorPanel } from './TwoFactorPanel.tsx'
 import { AccessApplicationDialog } from './AccessApplicationDialog.tsx'
@@ -16,11 +17,10 @@ function FactorChallenge({ onVerified, onBusyChange }: {
 }) {
   const [code, setCode] = useState('')
   const [recovery, setRecovery] = useState(false)
-  const [focused, setFocused] = useState(false)
-  const [caret, setCaret] = useState(0)
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState('')
-  const input = useRef<HTMLInputElement>(null)
+  const [status, setStatus] = useState<CodeSlotsStatus>('idle')
+  const form = useRef<HTMLFormElement>(null)
   const mounted = useRef(false)
   const generation = useRef(0)
   const submitting = useRef(false)
@@ -28,51 +28,45 @@ function FactorChallenge({ onVerified, onBusyChange }: {
   callbacks.current = { onVerified, onBusyChange }
   useEffect(() => {
     mounted.current = true
-    input.current?.focus()
     return () => { mounted.current = false; generation.current++; callbacks.current.onBusyChange(false) }
   }, [])
-  async function submit(event: FormEvent) {
-    event.preventDefault()
-    if (submitting.current) return
+  useEffect(() => {
+    if (!busy) form.current?.querySelector<HTMLInputElement>('[name="code"]')?.focus()
+  }, [busy, recovery])
+  async function verify(value: string, recoveryMode: boolean) {
+    if (submitting.current || !value.trim() || (!recoveryMode && !/^\d{6}$/.test(value))) return
     submitting.current = true
     const id = ++generation.current
-    setBusy(true)
+    setBusy(true); setFeedback('正在验证…'); setStatus('idle')
     callbacks.current.onBusyChange(true)
     try {
-      const user = await verifyTwoFactor(code.trim(), recovery)
-      if (mounted.current && generation.current === id) callbacks.current.onVerified(user.role)
-    } catch (error) {
-      if (mounted.current && generation.current === id) setFeedback(error instanceof Error ? error.message : '验证失败')
-    } finally {
+      const user = await verifyTwoFactor(value.trim(), recoveryMode)
       if (mounted.current && generation.current === id) {
-        setCode(''); setCaret(0); setBusy(false)
+        setStatus('success'); setFeedback('验证通过')
+        // 成功后保持禁用直至登录弹窗退出，防止过渡期间重复提交。
+        callbacks.current.onVerified(user.role)
+      }
+    } catch (error) {
+      if (mounted.current && generation.current === id) {
+        setFeedback(error instanceof Error ? error.message : '验证失败')
+        setCode(''); setStatus('error'); setBusy(false)
         submitting.current = false
         callbacks.current.onBusyChange(false)
       }
     }
   }
-  const syncCaret = () => setCaret(Math.min(input.current?.selectionStart ?? input.current?.value.length ?? 0, 5))
-  return <form className={`factor-challenge${recovery ? ' is-recovery' : ''}`} data-login-factor onSubmit={event => void submit(event)}>
-    <p className="factor-challenge-step">STEP 02 / TOTP 2FA CHALLENGE</p>
-    <h2 id="authenticator-title">{recovery ? '输入一组未使用的恢复码' : '手机打开验证器 App，输入 6 位动态口令'}</h2>
-    <div className="factor-code-field">
-      <div className="factor-code-digits" data-factor-digits aria-hidden="true">
-        {Array.from({ length: 6 }, (_, index) => <span key={index} data-factor-digit className={focused && index === caret ? 'is-current' : undefined}>{recovery ? '' : code[index] ?? ''}</span>)}
-      </div>
-      <input ref={input} className="factor-code-input" name="code" aria-label={recovery ? '恢复码' : '验证码'} inputMode={recovery ? 'text' : 'numeric'} autoComplete="one-time-code" maxLength={recovery ? 35 : 6} spellCheck={false} required
-        value={code} onChange={event => { setCode(event.currentTarget.value); syncCaret() }}
-        onSelect={syncCaret} onKeyUp={syncCaret} onFocus={() => { setFocused(true); syncCaret() }} onBlur={() => setFocused(false)}
-        onClick={event => {
-          if (recovery) return
-          const bounds = event.currentTarget.getBoundingClientRect()
-          const index = bounds.width ? Math.max(0, Math.min(5, Math.floor((event.clientX - bounds.left) / (bounds.width / 6)))) : 0
-          const position = Math.min(index, code.length)
-          event.currentTarget.setSelectionRange(position, position)
-          setCaret(position)
-        }} />
-    </div>
-    <label className="factor-recovery-option"><input type="checkbox" name="recovery" checked={recovery} disabled={busy} onChange={event => { setRecovery(event.currentTarget.checked); setCode(''); setCaret(0) }} />使用恢复码</label>
-    <button className="factor-confirm" type="submit" disabled={busy}>确认登录<Icon name="right" /></button>
+  return <form ref={form} className={`factor-challenge${recovery ? ' is-recovery' : ''}`} data-login-factor
+    aria-busy={busy} onSubmit={event => { event.preventDefault(); void verify(code, recovery) }}>
+    <h2 id="authenticator-title" className="sr-only">{recovery ? '输入一组未使用的恢复码' : '输入 6 位认证器验证码'}</h2>
+    {recovery ? <input className="factor-recovery-input" name="code" aria-label="恢复码" inputMode="text"
+      autoComplete="off" maxLength={35} spellCheck={false} required disabled={busy}
+      value={code} onChange={event => setCode(event.currentTarget.value)} />
+      : <CodeSlots value={code} autoFocus ariaLabel="验证码" status={status} disabled={busy}
+        onChange={value => { setCode(value); if (!submitting.current) setStatus('idle') }}
+        onComplete={value => void verify(value, false)} slotSize={36} gap={6} radius={6} />}
+    <label className="factor-recovery-option"><input type="checkbox" name="recovery" checked={recovery} disabled={busy}
+      onChange={event => { setRecovery(event.currentTarget.checked); setCode(''); setStatus('idle'); setFeedback('') }} />使用恢复码</label>
+    {recovery && <button className="factor-confirm" type="submit" disabled={busy}>确认登录<Icon name="right" /></button>}
     <p role="status" data-factor-feedback>{feedback}</p>
   </form>
 }

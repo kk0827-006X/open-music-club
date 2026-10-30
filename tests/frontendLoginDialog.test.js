@@ -23,7 +23,7 @@ async function withLogin(authenticate, verified, run) {
       await h.input('#email', 'test@example.com'); await h.input('#password', 'password')
       await h.submit('[data-login-form]')
     }
-    const factor = async code => { await h.input('[data-login-factor] [name=code]', code); await h.submit('[data-login-factor]'); await h.wait(10) }
+    const factor = async code => { const recovery = h.require('[name=recovery]').checked; await h.input('[data-login-factor] [name=code]', code); if (recovery) await h.submit('[data-login-factor]'); await h.wait(10) }
     await run(h, { requests, password, factor, render })
   }, { fetch })
 }
@@ -54,32 +54,41 @@ it('密码正确后才弹出；错误验证码不关闭；正确验证关闭后�
     assert.equal(h.query('[data-login-factor] [name=code]'), null)
   })
 })
-it('两步验证按设计显示居中提示与六个空格，完整输入和删除同步显示', async () => {
-  await withLogin(async () => ({ requiresTwoFactor: true }), undefined, async (h, { password, factor }) => {
+it('Code Slots 输入、退格和自动验证沿用服务端结果，无旧六格或普通确认按钮', async () => {
+  await withLogin(async () => ({ requiresTwoFactor: true }), undefined, async (h, { password, factor, requests }) => {
     await password()
-    const dialog = h.require('[data-login-factor-dialog]')
-    assert.equal(dialog.classList.contains('is-challenge'), true)
-    assert.match(dialog.textContent, /STEP 02 \/ TOTP 2FA CHALLENGE/)
-    assert.equal(h.require('#authenticator-title').textContent, '手机打开验证器 App，输入 6 位动态口令')
-    const code = h.require('[name=code]'), slots = [...dialog.querySelectorAll('[data-factor-digit]')]
-    assert.equal(slots.length, 6); assert.equal(slots.map(slot => slot.textContent).join(''), '')
-    assert.equal(code.autocomplete, 'one-time-code'); assert.equal(code.getAttribute('aria-label'), '验证码')
-    await h.input('[name=code]', '012345'); assert.equal(slots.map(slot => slot.textContent).join(''), '012345')
-    await h.input('[name=code]', '01234'); assert.equal(slots[5].textContent, '')
-    await factor('000000'); assert.equal(slots.map(slot => slot.textContent).join(''), ''); assert.equal(dialog.open, true)
+    assert.ok(h.query('.code-slots'))
+    assert.equal(h.query('[data-factor-digits], .factor-challenge-step, .factor-confirm'), null)
+    const code = h.require('[name=code]')
+    assert.equal(code.autocomplete, 'one-time-code')
+    assert.equal(code.getAttribute('aria-label'), '验证码')
+    await h.input('[name=code]', '01234')
+    assert.equal(h.document.querySelectorAll('.code-slots__slot[data-filled]').length, 5)
+    assert.equal(requests.filter(url => url.endsWith('/verify')).length, 0)
+    await h.React.act(async () => code.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true })))
+    assert.equal(h.document.querySelectorAll('.code-slots__slot[data-filled]').length, 4)
+    await factor('000000')
+    assert.equal(requests.filter(url => url.endsWith('/verify')).length, 1)
+    assert.equal(h.document.querySelectorAll('.code-slots__slot[data-filled]').length, 0)
+    assert.equal(h.require('[data-login-factor-dialog]').open, true)
   })
 })
-it('六格验证码与恢复码互相切换时清空显示，不限制恢复码为六位数字', async () => {
+it('Code Slots 与恢复码切换清空状态，恢复码保留独立输入和手动提交', async () => {
   await withLogin(async () => ({ requiresTwoFactor: true }), undefined, async (h, { password }) => {
     await password()
-    const form = h.require('[data-login-factor]'), code = h.require('[name=code]')
-    await h.input('[name=code]', '123456'); await h.click('[name=recovery]')
-    assert.equal(form.classList.contains('is-recovery'), true); assert.equal(code.value, '')
-    assert.equal(code.maxLength, 35); assert.equal(code.inputMode, 'text'); assert.match(h.require('#authenticator-title').textContent, /恢复码/)
+    const form = h.require('[data-login-factor]')
+    await h.input('[name=code]', '12345'); await h.click('[name=recovery]')
+    let code = h.require('[name=code]')
+    assert.equal(form.classList.contains('is-recovery'), true)
+    assert.equal(h.query('.code-slots'), null)
+    assert.equal(code.value, ''); assert.equal(code.maxLength, 35); assert.equal(code.inputMode, 'text')
+    assert.ok(h.query('.factor-confirm'))
     await h.input('[name=code]', 'abcd-efgh-ijkl'); assert.equal(code.value, 'abcd-efgh-ijkl')
     await h.click('[name=recovery]')
+    code = h.require('[name=code]')
     assert.equal(form.classList.contains('is-recovery'), false); assert.equal(code.value, '')
-    assert.equal(code.maxLength, 6); assert.equal(code.inputMode, 'numeric'); assert.equal(h.require('[data-factor-digits]').textContent.trim(), '')
+    assert.equal(code.maxLength, 6); assert.equal(code.inputMode, 'numeric')
+    assert.equal(h.document.querySelectorAll('.code-slots__slot[data-filled]').length, 0)
   })
 })
 it('关闭、Escape 与遮罩取消回到密码登录，不触发认证成功', async () => {
@@ -138,5 +147,38 @@ it('保持登录和眼睛交互沿用原输入，重复提交只发送一次认�
     await h.click('[data-reveal-password]'); assert.equal(h.require('#password').type, 'password')
     release({ role: 'user' }); await h.flush()
     assert.equal(h.require('#password').value, '')
+  })
+})
+
+it('Code Slots 支持带空格粘贴，自动验证期间禁止重复提交及切换，失败后可重新输入', async () => {
+  await withLogin(async () => ({ requiresTwoFactor: true }), undefined, async (h, { password }) => {
+    await password()
+    const originalFetch = h.window.fetch
+    let verifications = 0, release
+    h.window.fetch = (url, init) => {
+      if (url.endsWith('/verify')) { verifications++; return new Promise(resolve => { release = resolve }) }
+      return originalFetch(url, init)
+    }
+    const paste = async value => {
+      const event = new h.window.Event('paste', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'clipboardData', { value: { getData: () => value } })
+      await h.React.act(async () => h.require('[name=code]').dispatchEvent(event))
+      await h.flush()
+    }
+    await paste('000 000')
+    await h.until(() => verifications === 1, '填满后应自动验证')
+    assert.equal(h.require('[name=code]').disabled, true)
+    assert.equal(h.require('[name=recovery]').disabled, true)
+    assert.equal(h.require('[data-login-factor-close]').disabled, true)
+    await h.submit('[data-login-factor]'); await h.submit('[data-login-factor]')
+    assert.equal(verifications, 1)
+    await h.React.act(async () => release({ ok: false, status: 401, json: async () => ({ message: '验证失败' }) }))
+    await h.until(() => !h.require('[name=code]').disabled, '失败后恢复输入')
+    assert.equal(h.document.querySelectorAll('.code-slots__slot[data-filled]').length, 0)
+    assert.equal(h.document.activeElement, h.require('[name=code]'))
+    h.window.fetch = originalFetch
+    await paste('123456')
+    await h.wait(10)
+    assert.equal(h.require('[data-login-factor-dialog]').open, false)
   })
 })

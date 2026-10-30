@@ -16,7 +16,8 @@ for (const outcome of ['abort', 'late-success']) it(`上传页面销毁后不更
     const root = h.document.createElement('div')
     h.document.body.appendChild(root)
     const { mountUploadPage } = await import('../frontend/src/features/upload/upload-page.ts')
-    const view = mountUploadPage(root)
+    let view
+    await h.React.act(async () => { view = mountUploadPage(root) })
     let destroyed = false
     try {
       const fileInput = h.require('[data-upload-file]')
@@ -54,8 +55,45 @@ for (const outcome of ['abort', 'late-success']) it(`上传页面销毁后不更
       assert.equal(root.childElementCount, 0, '请求完成/取消后不能重新挂载已销毁的上传视图')
       assert.equal(root.innerHTML, destroyedMarkup, '请求完成/取消后不能更新已经销毁的上传视图')
     } finally {
-      if (!destroyed) view.destroy()
+      if (!destroyed) await h.React.act(async () => { view.destroy() })
       root.remove()
     }
   }, { fetch })
+})
+
+
+it('03 资料面板只在选择或拖入有效文件后出现，移除时复用页面退出动画，校验提示始终可见', async () => {
+  await withReactHarness(async h => {
+    h.window.matchMedia = query => ({ media: query, matches: false, addEventListener() {}, removeEventListener() {} })
+    const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx')
+    await h.render(h.React.createElement(UploadPage, { active: true }))
+    const form = h.require('[data-upload-form]')
+    const workspace = h.require('.upload-workspace')
+    const selected = h.require('[data-upload-selected-row]')
+    assert.equal(form.hidden, true)
+    assert.equal(form.hasAttribute('inert'), true)
+    const choose = async file => {
+      const input = h.require('[data-upload-file]')
+      Object.defineProperty(input, 'files', { configurable: true, value: [file] })
+      await h.React.act(async () => input.dispatchEvent(new h.window.Event('change', { bubbles: true })))
+    }
+    await choose(new h.window.File(['invalid'], 'unsupported.txt', { type: 'text/plain' }))
+    assert.equal(form.hidden, true)
+    assert.match(h.require('.upload-workspace [data-upload-feedback]').textContent, /请选择/)
+    await choose(new h.window.File(['RIFF'], 'selected.wav', { type: 'audio/wav' }))
+    assert.equal(form.hidden, false)
+    assert.equal(form.hasAttribute('inert'), false)
+    assert.equal(h.require('.upload-workspace'), workspace)
+    assert.equal(h.require('[data-upload-selected-row]'), selected)
+    await h.click('[data-upload-remove]')
+    assert.equal(form.hasAttribute('inert'), true, '淡出时立即停止交互')
+    assert.equal(form.hidden, false, '淡出完成前保留原面板')
+    await h.until(() => form.hidden, '退出动画结束后隐藏面板')
+    const drop = new h.window.Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, 'dataTransfer', { value: { files: [new h.window.File(['RIFF'], 'dropped.wav', { type: 'audio/wav' })] } })
+    await h.React.act(async () => h.require('[data-upload-dropzone]').dispatchEvent(drop))
+    assert.equal(form.hidden, false)
+    assert.equal(form.hasAttribute('inert'), false)
+    assert.match(h.require('[data-upload-filename]').textContent, /dropped.wav/)
+  })
 })
