@@ -15,3 +15,5 @@
 `CollapsibleSidebarLayout` 是共用布局适配，管理可拖动分隔线及收展状态，不拥有页面业务数据。桌面向左拖过阈值收起；收起后左缘悬停或键盘聚焦显示展开箭头，点击或向右拖动恢复。可用 Enter/空格切换、方向键调节、Home 收起、End 展开。窄屏保留全部横排菜单；收展不会销毁右侧内容。
 
 `LetterGlitch.tsx` 来自官方 <https://reactbits.dev/r/LetterGlitch-TS-CSS.json>（2026-10-28），使用同目录许可证；仅将 CSS 导入移至登录页样式表。登录页适配层配置暖灰与橙色、透明背景及较低强度，不启用鼠标交互；输入和弹窗期间保持同一个背景；隐藏标签与减少动态效果时卸载装饰。无新增依赖。
+
+`WakeSlider.tsx` 与 `../../../styles/wake-slider.css` 基于官方 <https://reactbits.dev/r/WakeSlider-TS-CSS.json>（2026-10-30），使用同目录许可证。保留竖条、速度驱动尾波和弹簧平滑；复用已有 Motion，适配主题变量、中文音量标签、0% 全暗、主指针限制、隐藏视图禁用/释放捕获、卸载帧清理和实时减少动态效果。仅用于展开播放器音量，受控 0～100 映射回原 0～1 音量接口；迷你播放器仍使用原 Radix VolumeSlider。无新增依赖。

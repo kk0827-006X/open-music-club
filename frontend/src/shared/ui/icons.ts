@@ -6,6 +6,11 @@ export const glyphs = {
 
 const eye = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
 export const paths = {
+  playerPlay: '<path d="m8 4 13 8-13 8z"/>',
+  playerPause: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+  more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  dismiss: '<path d="m6 6 12 12M18 6 6 18"/>',
   library: '<path d="M3.5 6.5h6l1.7 2H20.5v9.5H3.5z"/><path d="M3.5 6.5v-2h6l1.7 2"/>',
   search: '<circle cx="10.5" cy="10.5" r="5.8"/><path d="m15 15 5 5"/>',
   upload: '<path d="M12 16V3m0 0L7.5 7.5M12 3l4.5 4.5M4 14v6h16v-6"/>',

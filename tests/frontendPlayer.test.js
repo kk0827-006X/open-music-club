@@ -295,7 +295,9 @@ describe('底部播放器与歌词画面（真实 React 组件）', () => {
       const scrollCalls = []
       const prototype = harness.window.HTMLElement.prototype
       const originalScroll = prototype.scrollIntoView
-      prototype.scrollIntoView = function (options) { scrollCalls.push(options) }
+      const originalScrollTo = prototype.scrollTo
+      prototype.scrollIntoView = function () { assert.fail('歌词定位不能调用会滚动祖先的 scrollIntoView') }
+      prototype.scrollTo = function (options) { scrollCalls.push({ element: this, options }) }
       const { view } = await renderPlayer(harness, {
         player,
         queue,
@@ -310,6 +312,11 @@ describe('底部播放器与歌词画面（真实 React 组件）', () => {
         assert.match(harness.require('[data-player-track] span').textContent, /坏歌手/)
         assert.equal(harness.document.querySelectorAll('img[onerror]').length, 0)
 
+        Object.defineProperties(lyrics, { clientHeight: { configurable: true, value: 200 }, scrollHeight: { configurable: true, value: 1000 } })
+        lyrics.scrollTop = 120
+        lyrics.getBoundingClientRect = () => ({ top: 100 })
+        lyrics.querySelectorAll('p')[0].getBoundingClientRect = () => ({ top: -500, height: 40 })
+        lyrics.querySelectorAll('p')[1].getBoundingClientRect = () => ({ top: 350, height: 40 })
         await harness.click('[data-player-open]')
         const expanded = harness.require('[data-player-expanded]')
         assert.ok(expanded.classList.contains('is-open'))
@@ -322,7 +329,19 @@ describe('底部播放器与歌词画面（真实 React 组件）', () => {
         await act(async () => { audio.dispatchEvent(new harness.window.Event('timeupdate')) })
         await harness.flush()
         assert.ok(lyrics.querySelectorAll('p')[1].classList.contains('is-current'))
-        assert.ok(scrollCalls.some(options => options?.behavior === 'instant' && options?.block === 'center'))
+        assert.equal(scrollCalls.at(-1).element, lyrics)
+        assert.deepEqual(scrollCalls.at(-1).options, { top: 290, behavior: 'instant' })
+        assert.equal(lyrics.querySelectorAll('p')[1].dataset.lyricDistance, '0')
+        audio.duration = 100
+        await act(async () => audio.dispatchEvent(new harness.window.Event('loadedmetadata')))
+        await harness.click('[data-player-lyrics] p:first-child button')
+        assert.equal(audio.currentTime, 1, '点击歌词仍通过同一个播放器定位')
+        assert.equal(scrollCalls.at(-1).options.top, 0, '容器顶部限制为零')
+        lyrics.querySelectorAll('p')[1].getBoundingClientRect = () => ({ top: 5000, height: 40 })
+        audio.currentTime = 4
+        await act(async () => audio.dispatchEvent(new harness.window.Event('timeupdate')))
+        assert.equal(scrollCalls.at(-1).options.top, 800, '容器底部限制为自身可滚动范围')
+        assert.ok(scrollCalls.every(call => call.element === lyrics), '任何外层节点都不应收到滚动命令')
 
         await harness.click('[data-player-close]')
         assert.equal(expanded.classList.contains('is-open'), false)
@@ -340,6 +359,7 @@ describe('底部播放器与歌词画面（真实 React 组件）', () => {
         assert.equal(audio.loads, 0)
       } finally {
         prototype.scrollIntoView = originalScroll
+        prototype.scrollTo = originalScrollTo
         player.destroy()
       }
     }, { fetch: fetcher })
@@ -351,13 +371,93 @@ describe('底部播放器与歌词画面（真实 React 组件）', () => {
     assert.match(css, /\.player-volume-slider\b/)
     assert.match(css, /\.player-volume-slider-track\s*\{[^}]*height: 2px/)
     assert.match(css, /\.player-volume-slider-range\s*\{[^}]*background: var\(--amber\)/)
-    assert.match(css, /\.player-expanded\s*\{[^}]*inset: 0 0 106px[^}]*visibility: hidden/)
+    assert.match(css, /\.player-expanded\s*\{[^}]*inset: 0;/)
     assert.match(css, /\.player-expanded::before\s*\{[^}]*transform-origin: (?:center bottom|bottom center)[^}]*transform: scaleY\(0\)[^}]*transition: transform (?:7|8|9)\d\dms/)
     assert.match(css, /\.player-expanded\.is-open::before\s*\{[^}]*transform: scaleY\(1\)/)
     assert.match(css, /\.player-expanded-header,\s*\.player-expanded-content\s*\{[^}]*opacity: 0[^}]*transform: translateY\(/)
     assert.match(css, /\.player-expanded\.is-open \.player-expanded-header,\s*\.player-expanded\.is-open \.player-expanded-content\s*\{[^}]*opacity: 1/)
-    assert.match(css, /\.player-expanded\s*\{[^}]*inset: 0 0 76px/)
     assert.match(css, /\.player-expanded\.is-open ~ \.global-player\s*\{[^}]*backdrop-filter: none/)
     assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.player-expanded[^{]*\{[^}]*transition: none/)
+  })
+})
+
+it('展开页爱心复用真实收藏并同步底栏，静态更多不请求，也不创建第二个Audio', async () => {
+  await withPlayerHarness(async h => {
+    const track = song(21)
+    const { player, queue, audio, created } = await setupPlayer(h, [track])
+    const writes = []
+    let liked = false
+    const personalLibrary = stubPersonalLibrary({ isLiked: async () => liked, setLiked: async (item, value) => { writes.push([item.key, value]); liked = value } })
+    await player.play(track)
+    await renderPlayer(h, { player, queue, personalLibrary, defaultTrack: track })
+    try {
+      await h.click('[data-player-open]')
+      assert.equal(h.require('[data-album-ambient]').getAttribute('data-visible'), 'true')
+      await h.until(() => !h.require('[data-expanded-like]').disabled, '收藏状态读取后可操作')
+      const source = audio.src
+      await h.click('[data-expanded-like]')
+      await h.until(() => h.require('[data-expanded-like]').getAttribute('aria-pressed') === 'true')
+      assert.deepEqual(writes, [['local:21', true]])
+      assert.equal(h.require('[data-player-like]').getAttribute('aria-pressed'), 'true')
+      assert.equal(h.require('[data-expanded-more]').disabled, true)
+      await h.React.act(async () => h.require('[data-expanded-more]').click())
+      assert.equal(writes.length, 1)
+      assert.equal(created(), 1)
+      assert.equal(audio.src, source)
+      assert.equal(audio.paused, false)
+      await h.click('[data-player-close]')
+      assert.equal(h.require('[data-album-ambient]').getAttribute('data-visible'), 'false')
+    } finally { player.destroy() }
+  })
+})
+
+
+it('完整视图控制共享音频、时间及音量，队列独立开关且返回正确焦点', async () => {
+  await withPlayerHarness(async h => {
+    const first = song(41), second = song(42, 'netease')
+    const { player, queue, audio, created } = await setupPlayer(h, [first, second])
+    await player.play(first)
+    await renderPlayer(h, { player, queue, defaultTrack: first })
+    try {
+      await h.click('[data-player-open]')
+      const footer = h.require('[data-global-player]')
+      assert.equal(footer.getAttribute('aria-hidden'), 'true')
+      assert.ok(footer.hasAttribute('inert'), '隐藏底栏不能再进入键盘操作顺序')
+      assert.equal(h.query('[data-expanded-queue]'), null, '不再渲染常驻第三栏')
+      await h.click('[data-expanded-toggle]'); assert.equal(audio.paused, true)
+      await h.click('[data-expanded-toggle]'); assert.equal(audio.paused, false)
+      audio.duration = 100
+      await h.React.act(async () => audio.dispatchEvent(new h.window.Event('loadedmetadata')))
+      await h.input('[data-expanded-progress]', '250')
+      assert.equal(audio.currentTime, 25)
+      assert.equal(h.require('[data-expanded-current]').textContent, '0:25')
+      assert.equal(h.require('[data-expanded-remaining]').textContent, '−1:15')
+      const thumb = h.require('.expanded-player-volume [role="slider"]')
+      await h.React.act(async () => thumb.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })))
+      assert.ok(Math.abs(audio.volume - .61) < 1e-9)
+      assert.equal(h.require('[data-player-volume-input]').getAttribute('aria-valuenow'), '61')
+      await h.click('[data-expanded-next]')
+      await h.until(() => player.get().track.key === second.key)
+      await h.click('[data-expanded-previous]')
+      await h.until(() => player.get().track.key === first.key)
+      await h.click('[data-expanded-queue-toggle]')
+      const panel = h.require('[data-player-queue-panel]')
+      assert.equal(panel.hidden, false)
+      assert.ok(panel.classList.contains('is-immersive'))
+      assert.equal(h.document.activeElement, h.require('[data-queue-close]'))
+      await h.React.act(async () => panel.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+      assert.equal(panel.hidden, true)
+      assert.ok(h.require('[data-player-expanded]').classList.contains('is-open'))
+      assert.equal(h.document.activeElement, h.require('[data-expanded-queue-toggle]'))
+      await h.click('[data-expanded-queue-toggle]')
+      await h.click('[data-player-close]')
+      assert.equal(panel.hidden, true)
+      assert.equal(footer.getAttribute('aria-hidden'), 'false')
+      assert.equal(footer.hasAttribute('inert'), false)
+      assert.equal(h.document.activeElement, h.require('[data-player-open]'))
+      assert.equal(audio.paused, false)
+      assert.equal(created(), 1)
+      assert.equal(audio.loads, 0)
+    } finally { player.destroy() }
   })
 })

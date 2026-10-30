@@ -4,6 +4,7 @@
 @import './styles/entry-authorized.css';
 @import './styles/archive-shell.css';
 @import './styles/player.css';
+@import './styles/ambient-album-background.css';
 @import './styles/music-library.css';
 @import './styles/search.css';
 @import './styles/upload.css';
@@ -15,3 +16,5 @@
 @import './styles/footprint.css';
 @import './styles/member-sidebar.css';
 @import './styles/application-activation.css';
+@import './styles/immersive-player.css';
+@import './styles/wake-slider.css';

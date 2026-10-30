@@ -180,8 +180,8 @@ describe('播放队列面板交互（真实 React 组件）', () => {
       assert.ok(saveIcon)
       assert.equal(saveIcon.querySelector('rect').getAttribute('rx'), '4')
       assert.equal(rows[0].querySelector('[data-queue-save] [data-ui-icon="plus"]'), null)
-      assert.ok(rows[0].querySelector('[data-queue-play] [data-ui-icon="play"]'))
-      assert.ok(rows[0].querySelector('[data-queue-remove] [data-ui-icon="close"]'))
+      assert.ok(rows[0].querySelector('[data-queue-play] svg[data-ui-icon="playerPlay"]'))
+      assert.ok(rows[0].querySelector('[data-queue-remove] svg[data-ui-icon="dismiss"]'))
 
       const liked = rows[0].querySelector('[data-queue-like="local:1"]')
       assert.equal(liked.getAttribute('aria-pressed'), 'true')

@@ -93,6 +93,10 @@ it('两套 token 一一对应，新增深色关键文字和操作颜色符合 AA
     const map = new Map(); rule.walkDecls(d => { if (d.prop.startsWith('--')) map.set(d.prop, d.value) }); palettes.push(map)
   })
   assert.deepEqual([...palettes[0].keys()], [...palettes[1].keys()])
+  for (const colors of palettes) {
+    assert.ok(colors.has('--player-ambient-base'))
+    assert.ok(colors.has('--player-ambient-ink'))
+  }
   assert.equal(palettes[1].get('--backdrop'), 'rgba(0,0,0,.6)', '深色遮罩应压暗背景，不能变成浅灰发亮的分隔线')
   const luminance = hex => {
     const rgb = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16) / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4)

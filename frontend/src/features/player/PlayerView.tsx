@@ -1,5 +1,5 @@
 import {
-  forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, useSyncExternalStore,
+  forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, useSyncExternalStore,
 } from 'react'
 import type {
   FormEvent, MouseEvent as ReactMouseEvent, RefObject, SyntheticEvent,
@@ -7,6 +7,7 @@ import type {
 import { createPersonalLibraryClient, toPersonalSong } from '../../services/music/personal-library.ts'
 import type { UserPlaylist } from '../../services/music/personal-library.ts'
 import type { SearchItem } from '../../shared/music.ts'
+import { AmbientAlbumBackground } from '../../shared/react/ambient/AmbientAlbumBackground.tsx'
 import { Icon, Modal } from '../../shared/react/ui.tsx'
 import { VolumeSlider } from '../../shared/react/controls.tsx'
 import { useReducedMotion } from '../../shared/react/hooks.ts'
@@ -17,6 +18,7 @@ import type { MusicQueue } from '../queue/model.ts'
 import { createQueuePersistence } from '../queue/persistence.ts'
 import { QueueAddFlights, type QueueAddFlightsHandle } from '../queue/QueueAddFlights.tsx'
 import { QueuePanel } from '../queue/QueuePanel.tsx'
+import { ExpandedPlayerControls } from './ExpandedPlayerControls.tsx'
 
 const FALLBACK_COVER = '/images/album-placeholder-01.svg'
 const AUTO_HIDE_DELAY = 320
@@ -109,8 +111,10 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
   const footerRef = useRef<HTMLElement | null>(null)
   const expandedSectionRef = useRef<HTMLElement | null>(null)
   const queueToggleRef = useRef<HTMLButtonElement | null>(null)
+  const expandedQueueToggleRef = useRef<HTMLButtonElement | null>(null)
   const queuePanelRef = useRef<HTMLElement | null>(null)
   const openButtonRef = useRef<HTMLButtonElement | null>(null)
+  const compactOpenButtonRef = useRef<HTMLButtonElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
   const restoreFocusRef = useRef(false)
   const lyricScrollRef = useRef<HTMLDivElement | null>(null)
@@ -166,21 +170,40 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
       setQueueOpen(false)
       cancelPlayerHide()
       setVisible(true)
-    } else schedulePlayerHide()
+    } else {
+      setQueueOpen(false)
+      cancelPlayerHide()
+      setVisible(true)
+      schedulePlayerHide()
+    }
   }, [cancelPlayerHide, schedulePlayerHide, setQueueOpen, setVisible])
 
   useEffect(() => {
-    if (expanded) {
-      closeButtonRef.current?.focus()
-      return
-    }
-    if (restoreFocusRef.current) {
+    let entry: HTMLButtonElement | null = null
+    if (expanded) entry = closeButtonRef.current
+    else if (restoreFocusRef.current) {
       restoreFocusRef.current = false
-      openButtonRef.current?.focus()
+      const openButton = openButtonRef.current
+      // 窄屏隐藏了右侧文字入口，焦点应返回仍可见的歌曲信息按钮。
+      const tail = openButton?.parentElement
+      entry = tail && window.getComputedStyle(tail).display === 'none' ? compactOpenButtonRef.current : openButton
+    } else {
+      const active = document.activeElement
+      if (expandedSectionRef.current?.contains(active) && active instanceof HTMLElement) active.blur()
       return
     }
-    const active = document.activeElement
-    if (expandedSectionRef.current?.contains(active) && active instanceof HTMLElement) active.blur()
+    const previousFocus = document.activeElement
+    let frame = 0
+    const deadline = performance.now() + 1200
+    // 可见性可能仍处于退出/进入过渡；只在本次过渡内短暂重试，用户另选焦点即停止。
+    const restoreEntryFocus = () => {
+      const active = document.activeElement
+      if (active !== previousFocus && active !== document.body && active !== entry) return
+      entry?.focus({ preventScroll: true })
+      if (entry && document.activeElement !== entry && performance.now() < deadline) frame = requestAnimationFrame(restoreEntryFocus)
+    }
+    restoreEntryFocus()
+    return () => cancelAnimationFrame(frame)
   }, [expanded])
 
   const collectionNotice = useCallback((message: string) => {
@@ -513,9 +536,15 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
     const index = currentLyricIndex(lyricLines, state.currentTime)
     if (index < 0 || index === lastLyricScrollRef.current) return
     lastLyricScrollRef.current = index
-    const line = lyricScrollRef.current?.children.item(index)
-    if (line instanceof HTMLElement) {
-      line.scrollIntoView({ block: 'center', behavior: reduced ? 'instant' as ScrollBehavior : 'smooth' })
+    const container = lyricScrollRef.current
+    const line = container?.children.item(index)
+    if (container && line instanceof HTMLElement) {
+      // 只调整歌词容器；scrollIntoView 会连带滚动 overflow:hidden 的播放器和外层页面。
+      const lineBounds = line.getBoundingClientRect()
+      const top = container.scrollTop + lineBounds.top - container.getBoundingClientRect().top - container.clientTop
+        + lineBounds.height / 2 - container.clientHeight / 2
+      container.scrollTo({ top: Math.max(0, Math.min(top, container.scrollHeight - container.clientHeight)),
+        behavior: reduced ? 'instant' as ScrollBehavior : 'smooth' })
     }
   }, [expanded, lyricLines, reduced, state.currentTime])
 
@@ -533,7 +562,7 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
     const outside = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Node)) return
-      if (queuePanelRef.current?.contains(target) || queueToggleRef.current?.contains(target)) return
+      if (queuePanelRef.current?.contains(target) || queueToggleRef.current?.contains(target) || expandedQueueToggleRef.current?.contains(target)) return
       setQueueOpen(false)
     }
     document.addEventListener('pointerdown', outside, true)
@@ -615,7 +644,9 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
   // 队列按低频版本生成稳定快照，timeupdate 不会使 500 行 Motion 列表重绘。
   const queueSnapshot = useMemo(() => [...queue.items], [queue, queueVersion])
   const closeQueue = useCallback(() => setQueueOpen(false), [setQueueOpen])
-  const focusQueueToggle = useCallback(() => queueToggleRef.current?.focus(), [])
+  const focusQueueToggle = useCallback(() => {
+    (expandedRef.current ? expandedQueueToggleRef : queueToggleRef).current?.focus()
+  }, [])
   const removeQueueTrack = useCallback((item: SearchItem) => removeQueueItem(item.key), [removeQueueItem])
   const previewTrack = selectedAlbum.tracks[0]
   const sourceLabel = activeTrack ? (activeTrack.source === 'local' ? 'LOCAL' : 'NETEASE') : 'NETEASE'
@@ -657,6 +688,7 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
         aria-hidden={!expanded}
         inert={!expanded ? true : undefined}
       >
+        <AmbientAlbumBackground active={expanded} coverUrl={activeTrack?.coverUrl} />
         <header className="player-expanded-header">
           <div><strong>OPEN MUSIC CLUB</strong><span>MUSIC ARCHIVE / NOW PLAYING</span></div>
           <button
@@ -664,49 +696,69 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
             type="button"
             data-player-close
             aria-label="收起播放器"
-            onClick={() => setExpanded(false)}
+            onClick={() => setExpanded(false, true)}
           >
-            收起播放器 <span><Icon name="down" /></span>
+            <span className="sr-only">收起播放器</span><Icon name="chevronDown" />
           </button>
         </header>
         <div className="player-expanded-content">
           <section className="player-expanded-track" aria-label="当前歌曲">
-            <p>01 / NOW PLAYING</p>
             <img
               data-expanded-cover
               src={activeTrack?.coverUrl ?? FALLBACK_COVER}
               alt={activeTrack ? `${activeTrack.title} 封面` : '当前歌曲封面'}
               onError={replaceBrokenCover}
             />
-            <strong data-expanded-title>{expandedTitle}</strong>
-            <span data-expanded-artist>{expandedArtist}</span>
-            <small data-expanded-source>{expandedSource}</small>
+            <div className="player-expanded-title-row">
+              <div className="player-expanded-copy"><strong data-expanded-title>{expandedTitle}</strong><span data-expanded-artist>{expandedArtist}</span></div>
+              <div className="player-expanded-track-actions">
+                <button type="button" data-expanded-like aria-label={liked ? '取消收藏歌曲' : '收藏歌曲'}
+                  aria-pressed={liked} disabled={playerLikeDisabled} onClick={onPlayerLike}><Icon name="heart" filled={liked} /></button>
+                <button type="button" data-expanded-more aria-label="更多选项" disabled><Icon name="more" filled /></button>
+              </div>
+            </div>
+            <small className="sr-only" data-expanded-source>{expandedSource}</small>
+            <ExpandedPlayerControls active={expanded} playing={Boolean(activeTrack && !state.paused)}
+              seekable={Boolean(activeTrack && Number.isFinite(state.duration) && state.duration > 0)}
+              fraction={activeTrack && Number.isFinite(state.duration) && state.duration > 0 ? Math.min(1, Math.max(0, state.currentTime / state.duration)) : 0}
+              current={footerCurrent} remaining={clock(Number.isFinite(state.duration) ? Math.max(0, state.duration - state.currentTime) : 0)}
+              previousDisabled={!activeTrack || !queue.previous(activeTrack.key)} nextDisabled={!activeTrack || !queue.next(activeTrack.key)}
+              volume={volumeValue} queueOpen={queueOpen} queueCount={queueCount} queueToggleRef={expandedQueueToggleRef}
+              onPrevious={playPrevious} onToggle={togglePlayback} onNext={playNext} onSeek={player.seek} onVolume={changeVolume} onQueue={onPlayerQueueToggle} />
           </section>
           <section className="player-expanded-lyrics" aria-label="歌词">
-            <p>02 / LYRICS · 歌词</p>
             <div className="player-lyrics-scroll" data-player-lyrics aria-live="off" ref={lyricScrollRef}>
               {state.error
                 ? <p className="player-lyrics-empty">{state.error}</p>
                 : lyricMessage || lyricLines.length === 0
                   ? <p className="player-lyrics-empty">{lyricMessage ?? '此歌曲暂无歌词。'}</p>
                   : lyricLines.map((line, index) => (
-                    <p key={`${index}-${line.time}`} className={index === lyricIndex ? 'is-current' : undefined}>{line.text}</p>
+                    <p key={`${index}-${line.time}`} className={index === lyricIndex ? 'is-current' : undefined}
+                      data-lyric-distance={Math.min(3, Math.abs(index - lyricIndex))}>
+                      <button type="button" aria-current={index === lyricIndex ? 'true' : undefined}
+                        disabled={!activeTrack || !Number.isFinite(state.duration) || state.duration <= 0}
+                        onClick={() => player.seek(line.time / state.duration)}>{line.text}</button>
+                    </p>
                   ))}
             </div>
           </section>
-          <ExpandedQueue items={queueSnapshot} activeKey={activeKey} onPlay={playQueueItem} />
         </div>
       </section>
       <footer
         ref={footerRef}
         className={`global-player${playerVisible || expanded ? ' is-visible' : ''}`}
         data-global-player
+        aria-hidden={expanded}
+        inert={expanded ? true : undefined}
         aria-label="全站播放器"
         onClick={onFooterClick}
       >
         <section className="player-track" data-player-track>
           <img src={footerCover} alt={footerCoverAlt} onError={replaceBrokenCover} />
-          <div><strong>{footerTitle}</strong><span>{footerMeta}</span></div>
+          <div><button ref={compactOpenButtonRef} type="button" className="player-track-copy" data-player-open-compact
+            aria-label={`展开播放器与歌词：${footerTitle}`} onClick={() => setExpanded(true)}>
+            <strong>{footerTitle}</strong><span>{footerMeta}</span>
+          </button></div>
           <b><i />{sourceLabel}</b>
           <button
             type="button"
@@ -794,6 +846,7 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
       <QueuePanel
         ref={queuePanelRef}
         open={queueOpen}
+        immersive={expanded}
         items={queueSnapshot}
         activeKey={activeKey}
         reduced={reduced}
@@ -855,11 +908,3 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
 })
 
 export default PlayerView
-
-const ExpandedQueue = memo(function ExpandedQueue({ items, activeKey, onPlay }: { items: readonly SearchItem[]; activeKey?: string; onPlay(item: SearchItem): void }) {
-  return <section className="player-expanded-queue" aria-label="播放队列"><p>03 / PLAY QUEUE · 播放队列</p>
-    <ol data-expanded-queue>{items.map((item, index) => <li key={item.key} className={item.key === activeKey ? 'is-active' : undefined}>
-      <button type="button" data-queue-play={item.key} onClick={() => onPlay(item)}><span>{String(index + 1).padStart(2, '0')}</span><strong>{item.title}</strong><small>{item.artist}</small></button>
-    </li>)}</ol><small data-expanded-queue-empty hidden={items.length > 0}>队列为空</small>
-  </section>
-})

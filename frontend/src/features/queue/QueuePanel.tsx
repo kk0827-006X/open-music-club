@@ -57,6 +57,7 @@ function queueSignature(items: readonly SearchItem[]) {
 
 export interface QueuePanelProps {
   open: boolean
+  immersive?: boolean
   items: readonly SearchItem[]
   activeKey?: string
   reduced: boolean
@@ -203,7 +204,7 @@ function QueueRow(props: QueueRowProps) {
           title="播放"
           onClick={() => onPlay(item)}
         >
-          <Icon name="play" />
+          <Icon name="playerPlay" filled />
         </button>
         <button
           type="button"
@@ -232,7 +233,7 @@ function QueueRow(props: QueueRowProps) {
           title="移除"
           onClick={() => onRemove(item)}
         >
-          <Icon name="close" />
+          <Icon name="dismiss" />
         </button>
       </div>
     </Reorder.Item>
@@ -243,7 +244,7 @@ function QueueRow(props: QueueRowProps) {
 // 拖动期间只更新本地 draft；松手（onDragEnd）才向父组件提交一次真实队列顺序与持久化。
 export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function QueuePanel(props, ref) {
   const {
-    open, items, activeKey, reduced, likes, pendingLikes, orderStatus,
+    open, immersive = false, items, activeKey, reduced, likes, pendingLikes, orderStatus,
     onClose, onFocusToggle, onClear, onPlay, onRemove, onSave, onLike, onReorder,
   } = props
   const localRef = useRef<HTMLElement | null>(null)
@@ -270,6 +271,14 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
     if (typeof ref === 'function') ref(node)
     else if (ref) (ref as { current: HTMLElement | null }).current = node
   }, [ref])
+
+  useEffect(() => {
+    if (open && immersive) localRef.current?.querySelector<HTMLButtonElement>('[data-queue-close]')?.focus()
+  }, [open, immersive])
+
+  useEffect(() => {
+    if (open) localRef.current?.querySelector<HTMLElement>('li.is-active')?.scrollIntoView?.({ block: 'nearest', behavior: reduced ? 'instant' as ScrollBehavior : 'smooth' })
+  }, [open, activeKey, reduced])
 
   const updateDraft = useCallback((next: SearchItem[]) => {
     draftRef.current = next
@@ -502,7 +511,7 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
     <motion.aside
       ref={assignRef}
       id="player-queue-panel"
-      className="player-queue-panel"
+      className={`player-queue-panel${immersive ? ' is-immersive' : ''}`}
       data-player-queue-panel
       hidden={!open}
       aria-label="播放队列"
@@ -511,6 +520,7 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
     >
       <header>
         <strong>PLAY QUEUE / 播放队列</strong>
+        {immersive && <button type="button" data-queue-close aria-label="关闭播放队列" onClick={() => { onClose(); onFocusToggle() }}><Icon name="dismiss" /></button>}
         <button
           type="button"
           data-queue-clear

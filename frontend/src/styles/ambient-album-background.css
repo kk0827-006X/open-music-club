@@ -1,0 +1,37 @@
+/* 背景仅使用有限层 CSS 渐变与 transform；取色画布不进入 DOM。 */
+.ambient-album-background { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: var(--player-ambient-base); opacity: 0; transform: scaleY(0); transform-origin: center bottom; transition: transform 820ms cubic-bezier(.2,.75,.16,1), opacity 520ms ease; contain: strict; }
+.ambient-album-background[data-visible="true"] { opacity: 1; transform: scaleY(1); }
+.ambient-album-scene { position: absolute; inset: 0; transition: opacity var(--ambient-crossfade) ease-in-out; }
+.ambient-album-colors { position: absolute; inset: -12%; filter: saturate(.75) brightness(.72); }
+.ambient-album-blob { position: absolute; display: block; width: 80%; height: 94%; border-radius: 50%; filter: blur(58px); animation: ambient-drift-a 31s ease-in-out infinite alternate; animation-play-state: paused; }
+.ambient-album-scene[data-running="true"] .ambient-album-blob { animation-play-state: running; }
+.ambient-album-blob-0 { left: -16%; top: -25%; background: radial-gradient(ellipse, var(--ambient-color-1) 4%, transparent 72%); }
+.ambient-album-blob-1 { right: -18%; top: -12%; background: radial-gradient(ellipse, var(--ambient-color-2) 8%, transparent 72%); animation-name: ambient-drift-b; animation-duration: 43s; }
+.ambient-album-blob-2 { left: 5%; bottom: -35%; background: radial-gradient(ellipse, var(--ambient-color-3) 10%, transparent 74%); animation-name: ambient-drift-c; animation-duration: 53s; }
+.ambient-album-blob-3 { right: -15%; bottom: -28%; background: radial-gradient(ellipse, var(--ambient-color-4) 4%, var(--ambient-color-5) 20%, transparent 72%); animation-name: ambient-drift-b; animation-duration: 67s; animation-direction: alternate-reverse; }
+.ambient-album-veil { position: absolute; inset: 0; background: var(--player-ambient-veil); }
+@keyframes ambient-drift-a { from { transform: translate3d(-3%, 0, 0) scale(1); } to { transform: translate3d(15%, 12%, 0) scale(1.12); } }
+@keyframes ambient-drift-b { from { transform: translate3d(0, -4%, 0) scale(1.08); } to { transform: translate3d(-14%, 15%, 0) scale(.96); } }
+@keyframes ambient-drift-c { from { transform: translate3d(-6%, 6%, 0) scale(1); } to { transform: translate3d(16%, -11%, 0) scale(1.1); } }
+.player-expanded { --ink: var(--player-ambient-ink); --muted: var(--player-ambient-muted); --hairline: var(--player-ambient-line); --color-text-01: var(--player-ambient-ink); --color-text-19: var(--player-ambient-muted); --color-text-22: var(--player-ambient-muted); --color-text-26: var(--player-ambient-muted); --color-text-28: var(--player-ambient-muted); --color-border-08: var(--player-ambient-line); --color-border-10: var(--player-ambient-line); --color-border-15: var(--player-ambient-line); --color-border-16: var(--player-ambient-line); --color-border-17: var(--player-ambient-line); --color-border-18: var(--player-ambient-line); color: var(--ink); }
+.player-expanded > header, .player-expanded > .player-expanded-content { z-index: 1; }
+.player-expanded-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin-top: 26px; }
+.player-expanded-title-row > strong { min-width: 0; margin: 0; }
+.player-expanded-track-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.player-expanded-track-actions button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--player-ambient-line); border-radius: 50%; background: var(--player-ambient-action); color: var(--player-ambient-ink); cursor: pointer; }
+.player-expanded-track-actions button:disabled { cursor: default; opacity: .55; }
+.player-expanded-track-actions [data-expanded-more] { opacity: 1; }
+.player-expanded-track-actions button[aria-pressed="true"] { color: var(--player-ambient-accent); }
+@media (max-width: 600px) {
+  .ambient-album-blob { filter: blur(28px); }
+  .ambient-album-blob-3 { display: none; }
+  .ambient-album-blob-2 { background: radial-gradient(ellipse, var(--ambient-color-3) 4%, var(--ambient-color-4) 22%, transparent 74%); }
+  .player-expanded-title-row { margin: 0; grid-column: 2; grid-row: 1; gap: 4px; }
+  .player-expanded-track-actions { gap: 3px; }
+  .player-expanded-track-actions button { width: 28px; height: 28px; }
+  .player-expanded-track > [data-expanded-artist] { grid-column: 2; grid-row: 2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-album-background, .ambient-album-scene { transition: none; }
+  .ambient-album-blob { animation: none; }
+}

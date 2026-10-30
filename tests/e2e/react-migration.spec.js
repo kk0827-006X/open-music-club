@@ -3,7 +3,7 @@ const { graphicsProfile } = require('./graphics-profile')
 test.use({ deviceScaleFactor: 1 })
 
 // 交互回归用合成接口；安全认证和真实音频由 member-journey 独立覆盖。
-async function mockWorkspace(page, role = 'user') {
+async function mockWorkspace(page, role = 'user', initialQueue) {
   const tracks = Array.from({ length: 24 }, (_, index) => ({
     source: index % 2 ? 'netease' : 'local', sourceId: String(index + 1),
     trackKey: `${index % 2 ? 'netease' : 'local'}:${index + 1}`,
@@ -26,7 +26,7 @@ async function mockWorkspace(page, role = 'user') {
     else if (url.pathname === '/api/security/csrf-token') body = { csrfToken: 'isolated-csrf' }
     else if (url.pathname === '/api/me/queue') {
       if (request.method() === 'PUT') writes.push(request.postDataJSON().tracks)
-      else body = { tracks }
+      else body = { tracks: initialQueue ?? tracks }
     } else if (url.pathname === '/api/me/profile') body = { profile: { id: 1, nickname: '隔离成员', avatarUrl: null } }
     else if (url.pathname === '/api/local/music') body = { success: true, tracks: tracks.filter(item => item.source === 'local') }
     else if (url.pathname.startsWith('/api/me/likes/')) body = { liked: false }
@@ -512,4 +512,303 @@ test('用户与足迹右侧无重复标题和顶线，设置弹窗标题保持�
   await expect(page.locator('#settings-title')).toBeVisible()
   await expect(page.locator('.settings-section-heading')).toBeVisible()
   expect(errors).toEqual([])
+})
+
+test('展开播放器封面环境取色、交叉淡入、缓存与收藏正常，CORS失败不影响播放', async ({ page }, info) => {
+  await mockWorkspace(page, 'user', [])
+  const errors = [], extractions = [], likes = []
+  let ambientLiked = false
+  page.on('pageerror', error => errors.push(error.message))
+  const colors = { 101: '#d62b49', 102: '#246ac2', 103: '#369963' }
+  await page.route('https://p.music.126.net/ambient-*.svg', async route => {
+    const id = Number(route.request().url().match(/ambient-(\d+)/)[1])
+    const headers = await route.request().allHeaders()
+    if (headers['sec-fetch-mode'] === 'cors' || headers.origin) extractions.push(id)
+    // 明确拒绝来源；Playwright 对缺省 CORS 头会自动放行，不能用空 headers 模拟失败。
+    await route.fulfill({ contentType: 'image/svg+xml', headers: { 'Access-Control-Allow-Origin': id === 103 ? 'https://blocked.invalid' : '*' },
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${colors[id]}"/></svg>` })
+  })
+  await page.route('https://e2e.music.126.net/ambient.wav', route => route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }))
+  await page.route('**/api/netease/search?**', route => route.fulfill({ json: { code: 200, result: { songs: [101,102,103].map(id => ({ id, name: `ambient ${id}`, ar: [{ name: '隔离歌手' }], al: { name: '环境背景测试', picUrl: `https://p.music.126.net/ambient-${id}.svg` }, dt: 60000 })) } } }))
+  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/ambient.wav' }] } }))
+  await page.route('**/api/netease/lyric?**', route => route.fulfill({ json: { code: 200, lrc: { lyric: '[00:00.00]音乐让颜色缓慢流动\n[00:05.00]当这句很长的歌词缓缓唱起，愿每一个音符都能自然换行，留在恰好舒适的阅读位置\n[00:10.00]沿着时间的方向\n[00:15.00]听见远处的回响\n[00:20.00]让旋律继续流淌\n[00:30.00]保留原来的声音' } } }))
+  await page.route('**/api/me/likes/netease/*', async route => {
+    if (route.request().method() !== 'GET') { likes.push(route.request().method()); ambientLiked = route.request().method() === 'PUT' }
+    await route.fulfill({ json: { success: true, liked: ambientLiked } })
+  })
+  await page.locator('[data-nav="search"]').click()
+  await page.locator('[data-search-input]').fill('ambient')
+  const play = async id => {
+    await page.getByRole('button', { name: `播放 ambient ${id}`, exact: true }).click()
+    await expect(page.locator('[data-expanded-title]')).toHaveText(`ambient ${id}`)
+  }
+  await play(101)
+  await page.mouse.move(700, 998)
+  await page.locator('[data-player-open]').click()
+  const background = page.locator('[data-album-ambient]')
+  const palette = () => background.locator('[data-front="true"]').evaluate(node => node.style.getPropertyValue('--ambient-color-1'))
+  await expect.poll(palette).toBe('rgb(214 43 73)')
+  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1')
+  await expect(page.locator('[data-global-player]')).toHaveCSS('visibility', 'hidden')
+  await expect(page.locator('[data-global-player]')).toHaveAttribute('inert', '')
+  const columns = await page.locator('.player-expanded-content').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length)
+  expect(columns).toBe(2)
+  await expect(page.locator('[data-expanded-queue]')).toHaveCount(0)
+  await expect(page.locator('[data-expanded-progress]')).toBeInViewport()
+  await page.locator('[data-expanded-toggle]').click()
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(true)
+  await page.locator('[data-expanded-toggle]').click()
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false)
+  await page.locator('[data-expanded-progress]').press('Home')
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeLessThan(2)
+  await expect(page.locator('[data-lyric-distance="3"]').first()).toHaveCSS('filter', 'blur(2px)')
+  const longLine = page.locator('[data-player-lyrics] p').nth(1)
+  expect(await longLine.evaluate(node => node.getBoundingClientRect().height > parseFloat(getComputedStyle(node).lineHeight))).toBe(true)
+  await longLine.locator('button').click()
+  await expect(page.locator('[data-player-lyrics] .is-current')).toContainText('当这句很长的歌词')
+  await expect(longLine.locator('button')).toHaveCSS('color', 'rgb(247, 244, 239)')
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeGreaterThanOrEqual(5)
+  const volume = await page.evaluate(() => window.__migrationAudios[0].volume)
+  await page.locator('.expanded-player-volume [role="slider"]').press('ArrowLeft')
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].volume)).toBeCloseTo(volume - .01)
+  await page.screenshot({ path: info.outputPath('ambient-album-red-desktop.png') })
+  const audioCount = await page.evaluate(() => window.__migrationAudios.length)
+  await page.locator('[data-expanded-like]').click()
+  await expect(page.locator('[data-expanded-like]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('[data-player-like]')).toHaveAttribute('aria-pressed', 'true')
+  expect(likes).toEqual(['PUT'])
+  await expect(page.locator('[data-expanded-more]')).toBeDisabled()
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect(background.locator('[data-front="true"] .ambient-album-blob').first()).toHaveCSS('animation-play-state', 'running')
+  await page.locator('[data-player-close]').click()
+  await play(102)
+  await page.mouse.move(700, 998)
+  await page.locator('[data-player-open]').click()
+  await expect.poll(palette).toBe('rgb(36 106 194)')
+  await expect(background.locator('[data-ambient-layer]')).toHaveCount(2)
+  const previous = background.locator('[data-front="false"]')
+  await expect.poll(() => previous.evaluate(node => { const opacity = Number(getComputedStyle(node).opacity); return opacity > 0 && opacity < 1 })).toBe(true)
+  await expect(previous).toHaveCSS('opacity', '0')
+  await page.screenshot({ path: info.outputPath('ambient-album-blue-desktop.png') })
+  await page.locator('[data-expanded-previous]').click()
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 101')
+  await page.locator('[data-expanded-next]').click()
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 102')
+  const layoutBefore = await page.locator('.player-expanded-track').boundingBox()
+  await page.locator('[data-expanded-queue-toggle]').click()
+  const drawer = page.locator('[data-player-queue-panel]')
+  await expect(drawer).toBeVisible()
+  await expect(drawer).toHaveCSS('opacity', '1')
+  await expect(drawer).toBeInViewport()
+  await expect(drawer).toHaveClass(/is-immersive/)
+  await expect(drawer.locator('[data-queue-key].is-active')).toHaveAttribute('data-queue-key', 'netease:song:102')
+  expect(await page.locator('.player-expanded-track').boundingBox()).toEqual(layoutBefore)
+  await page.screenshot({ path: info.outputPath('immersive-queue-desktop.png') })
+  await page.locator('[data-queue-drag="netease:song:102"]').press('ArrowUp')
+  await expect.poll(() => order(page)).toEqual(['netease:song:102', 'netease:song:101'])
+  await page.locator('[data-queue-remove="netease:song:101"]').click()
+  await expect(drawer.locator('[data-queue-key]')).toHaveCount(1)
+  await page.locator('[data-queue-close]').press('Escape')
+  await expect(drawer).toBeHidden()
+  await expect(page.locator('[data-expanded-queue-toggle]')).toBeFocused()
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/)
+  await page.locator('[data-player-close]').click()
+  await play(101)
+  await page.mouse.move(700, 998)
+  await page.locator('[data-player-open]').click()
+  await expect.poll(palette).toBe('rgb(214 43 73)')
+  expect(extractions.filter(id => id === 101).length).toBe(1)
+  await page.locator('[data-player-close]').click()
+  await play(103)
+  await page.mouse.move(700, 998)
+  await page.locator('[data-player-open]').click()
+  await expect.poll(palette).toBe('rgb(109 74 88)')
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 103')
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(background.locator('.ambient-album-blob').first()).toHaveCSS('animation-name', 'none')
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('[data-expanded-like]')).toBeInViewport()
+  await expect(page.locator('[data-expanded-progress]')).toBeInViewport()
+  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport()
+  expect((await page.locator('[data-player-lyrics]').boundingBox()).height).toBeGreaterThan(100)
+  await page.screenshot({ path: info.outputPath('ambient-album-mobile-dark.png') })
+  await page.locator('[data-expanded-queue-toggle]').click()
+  await expect(page.locator('[data-queue-close]')).toBeInViewport()
+  await page.locator('[data-queue-close]').click()
+  await page.setViewportSize({ width: 320, height: 640 })
+  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport()
+  await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: info.outputPath('immersive-player-320.png') })
+  await page.locator('[data-player-close]').click()
+  await expect(page.locator('[data-global-player]')).toHaveAttribute('aria-hidden', 'false')
+  await expect(page.locator('[data-player-open-compact]')).toBeFocused()
+  await page.locator('[data-player-open-compact]').press('Enter')
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/)
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount)
+  expect(errors).toEqual([])
+})
+
+
+test('窄屏收起播放器后返回可见入口并可用键盘重开', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 })
+  await mockWorkspace(page)
+  await page.mouse.move(120, 638)
+  await page.locator('[data-player-open-compact]').click()
+  await expect(page.locator('[data-player-close]')).toBeFocused()
+  await page.locator('[data-player-close]').click()
+  await expect(page.locator('[data-player-open-compact]')).toBeFocused()
+  await page.locator('[data-player-open-compact]').press('Enter')
+  await expect(page.locator('[data-player-close]')).toBeFocused()
+})
+
+test('长歌词自动定位和首尾滚轮只滚动歌词容器，播放器与外层页面保持原位', async ({ page }, info) => {
+  await mockWorkspace(page, 'user', [])
+  const lines = Array.from({ length: 56 }, (_, i) => `[00:${String(i).padStart(2, '0')}.00]第 ${i} 句歌词，用长文本检查换行、跟随和滚动边界，播放器应始终保持原位`).join('\n')
+  await page.route('**/api/netease/search?**', route => route.fulfill({ json: { code: 200, result: { songs: [
+    { id: 611, name: '滚动隔离测试', ar: [{ name: '隔离歌手' }], al: { name: '隔离专辑' }, dt: 60000 },
+  ] } } }))
+  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/scroll.wav' }] } }))
+  const media = require('./fixtures').wave()
+  await page.route('https://e2e.music.126.net/scroll.wav', async route => {
+    // 模拟媒体也支持范围读取，保证跳转到后半段时使用真实 seek，而非被浏览器重置到零。
+    const range = route.request().headers().range?.match(/^bytes=(\d+)-(\d*)$/)
+    const start = range ? Number(range[1]) : 0
+    const end = range?.[2] ? Math.min(Number(range[2]), media.length - 1) : media.length - 1
+    await route.fulfill({ status: range ? 206 : 200, contentType: 'audio/wav',
+      headers: { 'Accept-Ranges': 'bytes', ...(range ? { 'Content-Range': `bytes ${start}-${end}/${media.length}` } : {}) },
+      body: media.subarray(start, end + 1) })
+  })
+  await page.route('**/api/netease/lyric?**', route => route.fulfill({ json: { code: 200, lrc: { lyric: lines } } }))
+  await page.locator('[data-nav="search"]').click()
+  await page.locator('[data-search-input]').fill('滚动隔离')
+  await page.getByRole('button', { name: '播放 滚动隔离测试', exact: true }).click()
+  await page.mouse.move(700, 998)
+  await page.locator('[data-player-open]').click()
+  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1')
+  await expect(page.locator('[data-player-lyrics] p')).toHaveCount(56)
+  await page.locator('[data-expanded-toggle]').click()
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(true)
+  await expect.poll(() => page.evaluate(() => { const ranges = window.__migrationAudios[0].seekable; return ranges.length ? ranges.end(ranges.length - 1) : 0 })).toBeGreaterThan(55)
+  const outer = () => page.evaluate(() => {
+    const lyric = document.querySelector('[data-player-lyrics]')
+    const ancestors = []
+    for (let node = lyric.parentElement; node; node = node.parentElement) {
+      ancestors.push({ name: node.className || node.tagName, top: node.scrollTop, left: node.scrollLeft })
+    }
+    return { ancestors, x: scrollX, y: scrollY, playerTop: document.querySelector('[data-player-expanded]').getBoundingClientRect().top,
+      coverTop: document.querySelector('[data-expanded-cover]').getBoundingClientRect().top }
+  })
+  const seek = async second => {
+    await page.evaluate(time => {
+      const audio = window.__migrationAudios[0]
+      audio.currentTime = time + .05
+    }, second)
+    await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeCloseTo(second + .05, 1)
+    await expect(page.locator('[data-player-lyrics] .is-current')).toContainText(`第 ${second} 句`)
+  }
+  const lyrics = page.locator('[data-player-lyrics]')
+  for (const [width, height, reducedMotion] of [[1440, 1000, 'no-preference'], [390, 844, 'reduce']]) {
+    await page.setViewportSize({ width, height })
+    await page.emulateMedia({ reducedMotion })
+    const baseline = await outer()
+    expect(baseline.playerTop).toBe(0)
+    await seek(45)
+    await expect.poll(() => lyrics.evaluate(node => node.scrollTop)).toBeGreaterThan(1000)
+    // 等真实平滑定位完成，再验证手动滚动，避免两次滚动在同一帧竞争。
+    await expect.poll(() => lyrics.evaluate(node => {
+      const line = node.querySelector('.is-current').getBoundingClientRect()
+      return Math.abs(line.top + line.height / 2 - node.getBoundingClientRect().top - node.clientTop - node.clientHeight / 2)
+    })).toBeLessThan(2)
+    expect(await outer()).toEqual(baseline)
+    const box = await lyrics.boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.wheel(0, 100000)
+    await expect.poll(() => lyrics.evaluate(node => Math.abs(node.scrollHeight - node.clientHeight - node.scrollTop))).toBeLessThan(2)
+    await page.mouse.wheel(0, 1000)
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    expect(await outer()).toEqual(baseline)
+    // 连续滚轮输入覆盖滚动惯性和方向反转，并逐次检查外层未被带动。
+    for (let gesture = 0; gesture < 8; gesture++) {
+      await page.mouse.wheel(0, -5000)
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      expect(await outer()).toEqual(baseline)
+    }
+    await expect.poll(() => lyrics.evaluate(node => node.scrollTop)).toBe(0)
+    await page.mouse.wheel(0, -1000)
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    expect(await outer()).toEqual(baseline)
+    await seek(8)
+    await expect.poll(() => lyrics.evaluate(node => node.scrollTop)).toBeGreaterThan(0)
+    await expect.poll(() => lyrics.evaluate(node => {
+      const line = node.querySelector('.is-current').getBoundingClientRect()
+      return Math.abs(line.top + line.height / 2 - node.getBoundingClientRect().top - node.clientTop - node.clientHeight / 2)
+    })).toBeLessThan(2)
+    expect(await outer()).toEqual(baseline)
+    await page.screenshot({ path: info.outputPath(`lyrics-scroll-isolated-${width}.png`) })
+  }
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
+})
+
+test.describe('完整播放器 Wake Slider', () => {
+  test.use({ hasTouch: true })
+  test('仅替换展开页音量，键盘鼠标触屏同步原音频，保留迷你播放器', async ({ page }, info) => {
+    await mockWorkspace(page)
+    const errors = []
+    page.on('pageerror', error => errors.push(error.message))
+    const initial = await page.evaluate(() => ({ count: window.__migrationAudios.length, src: window.__migrationAudios[0].src, paused: window.__migrationAudios[0].paused }))
+    await page.mouse.move(700, 998)
+    await page.locator('[data-player-open]').click()
+    const wake = page.locator('.expanded-player-volume .wake-slider')
+    const handle = wake.getByRole('slider', { name: '音量' })
+    const audioVolume = () => page.evaluate(() => window.__migrationAudios[0].volume)
+    await expect(wake).toBeVisible()
+    await expect(wake.locator('.wake-slider__bar')).toHaveCount(28)
+    await expect(page.locator('[data-global-player] .wake-slider')).toHaveCount(0)
+    await expect(page.locator('[data-player-volume-input]')).toHaveClass(/player-volume-slider-thumb/)
+    await handle.press('Home')
+    await expect.poll(audioVolume).toBe(0)
+    await expect(wake.locator('[data-on="true"]')).toHaveCount(0)
+    await handle.press('End')
+    await expect.poll(audioVolume).toBe(1)
+    await expect(wake.locator('[data-on="true"]')).toHaveCount(28)
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    const track = wake.locator('.wake-slider__track')
+    const box = await track.boundingBox()
+    await page.mouse.move(box.x + box.width * .2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width * .8, box.y + box.height / 2, { steps: 6 })
+    const maxScale = () => wake.locator('.wake-slider__bar').evaluateAll(bars => Math.max(...bars.map(bar => Number(bar.style.transform.match(/scaleY\(([^)]+)\)/)?.[1] ?? 0))))
+    await expect.poll(maxScale, { intervals: [16, 32, 50], timeout: 3000 }).toBeGreaterThan(.22)
+    await page.mouse.up()
+    await expect.poll(audioVolume).toBeCloseTo(.8, 1)
+    await page.screenshot({ path: info.outputPath('wake-slider-desktop.png') })
+    await expect.poll(maxScale).toBeLessThan(.18)
+    await page.locator('[data-player-close]').click()
+    const mini = page.locator('[data-player-volume-input]')
+    const before = await audioVolume()
+    await mini.press('ArrowLeft')
+    await expect.poll(audioVolume).toBeCloseTo(before - .01)
+    await page.locator('[data-player-open]').click()
+    await expect(handle).toHaveAttribute('aria-valuenow', String(Math.round((before - .01) * 100)))
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
+    const touchBox = await track.boundingBox()
+    const session = await page.context().newCDPSession(page)
+    const point = fraction => ({ x: touchBox.x + touchBox.width * fraction, y: touchBox.y + touchBox.height / 2 })
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(.15)] })
+    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(.75)] })
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+    await session.detach()
+    await expect.poll(audioVolume).toBeCloseTo(.75, 1)
+    await expect.poll(maxScale).toBeLessThan(.18)
+    await expect(wake).toBeInViewport()
+    await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport()
+    await page.screenshot({ path: info.outputPath('wake-slider-mobile-dark.png') })
+    expect(await page.evaluate(() => ({ count: window.__migrationAudios.length, src: window.__migrationAudios[0].src, paused: window.__migrationAudios[0].paused }))).toEqual(initial)
+    expect(errors).toEqual([])
+  })
 })

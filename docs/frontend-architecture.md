@@ -94,6 +94,11 @@ frontend/src/
 - 音乐足迹通过可选 `onPlayed` 接收当前请求的成功开播通知；App 装配上报服务，核心不依赖足迹 API。暂停恢复、失败或迟到请求不重复通知；退出会话取消在途上报。
 - `PlayerController.get/subscribe/play/toggle/next/previous/seek/setVolume/clear/destroy` 保持接口。
 - URL 解析、歌词与异步曲目竞争保护由原服务和核心负责；不允许在搜索、用户或展开层新建 Audio。
+- 展开播放器采用封面/控制与歌词双栏，手机端纵向排列；背景仍由独立 `shared/react/ambient/AmbientAlbumBackground.tsx` 以 32×32 离屏 Canvas 提取 3～5 色，使用 CSS 径向渐变、模糊和缓慢 transform 动画。最多两层背景以 1400ms 交叉淡入，快速切歌只保留最新待显示配色，迟到取色结果不会覆盖当前封面。
+- 取色按封面 URL 缓存最多 64 项并复用在途计算；失败缓存 60 秒。无封面、加载失败或 CORS 不允许 Canvas 读取时使用预设渐变，不增加后端图片代理；收起、后台标签和减少动态效果时暂停流动，移动端减少色层和模糊范围。浅深主题均使用专用遮罩和高对比文字令牌。
+- 展开页爱心复用底栏收藏处理和状态，仍调用原收藏接口；更多按钮暂为禁用的静态展示，不新增请求。
+- 完整视图隐藏并 inert 底部迷你播放器；`ExpandedPlayerControls` 只展示同一控制器的状态，提供可键盘/触屏操作的进度、当前/剩余时间、上一首/播放暂停/下一首和音量。收起完整视图后恢复底栏与入口焦点，窄屏可从歌曲信息按钮重新展开；焦点在可见性过渡内有限重试，重开或卸载时取消，不覆盖用户另选的焦点。保持现有顺序播放，不实现循环或随机模式。展开视图音量使用 React Bits `WakeSlider`，复用已有 Motion 并将 0～100 映射到原 0～1 音量回调，主题配色与减少动态效果由站点适配；隐藏时禁用、停止弹簧并释放拖动。迷你播放器继续使用原 Radix `VolumeSlider`，两者共用音量状态。
+- 歌词按距当前行的距离渐淡、模糊并过渡，继续复用原时间同步；自动定位按歌词容器坐标计算居中位置并限制首尾范围，只调用该容器的 `scrollTo`，不使用会连带滚动祖先的 `scrollIntoView`。手动滚动通过容器 `overscroll-behavior` 隔离；可点击歌词定位，普通模式平滑跟随，减少动态效果时即时定位。队列仅从按钮打开，复用同一个 `QueuePanel` 作为覆盖式抽屉，保留当前曲目选中、滚动定位、切歌、排序、移除及收藏；Escape 或关闭按钮回到所属视图的队列入口。
 - 队列继续使用原 key、500 首上限、去重/排序/来源规则和紧凑 source/sourceId 持久化。现有 key 格式包括搜索歌曲 `netease:song:<id>`、专辑/歌手 `netease:album:<id>` / `netease:artist:<id>`、个人库 `source:sourceId`、专辑曲目 `netease:<id>` 和本地 `local:<id>`；不能借重构擅自统一。
 - Motion 拖拽只改本地 draft，松手提交一次；cancel/Escape/卸载不提交。
 - 页面异步操作使用 `AbortController`/`signal`；离页、切视图、卸载时取消请求并隔离迟到响应；Object URL 在下载或卸载后撤销。

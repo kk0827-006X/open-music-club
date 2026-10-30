@@ -2,6 +2,14 @@
    深夜为蓝灰底、暖白文字与琥珀强调。照片、封面、GLB 原始物理材质不反色。 */
 :root, :root[data-theme="light"] {
   color-scheme: light;
+  --player-ambient-base: #28232f;
+  --player-ambient-veil: rgba(0,0,0,.46);
+  --player-ambient-ink: #f7f4ef;
+  --player-ambient-muted: #e6e0da;
+  --player-ambient-line: rgba(247,244,239,.2);
+  --player-ambient-action: rgba(247,244,239,.08);
+  --player-ambient-accent: #efb778;
+
   --paper: #efede7;
   --backdrop: #24231d55;
   --backdrop-user: rgba(24,25,22,.42);
@@ -296,6 +304,14 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
+  --player-ambient-base: #151920;
+  --player-ambient-veil: rgba(0,0,0,.58);
+  --player-ambient-ink: #f7f4ef;
+  --player-ambient-muted: #e6e0da;
+  --player-ambient-line: rgba(247,244,239,.2);
+  --player-ambient-action: rgba(247,244,239,.08);
+  --player-ambient-accent: #efb778;
+
   --paper: #141b1f;
   --backdrop: rgba(0,0,0,.6);
   --backdrop-user: rgba(0,0,0,.7);
