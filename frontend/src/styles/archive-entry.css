@@ -1,0 +1,13 @@
+/* 入场仅控制档案墙展示，沿用工作区品牌与颜色，不引入原站 SVG/HUD。 */
+.archive-entry-overlay { position: absolute; z-index: 32; inset: 0; pointer-events: none; }
+.album-archive[data-entry-phase] .archive-nav, .album-archive[data-entry-phase] .archive-callout, .album-archive[data-entry-phase] .archive-switcher { transition: opacity 400ms ease; }
+.album-archive:is([data-entry-phase="loading"], [data-entry-phase="entering"], [data-entry-phase="settling"]) :is(.archive-nav, .archive-callout, .archive-switcher, .global-player, .player-hotspot) { opacity: 0; pointer-events: none; }
+.archive-selection-copy[hidden] { display: none; }
+.album-archive:not([data-mode="detail"]) .archive-selection-copy:not([hidden]) { animation: album-information-enter 240ms ease both; }
+@keyframes album-information-enter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .album-archive[data-entry-phase] .archive-nav, .album-archive[data-entry-phase] .archive-callout, .album-archive[data-entry-phase] .archive-switcher { transition: none; }
+  .album-archive:not([data-mode="detail"]) .archive-selection-copy:not([hidden]) { animation: none; }
+}
+
+.archive-player-layer { display: contents; }

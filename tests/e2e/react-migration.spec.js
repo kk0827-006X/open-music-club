@@ -3,7 +3,7 @@ const { graphicsProfile } = require('./graphics-profile')
 test.use({ deviceScaleFactor: 1 })
 
 // 交互回归用合成接口；安全认证和真实音频由 member-journey 独立覆盖。
-async function mockWorkspace(page, role = 'user', initialQueue) {
+async function mockWorkspace(page, role = 'user', initialQueue, skipAuthorized = false) {
   const tracks = Array.from({ length: 24 }, (_, index) => ({
     source: index % 2 ? 'netease' : 'local', sourceId: String(index + 1),
     trackKey: `${index % 2 ? 'netease' : 'local'}:${index + 1}`,
@@ -66,6 +66,7 @@ async function mockWorkspace(page, role = 'user', initialQueue) {
   })
   await page.goto('/')
   await page.getByRole('button', { name: /点击进入/ }).click()
+  if (skipAuthorized) await page.getByRole('button', { name: '跳过 SVG 动画，进入系统' }).click()
   await expect(page.locator('[data-album-archive]')).toBeVisible()
   return { writes, tracks }
 }
@@ -896,4 +897,88 @@ test.describe('完整播放器 Wake Slider', () => {
     expect(await page.evaluate(() => ({ count: window.__migrationAudios.length, src: window.__migrationAudios[0].src, paused: window.__migrationAudios[0].paused }))).toEqual(initial)
     expect(errors).toEqual([])
   })
+})
+
+test('档案阵列入场不聚焦特定专辑，结束后点击才显示资料并保持原高度', async ({ page }, info) => {
+  await page.addInitScript(() => { window.__archiveEntryProbe = { created: 0, frames: [] } })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await mockWorkspace(page)
+  const root = page.locator('[data-album-archive]')
+  await expect(root).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 })
+  const cinema = await page.evaluate(() => window.__archiveEntryProbe.frames.filter(frame => frame.cinematic).map(frame => frame.cinematic))
+  expect(cinema.length).toBeGreaterThanOrEqual(1)
+  expect(await page.evaluate(() => window.__archiveEntryProbe.frames.filter(frame => frame.cinematic).every(frame => frame.navigationInert && frame.informationHidden))).toBe(true)
+  expect(await page.evaluate(() => new Set(window.__archiveEntryProbe.frames.map(frame => JSON.stringify(frame.camera))).size)).toBeGreaterThan(1)
+  expect(cinema.every(frame => frame.time < 25.05 && frame.lift === 0 && frame.zoom === 0)).toBe(true)
+  await expect(page.locator('[data-album-detail]')).toBeHidden()
+  await expect(page.locator('[data-album-information]')).toBeHidden()
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats())
+  // 用原波形和当前模拟状态计算未抬高的高度，排除波峰运动对测量的影响。
+  const { archiveWave, settlingWave, columnStrength, idleWave } = require('../../frontend/src/rhine/motion.ts')
+  const rise = async (subtractExtraction = false) => {
+    const state = await page.evaluate(() => {
+      const scene = window.__archiveEntryProbe.scene, stats = scene.getStats()
+      return { y: stats.modelPosition[1], row: stats.selectedCell.row, lane: stats.selectedCell.lane,
+        origin: stats.coordinateOrigin, time: scene.clock, scanTime: scene.scanTime, scanBlend: scene.scanBlend,
+        shoulder: scene.shoulder.value, focus: scene.laneFocus.value, idle: scene.idleGain, lift: scene.lift.value }
+    })
+    const { row, lane, origin } = state
+    const original = -4.6 + archiveWave(row + origin.row, lane + origin.lane, state.scanTime) * state.scanBlend
+      + settlingWave(row - state.shoulder, 26.56) * columnStrength(lane, state.focus)
+      + idleWave(row + origin.row, lane + origin.lane, state.time) * state.idle
+    return state.y - original - (subtractExtraction ? state.lift : 0)
+  }
+  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
+  const point = await page.evaluate(() => window.__archiveEntryProbe.scene.projectCard(0, 3.5))
+  await page.mouse.move(point[0], point[1])
+  await expect.poll(() => rise()).toBeCloseTo(.68, 2)
+  await expect(page.locator('[data-album-information]')).toBeHidden()
+  await page.mouse.move(1400, 50)
+  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
+  await page.mouse.click(point[0], point[1])
+  await expect(page.locator('[data-album-information]')).toBeVisible()
+  // 原选中逻辑会清空悬停；点击后恢复原预览高度，不保留额外增量。
+  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
+  await page.mouse.move(1400, 50)
+  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
+  await expect(page.locator('[data-album-detail]')).toBeHidden()
+  await page.screenshot({ path: info.outputPath('archive-selected-information.png') })
+  await page.locator('[data-open-selected]').click()
+  await page.evaluate(() => { window.__archiveEntryProbe.animate = true })
+  await expect(page.locator('[data-album-detail]')).toBeVisible()
+  const { INSPECTION_LIFT } = require('../../frontend/src/rhine/motion.ts')
+  await expect.poll(async () => (await stats()).extraction).toBeGreaterThan(3.9)
+  expect((await stats()).extraction).toBeLessThanOrEqual(INSPECTION_LIFT + .001)
+  // 原详情展示完成会停帧；精确核对实际抽出进度对应的原公式，没有新增偏移。
+  await expect.poll(() => rise(true)).toBeCloseTo(0, 2)
+  // 软件 GPU 只在观察动画时连续渲染，避免闲置重绘阻塞真实按钮输入。
+  await page.evaluate(() => { window.__archiveEntryProbe.animate = false })
+  await page.locator('[data-back-to-archive]').click()
+  await page.evaluate(() => { window.__archiveEntryProbe.animate = true })
+  await expect(page.locator('[data-album-detail]')).toBeHidden()
+  await expect.poll(() => rise(), { timeout: 45000 }).toBeCloseTo(.4, 2)
+  await page.evaluate(() => { window.__archiveEntryProbe.animate = false })
+  await page.locator('[data-nav="search"]').click()
+  await page.locator('[data-nav="library"]').click()
+  expect(await page.evaluate(() => window.__archiveEntryProbe.frames.filter(frame => frame.cinematic).length)).toBe(cinema.length)
+  expect(await page.evaluate(() => window.__archiveEntryProbe.created)).toBe(1)
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
+})
+
+test('ENTER SYSTEM 只跳过 SVG，阵列仍正常入场且没有独立跳过入口', async ({ page }) => {
+  await page.addInitScript(() => { window.__archiveEntryProbe = { created: 0, frames: [] } })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await mockWorkspace(page, 'user', [], true)
+  await expect(page.locator('[data-archive-entry] button')).toHaveCount(0)
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 })
+  expect(await page.evaluate(() => window.__archiveEntryProbe.frames.some(frame => frame.cinematic))).toBe(true)
+  expect(await page.evaluate(() => window.__archiveEntryProbe.warmup.after)).toBeGreaterThan(0)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload()
+  await page.getByRole('button', { name: /点击进入/ }).click()
+  await page.getByRole('button', { name: '跳过 SVG 动画，进入系统' }).click()
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready')
+  await expect(page.locator('[data-album-information]')).toBeHidden()
 })

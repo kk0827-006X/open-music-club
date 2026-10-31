@@ -54,6 +54,7 @@ type DetailTrackState = 'ready' | 'loading' | 'unavailable'
 // 呼出层只渲染资料、歌单刻度与详情文案；三维画布和档案场景仍由上层 App 持有。
 export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(function LibraryView(props, ref) {
   const { scene, actions, active } = props
+  const [informationVisible, setInformationVisible] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(props.initialIndex ?? 0)
   const [mode, setModeState] = useState<'archive' | 'detail'>('archive')
   const [detailData, setDetailData] = useState<DemoAlbum | null>(null)
@@ -118,6 +119,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(funct
     const nextIndex = record.albumIndex
     selectedIndexRef.current = nextIndex
     setSelectedIndex(nextIndex)
+    if (navigation && 'cell' in navigation) setInformationVisible(true)
     onSelectedRef.current(demoAlbums[nextIndex])
     currentScene.select(nextRecord, navigation as ArchiveNavigation | undefined)
   }, [])
@@ -301,7 +303,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(funct
           <Icon name="down" />
         </button>
       </div>
-      <AlbumInformation album={album} index={selectedIndex} active={active} onOpen={openDetail} />
+      <AlbumInformation album={album} index={selectedIndex} visible={informationVisible && active} active={active} onOpen={openDetail} />
       <section
         ref={detailRef}
         className="album-detail"
@@ -322,10 +324,12 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(funct
 
 export default LibraryView
 
-export function AlbumInformation({ album, index, active = true, onOpen = () => undefined }: { album: DemoAlbum; index: number; active?: boolean; onOpen?: () => void }) {
+export function AlbumInformation({ album, index, active = true, visible = true, onOpen = () => undefined }: { album: DemoAlbum; index: number; active?: boolean; visible?: boolean; onOpen?: () => void }) {
   return (      <aside
         className="archive-selection-copy"
         data-album-information
+        hidden={!visible}
+        aria-hidden={!visible}
         aria-live="polite"
         inert={active ? undefined : true}
       >

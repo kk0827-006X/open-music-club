@@ -9,7 +9,7 @@ import type { SearchPageHandle } from '../features/search/SearchPage.tsx'
 import type { UserPageHandle } from '../features/user/UserPage.tsx'
 import { SettingsDialog, type SettingsDialogHandle } from '../features/settings/SettingsDialog.tsx'
 import { createPersonalLibraryClient } from '../services/music/personal-library.ts'
-import { mountArchiveScene, type ArchiveSceneController } from '../graphics/archive/scene-host.ts'
+import { mountArchiveScene, type ArchiveSceneController, type ArchiveEntryPhase } from '../graphics/archive/scene-host.ts'
 import { Brand, Icon } from '../shared/react/ui.tsx'
 import { useReducedMotion } from '../shared/react/hooks.ts'
 import type { MusicActions } from '../shared/music.ts'
@@ -46,6 +46,8 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
   const footprint = useRef<FootprintPageHandle>(null)
   const reduced = useReducedMotion()
   const [scene, setScene] = useState<ReturnType<typeof mountArchiveScene> | null>(null)
+  const [entryPhase, setEntryPhase] = useState<ArchiveEntryPhase>('loading')
+  const entering = entryPhase !== 'ready' && entryPhase !== 'failed'
   const [page, setPage] = useState<Page>('archive')
   const [visited, setVisited] = useState<Set<Page>>(() => new Set())
   const [selected, setSelected] = useState<DemoAlbum>(demoAlbums[initialIndex])
@@ -58,6 +60,7 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
   useLayoutEffect(() => {
     if (!sceneContainer.current) return
     const host = mountArchiveScene(sceneContainer.current, {
+      entry: true, onEntryPhase: setEntryPhase,
       reduced: sceneInputs.current.reduced, initialRecord: 16, covers: demoAlbums.map(album => album.coverUrl),
       loadScene: sceneInputs.current.loadScene,
       afterUpdate: (visibility, now) => library.current?.afterUpdate(visibility, now) ?? true,
@@ -70,6 +73,7 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
   useEffect(() => {
     scene?.setVisible(page === 'archive' && !expanded && !settingsOpen)
   }, [scene, page, expanded, settingsOpen])
+  useEffect(() => { scene?.setReduced(reduced) }, [scene, reduced])
   const show = useCallback((next: Page) => {
     if (next !== 'archive') {
       library.current?.resetDetail()
@@ -89,6 +93,9 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (event.defaultPrevented || settings.current?.open) return
+      if (scene && scene.entryPhase !== 'ready' && scene.entryPhase !== 'failed') {
+        return
+      }
       if (playerView.current?.expanded) {
         if (event.key === 'Escape') { event.preventDefault(); playerView.current.setExpanded(false, true) }
         return
@@ -113,26 +120,27 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     }
     window.addEventListener('keydown', keyboard)
     return () => window.removeEventListener('keydown', keyboard)
-  }, [page, show])
-  return <main ref={archive} className="album-archive" data-album-archive data-view={page} onErrorCapture={event => {
+  }, [page, show, scene])
+  return <main ref={archive} className="album-archive" data-album-archive data-view={page} data-entry-phase={entryPhase} data-layout={entering ? 'opening' : undefined} onErrorCapture={event => {
     const image = event.target
     if (image instanceof HTMLImageElement && !image.src.endsWith('/images/album-placeholder-01.svg')) image.src = '/images/album-placeholder-01.svg'
   }}>
     <Brand statistics />
-    <nav className="archive-nav" data-archive-navigation aria-label="音乐功能预览">
+    {entering && <div className="archive-entry-overlay" data-archive-entry><span className="sr-only" role="status">{entryPhase === 'loading' ? '正在加载音乐档案' : '正在进入音乐档案'}</span></div>}
+    <nav className="archive-nav" data-archive-navigation inert={entering ? true : undefined} aria-label="音乐功能预览">
       {tabs.map(([id, label, icon]) => <button key={id} type="button" data-nav={id} aria-current={page === (id === 'library' ? 'archive' : id) ? 'page' : undefined} onClick={() => show(id === 'library' ? 'archive' : id)}><Icon name={icon} /><span>{label}</span></button>)}
       <i aria-hidden="true" />
       <button type="button" data-nav="settings" onClick={event => { playerView.current?.closeQueue(); settings.current?.show(event.currentTarget) }}><Icon name="settings" /><span>设置</span></button>
     </nav>
-    <section className="album-wave-stage" data-wave-field aria-label="三维专辑档案选择" inert={page !== 'archive'}><div ref={sceneContainer} className="archive-three-scene" data-three-scene /></section>
-    <LibraryView ref={library} scene={scene} actions={actions} onSelected={setSelected} onModeChanged={() => undefined} active={page === 'archive'} initialIndex={initialIndex} />
+    <section className="album-wave-stage" data-wave-field aria-label="三维专辑档案选择" inert={page !== 'archive' || entering}><div ref={sceneContainer} className="archive-three-scene" data-three-scene /></section>
+    <LibraryView ref={library} scene={scene} actions={actions} onSelected={setSelected} onModeChanged={() => undefined} active={page === 'archive' && !entering} initialIndex={initialIndex} />
     <ErrorBoundary><Suspense fallback={null}>
       <div data-search-host>{visited.has('search') && <SearchPage ref={search} active={page === 'search'} {...actions} />}</div>
       <div data-upload-host onClick={event => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) show('archive') }}>{visited.has('upload') && <UploadPage active={page === 'upload'} />}</div>
       <div data-user-host>{visited.has('user') && <UserPage ref={user} active={page === 'user'} role={role} {...actions} client={client} choosePlaylist={track => { void playerView.current?.choosePlaylist(track) }} changed={() => { void playerView.current?.syncLiked() }} />}</div>
       <div data-footprint-host>{visited.has('footprint') && <FootprintPage ref={footprint} active={page === 'footprint'} {...actions} client={footprints} revision={footprintRevision} />}</div>
     </Suspense></ErrorBoundary>
-    <PlayerView ref={playerView} player={player} queue={queue} personalLibrary={client} root={archive} selectedAlbum={selected} defaultTrack={albumTrack(selected)} onExpandedChanged={setExpanded} collectionChanged={collectionChanged} />
+    <div className="archive-player-layer" inert={entering ? true : undefined}><PlayerView ref={playerView} player={player} queue={queue} personalLibrary={client} root={archive} selectedAlbum={selected} defaultTrack={albumTrack(selected)} onExpandedChanged={setExpanded} collectionChanged={collectionChanged} /></div>
     <SettingsDialog ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />
   </main>
 }

@@ -594,6 +594,64 @@ export class ArchiveScene {
     });
   }
 
+  async prepareEntry() {
+    const canvas = this.renderer.domElement;
+    canvas.style.visibility = 'hidden';
+    try {
+      // 先编译材质，再完成真实后处理首帧；这些冷启动工作不占用可见入场的时间轴。
+      this.setMode('hidden');
+      await this.renderer.compileAsync(this.scene, this.camera);
+      if (this.disposed) return;
+      this.update(performance.now() / 1000, { time: 21.9, reveal: 0, lift: 0, zoom: 0 });
+      const gl = this.renderer.getContext();
+      if (!('fenceSync' in gl)) return;
+      const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      if (!fence) return;
+      gl.flush();
+      await new Promise<void>(resolve => {
+        const deadline = performance.now() + 5000;
+        const poll = () => {
+          const status = this.disposed || gl.isContextLost() ? gl.WAIT_FAILED : gl.clientWaitSync(fence, 0, 0);
+          if (this.disposed || gl.isContextLost() || status !== gl.TIMEOUT_EXPIRED || performance.now() >= deadline) {
+            gl.deleteSync(fence); resolve();
+          } else setTimeout(poll, 8);
+        };
+        poll();
+      });
+    } finally { canvas.style.visibility = ''; }
+  }
+  // 仅为音乐库入场保留镜头与阵列连续性，不触发选档或详情业务。
+  private openingMix = 0;
+  private openingSnap = false;
+  private openingCameraBlend: number | undefined;
+  private openingProgress = 0;
+  private openingFieldTime = 24.9;
+  finishOpening(immediate = false) {
+    this.setMode('archive');
+    const chosen = this.cellPosition(this.selectedCell);
+    this.columnCamera.value = immediate ? chosen.x : 0;
+    this.columnCamera.velocity = 0;
+    this.rail.value = immediate ? -2.17 - chosen.z : 0;
+    this.rail.velocity = 0;
+    this.openingMix = immediate ? 0 : 1;
+    this.openingProgress = 0;
+    this.openingSnap = immediate;
+    this.reveal = this.targetReveal;
+    if (immediate) { this.lift.value = .4; this.lift.velocity = 0; }
+  }
+  setOpeningProgress(progress: number) {
+    const next = ease(progress);
+    this.openingCameraBlend = (next - this.openingProgress) / Math.max(.000001, 1 - this.openingProgress);
+    this.openingProgress = next;
+    this.openingMix = 1 - next;
+    const chosen = this.cellPosition(this.selectedCell);
+    this.columnCamera.value = chosen.x * next;
+    this.columnCamera.velocity = 0;
+    this.rail.value = (-2.17 - chosen.z) * next;
+    this.rail.velocity = 0;
+    this.lift.value = .4 * next;
+    this.lift.velocity = 0;
+  }
   setMode(mode: "hidden" | "archive" | "detail") {
     this.cancelPointer();
     this.setHover(null);
@@ -1219,7 +1277,9 @@ export class ArchiveScene {
       ? THREE.MathUtils.lerp(this.rotation, this.targetRotation, blend)
       : returnStep(this.rotation, dt, this.reduced);
     const shot = cinematic?.time ?? 29.1;
+    if (cinematic) this.openingMix = 1;
     if (cinematic) {
+      this.openingFieldTime = shot;
       this.scanTime = shot;
       this.scanBlend = 1;
     } else {
@@ -1360,13 +1420,16 @@ export class ArchiveScene {
         pulseHeight = THREE.MathUtils.clamp(ripple, -0.6, 0.6) * this.pulseGain;
       }
       const distance = row - this.shoulder.value;
-      return (
+      const interactive = (
         (height +
         settlingWave(distance, 26.56) *
           columnStrength(lane, this.laneFocus.value)) * (1 - this.flatMix) + breathing + pulseHeight +
         (activePlay && !this.reduced ? rhythmDisplacement(row, lane, time, play.bands, play.strength, rhythm, screenX(row, lane)) : 0) +
         (this.relayLifts.get(cellKey({ row, lane })) ?? 0)
       );
+      // 24.9 秒尚未开始选档肩波；将同一阵列平滑接回交互波形。
+      return this.openingMix > 0 ? THREE.MathUtils.lerp(interactive,
+        cinematicField(row, lane, this.openingFieldTime, this.shoulder.value, this.laneFocus.value), this.openingMix) : interactive;
     };
     const selectedBase = chosen.y + field(selectedRow, selectedLane);
     if (!cinematic) {
@@ -1628,7 +1691,7 @@ export class ArchiveScene {
       cameraPosition.x += this.pointer.x * 0.12;
       cameraPosition.y -= this.pointer.y * 0.12;
     }
-    const cameraBlend = cinematic ? 1 : 1 - Math.exp(-dt * 5);
+    const cameraBlend = cinematic || this.openingSnap ? 1 : this.openingCameraBlend ?? (1 - Math.exp(-dt * 5));
     this.camera.position.lerp(cameraPosition, cameraBlend);
     this.cameraAim.lerp(cameraAim, cameraBlend);
     this.camera.lookAt(this.cameraAim);
@@ -1639,6 +1702,8 @@ export class ArchiveScene {
       ),
       cameraBlend,
     );
+    this.openingSnap = false;
+    this.openingCameraBlend = undefined;
     const fog = this.scene.fog as THREE.Fog;
     // The camera position is damped after its target distance changes. Anchor
     // fog to the rendered camera, or entry puts the array behind the far plane

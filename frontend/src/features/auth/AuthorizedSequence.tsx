@@ -95,6 +95,7 @@ function renderFrame(stage: HTMLElement, elapsedMs: number) {
 
 export function AuthorizedSequence({ role, onComplete }: { role: 'admin' | 'user'; onComplete?: () => void }) {
   const stage = useRef<HTMLDivElement>(null)
+  const skip = useRef<() => void>(() => {})
   const callback = useRef(onComplete)
   callback.current = onComplete
   const reduced = useReducedMotion()
@@ -105,19 +106,27 @@ export function AuthorizedSequence({ role, onComplete }: { role: 'admin' | 'user
     fit()
     window.addEventListener('resize', fit)
     const startedAt = performance.now()
-    let frame = 0, completionTimer = 0, finished = false, disposed = false
+    let frame = 0, completionTimer = 0, finished = false, disposed = false, completed = false
+    const finish = () => {
+      if (disposed || completed) return;
+      completed = true; finished = true;
+      window.cancelAnimationFrame(frame); window.clearTimeout(completionTimer);
+      callback.current?.();
+    }
+    skip.current = finish;
     const animate = (now: number) => {
       if (disposed) return
       const state = renderFrame(element, reduced ? FINAL_WELCOME_FRAME_MS : now - startedAt)
       if (!reduced && !state.complete) frame = window.requestAnimationFrame(animate)
       else if (!finished) {
         finished = true
-        completionTimer = window.setTimeout(() => { if (!disposed) callback.current?.() }, reduced ? 500 : 650)
+        completionTimer = window.setTimeout(finish, reduced ? 500 : 650)
       }
     }
     frame = window.requestAnimationFrame(animate)
     return () => {
       disposed = true
+      skip.current = () => {}
       window.cancelAnimationFrame(frame)
       window.clearTimeout(completionTimer)
       window.removeEventListener('resize', fit)
@@ -131,7 +140,7 @@ export function AuthorizedSequence({ role, onComplete }: { role: 'admin' | 'user
         <circle cx="1450" cy="648" r="346" /><circle cx="1450" cy="648" r="348" />
       </g></svg></div>
       <header className="sequence-brand"><h1>OPEN MUSIC CLUB</h1><div>MUSIC ARCHIVE</div><p>ACCESS SYSTEM</p></header>
-      <p className="sequence-enter">ENTER SYSTEM&nbsp;&nbsp;↗</p>
+      <button type="button" className="sequence-enter" aria-label="跳过 SVG 动画，进入系统" onClick={() => skip.current()}>ENTER SYSTEM&nbsp;&nbsp;↗</button>
       <section className="sequence-scan"><svg viewBox="0 0 1920 1080" aria-hidden="true"><g fill="none" stroke="var(--sequence-ink)" strokeWidth="2" strokeLinecap="round" data-scan-group>
         <path /><path stroke="var(--sequence-light)" /><path /><path /><path /><path />
         <circle className="sequence-orbit-dot" r="8" fill="var(--sequence-accent)" stroke="none" /><circle className="sequence-orbit-dot" r="8" fill="var(--sequence-accent)" stroke="none" />

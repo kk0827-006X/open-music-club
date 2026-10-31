@@ -156,3 +156,6 @@
   .entry-gate > p { font-size: 9px; letter-spacing: 1.3px; }
 }
 
+
+.sequence-enter { margin: 0; padding: 0; border: 0; background: transparent; font-family: inherit; cursor: pointer; }
+.sequence-enter:focus-visible { outline: 2px solid var(--amber); outline-offset: 6px; }
