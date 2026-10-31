@@ -334,3 +334,23 @@ it('入队后串行 PUT 最终顺序；清空时 UI 立即更新，不被未完�
     }
   })
 })
+
+it('播放专辑的显式替换不合并延迟恢复的旧队列，读取重试后仍保存新队列', async () => {
+  const { createQueuePersistence } = await load('features/queue/persistence.ts')
+  for (const retryRead of [false, true]) {
+    const gate = deferred(), writes = []
+    let items = [], attempts = 0
+    const sync = createQueuePersistence({ read: () => items, restore: tracks => { items = tracks },
+      load: () => ++attempts === 1 ? gate.promise : Promise.resolve([song(1, 'local')]),
+      save: async refs => { writes.push(refs) }, notice() {} })
+    try {
+      const started = sync.start()
+      items = [song(101), song(102)]; sync.changed({ replace: true })
+      if (retryRead) { gate.reject(new Error('隔离读取失败')); await started; await sync.retry() }
+      else { gate.resolve([song(1, 'local')]); await started }
+      await tick(); await sync.flush()
+      assert.deepEqual(items.map(track => track.key), ['netease:101', 'netease:102'])
+      assert.deepEqual(writes.at(-1), [{ source: 'netease', sourceId: '101' }, { source: 'netease', sourceId: '102' }])
+    } finally { sync.destroy() }
+  }
+})

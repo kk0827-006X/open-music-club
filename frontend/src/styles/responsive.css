@@ -55,7 +55,6 @@ button:focus-visible { outline: 2px solid var(--color-accent-09); outline-offset
   .archive-nav button[data-nav="settings"], .archive-nav > i { display: none; }
   .archive-brand { top: 28px; left: 24px; }
   .album-wave-stage { inset: 0; }
-  .album-archive::before { background: linear-gradient(180deg, transparent 35%, var(--color-surface-03) 72%, var(--color-surface-01) 84%); }
   .archive-selection-copy { display: none; }
   .archive-callout { bottom: 95px; left: 24px; }
   .archive-switcher { right: 24px; bottom: 112px; left: auto; }

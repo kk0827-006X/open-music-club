@@ -17,6 +17,7 @@ export function createQueuePersistence(options: QueuePersistenceOptions) {
   let observed = JSON.stringify(references())
   let saved = observed
   let changedDuringLoad = false
+  let replacedDuringLoad = false
   let failed = false
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let retryDelay = 1000
@@ -49,7 +50,7 @@ export function createQueuePersistence(options: QueuePersistenceOptions) {
         const items = await options.load()
         if (disposed) return
         if (!changedDuringLoad) options.restore(items)
-        else if (options.read().length) {
+        else if (!replacedDuringLoad && options.read().length) {
           // 上游读取较慢时保留刚加入的歌曲，也不丢弃上次关闭前的队列。
           const current = [...options.read()]
           const keys = new Set(current.map(item => item.key))
@@ -86,8 +87,10 @@ export function createQueuePersistence(options: QueuePersistenceOptions) {
     })().finally(() => { writing = null })
     return writing
   }
-  function changed() {
+  function changed(options?: { replace?: boolean }) {
     if (disposed) return
+    // 显式替换不得在初次读取或重试成功后重新合入旧队列。
+    if (!ready && options?.replace) { changedDuringLoad = true; replacedDuringLoad = true }
     const snapshot = JSON.stringify(references())
     if (snapshot === observed) return
     observed = snapshot

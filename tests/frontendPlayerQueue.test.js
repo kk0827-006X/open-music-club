@@ -435,3 +435,30 @@ describe('播放队列面板交互（真实 React 组件）', () => {
     })
   })
 })
+
+it('整张专辑替换旧队列并从第一首开始，复用音频、保留音量且支持顺序下一首', async () => {
+  await withPlayerHarness(async h => {
+    const { view, queue, player, audio, created } = await mountPlayerView(h)
+    try {
+      await h.React.act(async () => { queue.add(song(7)); await view.current.play(song(7)); player.setVolume(.31) })
+      await h.React.act(async () => view.current.replaceAndPlay([song(101, 'netease'), song(102, 'netease')]))
+      assert.deepEqual(queue.items.map(track => track.key), ['netease:101', 'netease:102'])
+      assert.equal(player.get().track.key, 'netease:101')
+      assert.equal(audio.paused, false)
+      assert.equal(audio.volume, .31)
+      assert.equal(created(), 1)
+      await h.React.act(async () => player.next())
+      assert.equal(player.get().track.key, 'netease:102')
+      const snapshot = [...queue.items]
+      await h.React.act(async () => view.current.replaceAndPlay([]))
+      assert.deepEqual(queue.items, snapshot)
+      assert.equal(player.get().track.key, 'netease:102')
+      await h.React.act(async () => view.current.replaceAndPlay(Array.from({ length: 501 }, (_, i) => song(i + 500, 'netease'))))
+      assert.deepEqual(queue.items, snapshot, '超过既有上限时不能截断专辑或清空旧队列')
+      audio.play = async () => { throw new Error('隔离音频拒绝播放') }
+      await h.React.act(async () => view.current.replaceAndPlay([song(103, 'netease')]))
+      assert.deepEqual(queue.items.map(track => track.key), ['netease:103'])
+      assert.ok(h.document.body.textContent.includes('专辑播放失败'))
+    } finally { player.destroy() }
+  })
+})

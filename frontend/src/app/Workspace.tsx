@@ -133,7 +133,7 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
       <button type="button" data-nav="settings" onClick={event => { playerView.current?.closeQueue(); settings.current?.show(event.currentTarget) }}><Icon name="settings" /><span>设置</span></button>
     </nav>
     <section className="album-wave-stage" data-wave-field aria-label="三维专辑档案选择" inert={page !== 'archive' || entering}><div ref={sceneContainer} className="archive-three-scene" data-three-scene /></section>
-    <LibraryView ref={library} scene={scene} actions={actions} onSelected={setSelected} onModeChanged={() => undefined} active={page === 'archive' && !entering} initialIndex={initialIndex} />
+    <LibraryView ref={library} scene={scene} actions={actions} onPlayAlbum={tracks => playerView.current?.replaceAndPlay(tracks) ?? Promise.resolve()} onSelected={setSelected} onModeChanged={() => undefined} active={page === 'archive' && !entering} initialIndex={initialIndex} />
     <ErrorBoundary><Suspense fallback={null}>
       <div data-search-host>{visited.has('search') && <SearchPage ref={search} active={page === 'search'} {...actions} />}</div>
       <div data-upload-host onClick={event => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) show('archive') }}>{visited.has('upload') && <UploadPage active={page === 'upload'} />}</div>

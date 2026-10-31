@@ -245,3 +245,26 @@ describe('三维专辑档案 UI', () => {
     assert.match(selectedMarkup({ kind: 'song', key: 'local:1', title: '测试歌曲', sourceId: '1', source: 'local', artist: '歌手', album: '专辑', coverUrl: '/images/album-placeholder-01.svg', year: '—', duration: '1:00', description: '' }), /data-search-play/)
   })
 })
+
+it('播放全部仅在完整曲目就绪后可用，按专辑顺序传递所有歌曲并阻止重复点击', async () => {
+  const { withReactHarness } = require('./helpers/reactHarness')
+  await withReactHarness(async h => {
+    const { AlbumDetail } = await import(frontendModule('features/music-library/LibraryView.tsx'))
+    const { demoAlbums } = await import(frontendModule('features/music-library/album-data.ts'))
+    const album = { ...demoAlbums[0], totalTracks: 2, tracks: [{ id: '101', title: '第一首', duration: '1:00' }, { id: '102', title: '第二首', duration: '2:00' }] }
+    const calls = []; let finish
+    const onPlayAll = tracks => { calls.push(tracks); return new Promise(resolve => { finish = resolve }) }
+    const render = state => h.render(h.React.createElement(AlbumDetail, { album, trackState: state, onPlayAll }))
+    await render('loading'); assert.equal(h.require('[data-album-play-all]').disabled, true)
+    await render('unavailable'); assert.equal(h.require('[data-album-play-all]').disabled, true)
+    await render('ready'); await h.click('[data-album-play-all]')
+    await h.React.act(async () => h.require('[data-album-play-all]').click())
+    assert.equal(calls.length, 1)
+    assert.deepEqual(calls[0].map(track => [track.key, track.album]), [['netease:101', album.title], ['netease:102', album.title]])
+    assert.equal(h.require('[data-album-play-all]').disabled, true)
+    await h.React.act(async () => finish()); await h.flush()
+    assert.equal(h.require('[data-album-play-all]').disabled, false)
+    await h.render(h.React.createElement(AlbumDetail, { album: { ...album, tracks: [] }, onPlayAll }))
+    assert.equal(h.require('[data-album-play-all]').disabled, true)
+  })
+})

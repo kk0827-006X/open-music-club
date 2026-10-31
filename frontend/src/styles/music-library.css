@@ -20,8 +20,11 @@
 .detail-facts small { display: block; margin-bottom: 7px; color: var(--color-text-24); font-size: .5rem; letter-spacing: .12em; }
 .detail-description { padding: 19px 0; color: var(--color-text-25); font-size: .76rem; line-height: 1.8; }
 .detail-track-preview { border-top: 1px solid var(--color-border-11); }
-.detail-track-preview header { display: flex; justify-content: space-between; padding: 13px 7px; background: var(--color-surface-17); font-size: .64rem; }
+.detail-track-preview header { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; padding: 13px 7px; background: var(--color-surface-17); font-size: .64rem; }
 .detail-track-preview header span { color: var(--color-text-26); font-size: .52rem; letter-spacing: .09em; }
+.detail-album-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+.detail-album-actions button { display: inline-flex; align-items: center; gap: 5px; padding: 3px 0; border: 0; background: transparent; color: var(--ink); font: inherit; cursor: pointer; }
+.detail-album-actions button:disabled { opacity: .4; cursor: default; }
 .detail-track-preview ol { margin: 0; padding: 0; list-style: none; }
 .detail-track-preview li { display: grid; grid-template-columns: 28px minmax(0,1fr) 60px 35px 52px 52px; gap: 6px; align-items: center; padding: 11px 7px; border-bottom: 1px solid var(--color-border-12); font-size: .65rem; }
 .detail-track-preview li > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

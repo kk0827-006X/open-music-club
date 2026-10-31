@@ -29,6 +29,7 @@ function durationOf(album: DemoAlbum) {
 export interface LibraryViewProps {
   scene: ReturnType<typeof mountArchiveScene> | null
   actions: MusicActions
+  onPlayAlbum?(tracks: SearchItem[]): Promise<void>
   onSelected(album: DemoAlbum): void
   onModeChanged(mode: 'archive' | 'detail'): void
   active: boolean
@@ -314,7 +315,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(funct
       >
         {detailData && (
           <>
-<AlbumDetail album={detailData} trackState={detailTrackState} onClose={closeDetail} onPlay={playDetailTrack} onEnqueue={enqueueDetailTrack} />
+<AlbumDetail album={detailData} trackState={detailTrackState} onClose={closeDetail} onPlay={playDetailTrack} onEnqueue={enqueueDetailTrack} onPlayAll={props.onPlayAlbum} />
           </>
         )}
       </section>
@@ -353,9 +354,19 @@ export function AlbumInformation({ album, index, active = true, visible = true, 
       </aside>)
 }
 
-export function AlbumDetail({ album, trackState = 'ready', onClose = () => undefined, onPlay = () => undefined, onEnqueue = () => undefined }: {
-  album: DemoAlbum; trackState?: DetailTrackState; onClose?: () => void; onPlay?: (id: string) => void; onEnqueue?: (id: string) => void
+export function AlbumDetail({ album, trackState = 'ready', onClose = () => undefined, onPlay = () => undefined, onEnqueue = () => undefined, onPlayAll }: {
+  album: DemoAlbum; trackState?: DetailTrackState; onClose?: () => void; onPlay?: (id: string) => void; onEnqueue?: (id: string) => void; onPlayAll?: (tracks: SearchItem[]) => Promise<void>
 }) {
+  const [playingAll, setPlayingAll] = useState(false)
+  const playingRef = useRef(false)
+  const [playError, setPlayError] = useState('')
+  const playAll = async () => {
+    if (trackState !== 'ready' || !album.tracks.length || !onPlayAll || playingRef.current) return
+    playingRef.current = true; setPlayingAll(true); setPlayError('')
+    try { await onPlayAll(album.tracks.map((_, index) => albumTrack(album, index))) }
+    catch { setPlayError('专辑播放失败，请重试。') }
+    finally { playingRef.current = false; setPlayingAll(false) }
+  }
   const trackHeading = trackState === 'loading'
     ? '正在获取专辑全部曲目…'
     : trackState === 'unavailable'
@@ -389,8 +400,9 @@ export function AlbumDetail({ album, trackState = 'ready', onClose = () => undef
               <section className="detail-track-preview" aria-live="polite">
                 <header>
                   <b>01&nbsp;&nbsp;{trackHeading}</b>
-                  <span>专辑共 {album.totalTracks} 首</span>
+                  <div className="detail-album-actions"><span>专辑共 {album.totalTracks} 首</span><button type="button" data-album-play-all disabled={trackState !== 'ready' || !album.tracks.length || !onPlayAll || playingAll} onClick={() => { void playAll() }} aria-busy={playingAll}><Icon name="play" />播放全部</button></div>
                 </header>
+                {playError && <p role="status">{playError}</p>}
                 <ol>
                   {trackState !== 'loading' && album.tracks.map((track, index) => (
                     <li key={`${track.id}-${index}`}>

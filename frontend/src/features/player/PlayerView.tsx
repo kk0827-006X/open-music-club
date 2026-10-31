@@ -49,6 +49,7 @@ export interface PlayerViewProps {
 
 export interface PlayerViewHandle {
   play(track: SearchItem): Promise<void>
+  replaceAndPlay(tracks: readonly SearchItem[]): Promise<void>
   enqueue(track: SearchItem): void
   choosePlaylist(track: SearchItem): Promise<void>
   syncLiked(): Promise<void>
@@ -331,6 +332,18 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
   }, [commitQueue])
 
   const play = useCallback((track: SearchItem) => player.play(track), [player])
+  const replaceAndPlay = useCallback(async (tracks: readonly SearchItem[]) => {
+    if (disposedRef.current) return
+    const songs = tracks.filter(track => track.kind === 'song')
+    if (!songs.length) return
+    if (songs.length > 500) { collectionNotice('专辑曲目超过播放队列 500 首上限'); return }
+    queueRef.current.restore(songs)
+    player.clear()
+    setQueueVersion(version => version + 1)
+    persistenceRef.current?.changed({ replace: true })
+    try { await player.play(queueRef.current.items[0]) }
+    catch { collectionNotice('专辑播放失败，请重新尝试播放。') }
+  }, [collectionNotice, player])
   const playSafely = useCallback((track: SearchItem) => {
     void player.play(track).catch(() => undefined)
   }, [player])
@@ -633,13 +646,14 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
 
   useImperativeHandle(ref, () => ({
     play,
+    replaceAndPlay,
     enqueue: enqueueTrack,
     choosePlaylist,
     syncLiked: () => syncLikedFor(stateRef.current.track),
     closeQueue: () => setQueueOpen(false),
     setExpanded,
     get expanded() { return expandedRef.current },
-  }), [choosePlaylist, enqueueTrack, play, setExpanded, setQueueOpen, syncLikedFor])
+  }), [choosePlaylist, enqueueTrack, play, replaceAndPlay, setExpanded, setQueueOpen, syncLikedFor])
 
   // 队列按低频版本生成稳定快照，timeupdate 不会使 500 行 Motion 列表重绘。
   const queueSnapshot = useMemo(() => [...queue.items], [queue, queueVersion])

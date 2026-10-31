@@ -36,3 +36,30 @@ it('ENTER SYSTEM 只结束 SVG 展示，取消原计时且不重复触发完成�
     assert.equal(h.frames.size, 0)
   })
 })
+
+it('斜俯视镜头两秒连续落到工作区，起止缓动且不同屏幕构图一致', async () => {
+  const { archiveEntryCamera } = await import('../frontend/src/rhine/archive-entry-camera.ts')
+  const { archiveFraming } = await import('../frontend/src/rhine/viewport-layout.ts')
+  const distance = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]))
+  for (const [width, height] of [[1920, 1080], [1440, 1000], [390, 844]]) {
+    const target = { yaw: 59 * Math.PI / 180, elevation: 19 * Math.PI / 180, distance: 140,
+      span: archiveFraming(width, height, 7.33, 0, false).span, aim: [-1.091, -.045, .481] }
+    const start = archiveEntryCamera(0, target), end = archiveEntryCamera(2, target)
+    const direction = [-Math.sin(target.yaw) * Math.cos(target.elevation), Math.sin(target.elevation), Math.cos(target.yaw) * Math.cos(target.elevation)]
+    const expected = target.aim.map((v, i) => v + direction[i] * target.distance)
+    assert.deepEqual(end.aim, target.aim)
+    assert.equal(end.span, target.span)
+    assert.ok(distance(end.position, expected) < 1e-10, '终点与交互镜头完全相同')
+    assert.deepEqual(archiveEntryCamera(3, target), end, '过渡结束不再二次切镜')
+    assert.deepEqual(archiveEntryCamera(-1, target), start)
+    assert.ok(start.span > end.span, '从中远景进入')
+    const startElevation = Math.asin((start.position[1] - start.aim[1]) / target.distance) * 180 / Math.PI
+    assert.ok(Math.abs(startElevation - 32) < 1e-10, '首帧是斜俯视，排除贴侧面低角度')
+    const frames = Array.from({ length: 121 }, (_, i) => archiveEntryCamera(i / 60, target))
+    const steps = frames.slice(1).map((frame, i) => distance(frame.position, frames[i].position))
+    assert.ok(steps[0] < Math.max(...steps) / 100)
+    assert.ok(steps.at(-1) < Math.max(...steps) / 100)
+    assert.ok(Math.max(...steps) < 1, '60fps 采样中没有位置跳变')
+    for (let i = 1; i < frames.length; i++) assert.ok(frames[i].span <= frames[i - 1].span)
+  }
+})

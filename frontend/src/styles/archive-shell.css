@@ -1,7 +1,6 @@
 /* 专辑档案：三维阵列使用 RhineLabUI 原场景，资料和播放器保留界面层。 */
 .album-archive { position: fixed; inset: 0; overflow: hidden; color: var(--color-text-01); background: var(--color-surface-01); }
 .album-archive { isolation: isolate; }
-.album-archive::before { position: absolute; inset: 0; z-index: 8; background: linear-gradient(90deg, transparent 48%, var(--color-surface-02) 57%, var(--color-surface-03) 68%, var(--color-surface-01) 78%); content: ""; pointer-events: none; }
 .album-archive::after { position: absolute; inset: 0; z-index: 20; background: radial-gradient(ellipse at 48% 48%, transparent 22%, var(--color-surface-04) 65%, var(--color-surface-05)); content: ""; pointer-events: none; }
 
 .archive-brand { position: absolute; z-index: 30; top: 42px; left: 54px; }

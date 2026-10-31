@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { ArchiveVisibility } from "./archive-visibility";
+import { archiveEntryCamera } from "./archive-entry-camera";
 import { InstanceUpdates } from "./instance-updates";
 import { RenderState } from "./render-state";
 import { SharedDepthAO, SharedDepthBokeh } from "./shared-depth";
@@ -1277,6 +1278,8 @@ export class ArchiveScene {
       ? THREE.MathUtils.lerp(this.rotation, this.targetRotation, blend)
       : returnStep(this.rotation, dt, this.reduced);
     const shot = cinematic?.time ?? 29.1;
+    const workspaceEntry = Boolean(cinematic) && this.container.closest<HTMLElement>('[data-entry-phase]') !== null;
+    const referenceCinematic = Boolean(cinematic) && !workspaceEntry;
     if (cinematic) this.openingMix = 1;
     if (cinematic) {
       this.openingFieldTime = shot;
@@ -1477,7 +1480,7 @@ export class ArchiveScene {
     // Reference 26.92–27.76: the array travels horizontally into a white field.
     const entry = cinematic ? ease((shot - 21.9) / 0.86) : this.reveal;
     const entranceTime = THREE.MathUtils.clamp((shot - 21.92) / 0.75, 0, 1);
-    const entryZ = cinematic
+    const entryZ = workspaceEntry ? 0 : cinematic
       ? -23 * (1 - entranceTime) ** 2
       : -28 * (1 - entry);
     for (let i = this.outgoing.length - 1; i >= 0; i--) {
@@ -1551,11 +1554,13 @@ export class ArchiveScene {
     // Measured from frame 787: X edge (382,-204), adjacent row (78,38).
     // The label vertical edge constrains height; the file base is occluded.
     // Do not calibrate field of view from the visible fragment of a file.
-    const orbit = ease((shot - 22.6) / 1.6);
-    const settle = ease((shot - 24.25) / 2.25);
+    // 工作区入场始终以最终交互构图为目标，原镜头仅供原时间轴使用。
+    const cameraShot = workspaceEntry ? 29.1 : shot;
+    const orbit = ease((cameraShot - 22.6) / 1.6);
+    const settle = ease((cameraShot - 24.25) / 2.25);
     const yaw = THREE.MathUtils.degToRad(89 - 22 * orbit - 8 * settle);
     const elevation = THREE.MathUtils.degToRad(
-      3 + 40 * ease((shot - 21.96) / 0.22) - 8 * orbit - 16 * settle,
+      3 + 40 * ease((cameraShot - 21.96) / 0.22) - 8 * orbit - 16 * settle,
     );
     const span = THREE.MathUtils.lerp(
       THREE.MathUtils.lerp(10.8, 10.3, orbit),
@@ -1581,7 +1586,7 @@ export class ArchiveScene {
       Math.sin(elevation),
       Math.cos(yaw) * Math.cos(elevation),
     );
-    if (cinematic) {
+    if (referenceCinematic) {
       const earlyTurn = ease((shot - 27.3) / 1.3);
       const finalTurn = ease((shot - 28.6) / 5.4);
       const shotYaw =
@@ -1598,7 +1603,7 @@ export class ArchiveScene {
         .lerp(new THREE.Vector3(-0.277, 0.238, 0.931), detail)
         .normalize();
     }
-    if (cinematic) {
+    if (referenceCinematic) {
       const pan = ease((shot - 25.4) / 0.95);
       const right = new THREE.Vector3()
         .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
@@ -1608,7 +1613,7 @@ export class ArchiveScene {
         -2.05 * (1 - pan) * ease((shot - 24.2) / 0.8),
       );
     }
-    if (cinematic && shot >= 25.05 && shot <= 27.3) {
+    if (referenceCinematic && shot >= 25.05 && shot <= 27.3) {
       // Frames 760–785: the camera carries the same physical column from the
       // right into the selected position while the neighboring crests subside.
       const pan = ease((shot - 25.4) / 1.05);
@@ -1632,7 +1637,7 @@ export class ArchiveScene {
       );
       cameraAim.lerp(anchorAim, ease((shot - 25.05) / 0.35));
     }
-    if (cinematic && shot > 27.3) {
+    if (referenceCinematic && shot > 27.3) {
       const close = ease((shot - 27.3) / 6.7);
       const extractionCamera = ease((shot - 27.3) / 1.25);
       const screenX = THREE.MathUtils.lerp(
@@ -1661,7 +1666,7 @@ export class ArchiveScene {
     }
     const framing = archiveFraming(this.container.clientWidth, this.container.clientHeight, span, detail,
       this.container.closest<HTMLElement>("[data-layout]")?.dataset.layout === "compact");
-    if (!cinematic) {
+    if (!referenceCinematic) {
       const right = new THREE.Vector3()
         .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
         .normalize();
@@ -1687,9 +1692,19 @@ export class ArchiveScene {
     const cameraPosition = cameraAim
       .clone()
       .addScaledVector(viewDirection, distance);
+    let cameraSpan = referenceCinematic ? openingSpan(THREE.MathUtils.lerp(span, 5.9, detail)) : framing.span;
+    if (workspaceEntry) {
+      const pose = archiveEntryCamera(shot - 21.9, {
+        yaw, elevation, distance, span: framing.span, aim: [cameraAim.x, cameraAim.y, cameraAim.z],
+      });
+      cameraAim.fromArray(pose.aim);
+      cameraPosition.fromArray(pose.position);
+      cameraSpan = pose.span;
+    }
     if (!cinematic && !this.reduced && !this.uiOnlyParallax) {
-      cameraPosition.x += this.pointer.x * 0.12;
-      cameraPosition.y -= this.pointer.y * 0.12;
+      // 接回鼠标视差时也沿用衔接进度，避免入场结束瞬间偏移。
+      cameraPosition.x += this.pointer.x * 0.12 * (1 - this.openingMix);
+      cameraPosition.y -= this.pointer.y * 0.12 * (1 - this.openingMix);
     }
     const cameraBlend = cinematic || this.openingSnap ? 1 : this.openingCameraBlend ?? (1 - Math.exp(-dt * 5));
     this.camera.position.lerp(cameraPosition, cameraBlend);
@@ -1698,7 +1713,7 @@ export class ArchiveScene {
     this.camera.fov = THREE.MathUtils.lerp(
       this.camera.fov,
       THREE.MathUtils.radToDeg(
-        2 * Math.atan((cinematic ? openingSpan(THREE.MathUtils.lerp(span, 5.9, detail)) : framing.span) / (2 * distance)),
+        2 * Math.atan(cameraSpan / (2 * distance)),
       ),
       cameraBlend,
     );
