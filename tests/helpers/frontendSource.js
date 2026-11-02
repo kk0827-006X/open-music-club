@@ -9,7 +9,7 @@ const implementations = {
   'music-queue.ts': ['features/queue/model.ts'], 'queue-persistence.ts': ['features/queue/persistence.ts'],
   'queue-add-animation.ts': ['features/queue/add-animation.ts', 'features/queue/QueueAddFlights.tsx'], 'player-queue-panel.ts': ['features/queue/QueuePanel.tsx'],
   'user-page.ts': ['features/user/UserPage.tsx'], 'upload-page.ts': ['features/upload/UploadPage.tsx'],
-  'search-page.ts': ['features/search/SearchPage.tsx'], 'settings-dialog.ts': ['features/settings/SettingsDialog.tsx'],
+  'settings-dialog.ts': ['features/settings/SettingsDialog.tsx'],
 }
 function readCss(file = path.join(root, 'style.css'), { originalOnly = false } = {}) {
   // 新业务样式独立验收，不混入原 2930 条声明的逐字视觉基线。

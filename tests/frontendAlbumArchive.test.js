@@ -217,33 +217,18 @@ describe('三维专辑档案 UI', () => {
     assert.doesNotMatch(markup, /<audio/i)
   })
 
-  it('搜索页保留全站导航和播放器，提供真实来源筛选布局', async () => {
+  it('旧搜索页及兼容入口已移除，档案仍只持有一个播放器', async () => {
+    const fs = require('node:fs')
     const { createAlbumArchiveMarkup } = await import(frontendModule('album-archive.ts'))
-    const { createSearchPageMarkup } = await import(frontendModule('search-page.ts'))
-    const archive = createAlbumArchiveMarkup()
-    const search = createSearchPageMarkup()
-
-    assert.match(archive, /data-search-host/)
-    assert.equal((archive.match(/data-global-player/g) || []).length, 1)
-    assert.match(search, /data-search-input/)
-    assert.match(search, /data-search-results/)
-    assert.match(search, /data-search-selected/)
-    assert.match(search, /data-search-source="netease"/)
-    assert.match(search, /data-search-type="artist"/)
-    assert.doesNotMatch(search, /演示|STATIC PREVIEW/)
-    assert.doesNotMatch(search, /<audio|\/api\//i)
+    const markup = createAlbumArchiveMarkup()
+    assert.doesNotMatch(markup, /data-search-host|data-search-page/)
+    assert.equal((markup.match(/data-global-player/g) || []).length, 1)
+    assert.match(markup, /data-nav="search"/)
+    for (const name of ['search-page.ts', 'features/search/SearchPage.tsx', 'features/search/search-page.ts', 'styles/search.css']) {
+      assert.equal(fs.existsSync(path.join(projectRoot, 'frontend/src', name)), false)
+    }
   })
 
-  it('搜索页结果仍提供选择、来源和详情容器', async () => {
-    const { createSearchPageMarkup, selectedMarkup } = await import(frontendModule('search-page.ts'))
-    const markup = createSearchPageMarkup()
-
-    assert.match(markup, /data-search-results/)
-    assert.match(markup, /data-search-selected/)
-    assert.match(markup, /data-search-count/)
-    assert.match(markup, /data-search-empty/)
-    assert.match(selectedMarkup({ kind: 'song', key: 'local:1', title: '测试歌曲', sourceId: '1', source: 'local', artist: '歌手', album: '专辑', coverUrl: '/images/album-placeholder-01.svg', year: '—', duration: '1:00', description: '' }), /data-search-play/)
-  })
 })
 
 it('播放全部仅在完整曲目就绪后可用，按专辑顺序传递所有歌曲并阻止重复点击', async () => {

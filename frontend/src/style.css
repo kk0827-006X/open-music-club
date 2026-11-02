@@ -7,7 +7,6 @@
 @import './styles/player.css';
 @import './styles/ambient-album-background.css';
 @import './styles/music-library.css';
-@import './styles/search.css';
 @import './styles/upload.css';
 @import './styles/user.css';
 @import './styles/responsive.css';
@@ -20,3 +19,5 @@
 @import './styles/immersive-player.css';
 @import './styles/wake-slider.css';
 @import './styles/archive-entry.css';
+
+@import './styles/gooey-search.css';

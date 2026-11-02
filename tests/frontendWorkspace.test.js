@@ -56,7 +56,7 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
       assert.equal(h.document.querySelectorAll('[data-queue-items] li').length, 0, '尚未播放时清空也必须更新队列视图')
       assert.equal(h.require('[data-queue-count]').textContent, '00')
       await h.React.act(async () => queue.add(toPersonalSong(track)))
-      for (let repeat = 0; repeat < 3; repeat++) for (const page of ['search', 'upload', 'user', 'footprint', 'library']) {
+      for (let repeat = 0; repeat < 3; repeat++) for (const page of ['upload', 'user', 'footprint', 'library']) {
         await h.click(`[data-nav="${page}"]`)
         const name = page === 'library' ? 'archive' : page
         assert.equal(h.require('[data-album-archive]').dataset.view, name)
@@ -66,8 +66,11 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
       assert.equal(audioLoads, 0)
       assert.equal(queue.items.length, 1, '多次切换页面不丢队列')
       await h.click('[data-nav="search"]')
-      await h.until(() => h.query('[data-search-results] [data-search-play]'), '本地搜索结果应可播放')
-      await h.click('[data-search-results] [data-search-play]')
+      assert.equal(h.require('[data-album-archive]').dataset.view, 'archive')
+      await h.input('.gooey-search input', '本地')
+      await h.React.act(async () => h.require('.gooey-search input').dispatchEvent(new h.window.KeyboardEvent('keydown', {key:'Enter', bubbles:true})))
+      await h.until(() => h.query('[data-song-search-panel] [data-queue-play]'), '本地搜索结果应可播放')
+      await h.click('[data-song-search-panel] [data-queue-play]')
       assert.equal(player.get().track.source, 'local')
       await h.click('[data-player-queue-toggle]')
       await h.click('[data-queue-clear]')

@@ -30,7 +30,7 @@ button:hover:not(:disabled):not([aria-disabled="true"]) .ui-icon[data-ui-icon="c
 .archive-nav button small { color: var(--color-text-04); font-size: .58rem; font-weight: 500; }
 .archive-nav > i { width: 1px; height: 30px; margin: 0 8px; background: var(--color-line-01); }
 
-.album-wave-stage { position: absolute; inset: 0; z-index: 2; overflow: hidden; }
+.album-wave-stage { transition: opacity 260ms ease; position: absolute; inset: 0; z-index: 2; overflow: hidden; }
 .archive-three-scene, .archive-three-scene canvas { width: 100%; height: 100%; display: block; }
 .archive-three-scene { position: absolute; inset: 0; }
 

@@ -56,6 +56,11 @@ function queueSignature(items: readonly SearchItem[]) {
 }
 
 export interface QueuePanelProps {
+  mode?: 'queue' | 'search'
+  message?: string
+  loading?: boolean
+  hasMore?: boolean
+  onLoadMore?(): void
   open: boolean
   immersive?: boolean
   items: readonly SearchItem[]
@@ -75,6 +80,7 @@ export interface QueuePanelProps {
 }
 
 type QueueRowProps = {
+  readOnly?: boolean
   item: SearchItem
   index: number
   activeKey?: string
@@ -168,12 +174,13 @@ function QueueRow(props: QueueRowProps) {
       value={item}
       data-queue-key={item.key}
       className={className}
+      drag={props.readOnly ? false : 'y'}
       dragListener={false}
       dragControls={controls}
       layout
       transition={transition}
       whileDrag={reduced ? undefined : { scale: 1.02 }}
-      onPointerDown={startDrag}
+      onPointerDown={props.readOnly ? undefined : startDrag}
       onDragStart={(event) => {
         // Motion 的 onDragStart 在越过阈值后的 frame 中触发，此时指针可能已不再是按下点。
         const point = 'clientX' in event ? { x: event.clientX, y: event.clientY } : undefined
@@ -181,7 +188,7 @@ function QueueRow(props: QueueRowProps) {
       }}
       onDragEnd={() => onDragEnd(item.key)}
     >
-      <button
+      {props.readOnly ? <span className="queue-drag-handle" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span> : <button
         className="queue-drag-handle"
         type="button"
         data-queue-drag={item.key}
@@ -190,7 +197,7 @@ function QueueRow(props: QueueRowProps) {
         onKeyDown={keyboard}
       >
         {String(index + 1).padStart(2, '0')}
-      </button>
+      </button>}
       <img src={item.coverUrl} alt="" draggable={false} onError={replaceBrokenCover} />
       <div className="queue-copy">
         <strong>{item.title}</strong>
@@ -215,7 +222,7 @@ function QueueRow(props: QueueRowProps) {
         >
           <Icon name="playlistAdd" />
         </button>
-        <button
+        {!props.readOnly && <button
           type="button"
           data-queue-like={item.key}
           aria-pressed={liked}
@@ -225,8 +232,8 @@ function QueueRow(props: QueueRowProps) {
           onClick={() => onLike(item)}
         >
           <Icon name="heart" filled={liked} />
-        </button>
-        <button
+        </button>}
+        {!props.readOnly && <button
           type="button"
           data-queue-remove={item.key}
           aria-label={`移除 ${item.title}`}
@@ -234,7 +241,7 @@ function QueueRow(props: QueueRowProps) {
           onClick={() => onRemove(item)}
         >
           <Icon name="dismiss" />
-        </button>
+        </button>}
       </div>
     </Reorder.Item>
   )
@@ -510,18 +517,19 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
   return (
     <motion.aside
       ref={assignRef}
-      id="player-queue-panel"
-      className={`player-queue-panel${immersive ? ' is-immersive' : ''}`}
-      data-player-queue-panel
+      id={props.mode === 'search' ? 'song-search-panel' : 'player-queue-panel'}
+      className={`player-queue-panel${props.mode === 'search' ? ' song-search-panel' : ''}${immersive ? ' is-immersive' : ''}`}
+      data-player-queue-panel={props.mode === 'search' ? undefined : true}
+      data-song-search-panel={props.mode === 'search' ? true : undefined}
       hidden={!open}
-      aria-label="播放队列"
+      aria-label={props.mode === 'search' ? '搜索歌曲结果' : '播放队列'}
       layoutScroll
       onKeyDown={keyboard}
     >
       <header>
-        <strong>PLAY QUEUE / 播放队列</strong>
-        {immersive && <button type="button" data-queue-close aria-label="关闭播放队列" onClick={() => { onClose(); onFocusToggle() }}><Icon name="dismiss" /></button>}
-        <button
+        <strong>{props.mode === 'search' ? '搜索结果 / SONGS' : 'PLAY QUEUE / 播放队列'}</strong>
+        {(immersive || props.mode === 'search') && <button type="button" data-queue-close={props.mode === 'search' ? undefined : true} data-search-close={props.mode === 'search' ? true : undefined} aria-label={props.mode === 'search' ? '关闭搜索结果' : '关闭播放队列'} onClick={() => { onClose(); onFocusToggle() }}><Icon name={props.mode === 'search' ? 'close' : 'dismiss'} /></button>}
+        {props.mode !== 'search' && <button
           type="button"
           data-queue-clear
           aria-label="清空队列"
@@ -530,7 +538,7 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
           onClick={onClear}
         >
           <Icon name="trash" />
-        </button>
+        </button>}
       </header>
       <Reorder.Group
         as="ol"
@@ -544,6 +552,7 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
         {displayedItems.map((item, index) => (
           <QueueRow
             key={item.key}
+            readOnly={props.mode === 'search'}
             item={item}
             index={index}
             activeKey={activeKey}
@@ -565,7 +574,7 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
           />
         ))}
       </Reorder.Group>
-      <p data-queue-empty hidden={items.length > 0}>队列为空。可从音乐库或搜索结果加入歌曲。</p>
+      {props.mode === 'search' ? <><p role="status">{props.message || (!props.loading && !items.length ? '没有找到匹配的歌曲' : '')}</p>{props.hasMore && <button type="button" className="search-load-more" aria-label="加载更多歌曲" disabled={props.loading} onClick={props.onLoadMore}>more</button>}</> : <p data-queue-empty hidden={items.length > 0}>队列为空。可从音乐库或搜索结果加入歌曲。</p>}
       <p className="sr-only" data-queue-order-status role="status">{orderStatus}</p>
     </motion.aside>
   )

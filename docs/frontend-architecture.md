@@ -19,7 +19,8 @@ main.ts → App
            └─ SessionWorkspace（认证会话的音频所有者）
                 └─ Workspace（页面、导航、场景、动作装配）
                     ├─ LibraryView
-                    ├─ SearchPage / UserPage / UploadPage / FootprintPage（懒加载，访问后保留实例）
+                    ├─ UserPage / UploadPage / FootprintPage（懒加载，访问后保留实例）
+                    ├─ GooeySearch → SongSearchPanel → QueuePanel（就地搜索）
                     ├─ PlayerView → QueuePanel / QueueAddFlights
                     └─ SettingsDialog → TwoFactorPanel
 
@@ -84,7 +85,7 @@ frontend/src/
 
 - `MusicActions.play(track)` / `enqueue(track)` 是搜索、用户、专辑、足迹等页面的统一入口。
 - 页面不读取 `HTMLAudioElement`，也不访问其他 Features 的内部 DOM。
-- ref 只公开必要能力：搜索 focus/refresh/ownsKeyboardTarget；用户 refresh/hasOpenDialog；足迹 hasOpenDialog；库 selectRecord/navigate/openDetail/closeDetail/resetDetail；设置 show/close/open；播放器 play/enqueue/choosePlaylist/setExpanded。
+- ref 只公开必要能力：用户 refresh/hasOpenDialog；足迹 hasOpenDialog；库 selectRecord/navigate/openDetail/closeDetail/resetDetail；设置 show/close/open；播放器 play/enqueue/choosePlaylist/setExpanded。
 - 退出动画使用 active 与 visible 两个状态：先 inert、开始淡出，再 hidden；重进时清理旧隐藏计时。
 - 原生 dialog 的 top layer 和焦点围栏保留；180ms 退场只由所属页面拥有，不在共享 Modal 重复计时。
 
@@ -137,6 +138,9 @@ frontend/src/
 - 歌单总览取消分页，所有歌单在同一区域显示，使用 Aceternity UI 官方 `draggable-card-demo-2` 的散放重叠卡片。源码适配在 `shared/react/aceternity/DraggableCard.tsx`，样式使用现有主题变量与 Motion，不引入 Tailwind。鼠标/触摸拖动限制在歌单区域，拖动后的 click 不打开详情；普通点击及 Enter/空格仍可打开。前三张保留原摆放，后续卡片在区域内随机重叠，刷新/置顶不重新随机；窗口尺寸变化时按相同随机比例重新放置，位置不持久化，新建入口保持独立可见。歌单内歌曲与喜爱的分页保持原样。进入歌单详情和返回列表复用分类切换的 `useSectionTransition`：旧内容先淡出，最新数据就绪后淡入；等待期间内容不可交互，减少动态效果时跳过淡出计时。
 - `GET /api/me/playlists` 为当前用户当前页的歌单返回 `coverUrl`，按曲目 `position, id` 取首曲并批量解析，复用本地/网易云各自的数据来源与封面校验。列表不请求整张歌单详情；首曲无封面、已删除、不可用或网易云故障时使用默认图，不寻找后续曲目替代。删除、重排后重新读取列表即更新封面，不存额外封面缓存，不迁移数据库。
 - `components.json` 注册 `@aceternity`（`https://ui.aceternity.com/registry/{name}.json`），复用现有 shadcn MCP。官方源码来源为 <https://ui.aceternity.com/registry/draggable-card-demo-2.json>；项目根目录没有独立 tsconfig，CLI 源码安装在隔离目录完成后适配到现有前端。
+- Dock 的 Gooey Input 按 Enter 提交统一歌曲搜索，在当前页面复用 QueuePanel 的只读搜索模式展示结果，提供播放、加入歌单和加载更多；旧独立搜索页及其兼容入口、专属样式已删除；浏览与翻页不覆盖真实队列，播放沿用原有自动入队行为。键盘 `/` 同样打开新入口；输入和结果面板内的键盘不驱动三维档案。
+- `createSongSearch` 每次查询拥有独立 AbortSignal 和分页游标：歌曲检索、最匹配歌手的歌曲、最匹配专辑的歌曲及本地匹配歌曲按 `source:sourceId` 去重；各云端分页每批 30，专辑/本地曲目缓冲分批展示。来源失败显示提示并保留其他结果，旧查询不能覆盖新查询。
+- 后端 `/api/netease/search` 内部使用 vendor cloudsearch，外部参数及登录/限流规则不变；新增 `GET /api/netease/artist/songs?id=&limit=&offset=`，限制正整数 ID、1～100 条分页，固定热门顺序，丢弃 Cookie、proxy 等非白名单参数，复用统一网易云权限及错误脱敏。
 - 本地与网易云分别请求各自 API，只在展示层合并为统一 Track。队列项始终记录具体音源；同一录音的多个来源可归组展示，但无法可靠确认时保持为不同歌曲。
 - 播放器切歌不改变播放器位置；动效只用于说明状态变化，支持 `prefers-reduced-motion`，减少动态效果时直接显示最终状态。
 - 无障碍：按钮提供文本或 `aria-label`；键盘可完成搜索、切歌、播放/暂停和关闭弹窗；焦点状态不只依赖颜色；封面提供替代文本；空列表、失效音源、上游不可用和会话失效都有清晰状态。

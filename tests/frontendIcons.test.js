@@ -23,7 +23,7 @@ describe('全站共享图标与动画', () => {
   })
 
   it('各页面和播放器复用图标组件，不在页面内重复定义图形或按钮图标文字', () => {
-    for (const file of ['album-archive.ts', 'search-page.ts', 'user-page.ts', 'upload-page.ts', 'login-page.ts', 'entry-page.ts']) {
+    for (const file of ['album-archive.ts', 'user-page.ts', 'upload-page.ts', 'login-page.ts', 'entry-page.ts']) {
       const source = readFrontendSource(frontend(file))
       assert.match(source, /from ['"][^'"]*\/react\/ui\.tsx['"]/, file)
       assert.doesNotMatch(source, /const icons =|const icon =/, file)
@@ -31,14 +31,13 @@ describe('全站共享图标与动画', () => {
     }
   })
 
-  it('搜索、歌单和播放器的播放图标标记完全一致，上传及歌单关闭图标也一致', async () => {
+  it('歌单和播放器的播放图标标记完全一致，上传及歌单关闭图标也一致', async () => {
     const { uiIcons } = await import(pathToFileURL(frontend('ui-icons.ts')).href)
-    const { selectedMarkup } = await import(pathToFileURL(frontend('search-page.ts')).href)
     const { createAlbumArchiveMarkup } = await import(pathToFileURL(frontend('album-archive.ts')).href)
     const { createPlaylistHeaderMarkup, createUserPageMarkup } = await import(pathToFileURL(frontend('user-page.ts')).href)
     const { createUploadPageMarkup } = await import(pathToFileURL(frontend('upload-page.ts')).href)
-    const selected = selectedMarkup({key:'local:1',kind:'song',source:'local',sourceId:'1',title:'测试',artist:'歌手',album:'专辑',year:'2026',duration:'1:00',coverUrl:'/images/album-placeholder-01.svg',description:''})
-    for (const markup of [selected, createAlbumArchiveMarkup(), createPlaylistHeaderMarkup({id:1,name:'歌单'},true)]) {
+
+    for (const markup of [createAlbumArchiveMarkup(), createPlaylistHeaderMarkup({id:1,name:'歌单'},true)]) {
       assert.ok(markup.includes(uiIcons.play))
     }
     assert.ok(createUploadPageMarkup().includes(uiIcons.close))

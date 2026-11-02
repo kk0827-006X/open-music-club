@@ -58,15 +58,14 @@ it('真实 React 登录必须完成 2FA 并重新确认 Session；失败验证�
     assert.deepEqual(verified, [], '只有密码正确仍不能进入应用')
     assert.equal(h.require('[data-login-factor-dialog]').open, true)
     assert.equal(h.require('[name="code"]').maxLength, 6)
+    assert.equal(h.document.querySelectorAll('.code-slots__slot').length, 6)
     await h.input('[name="code"]', '123456')
-    assert.deepEqual([...h.document.querySelectorAll('[data-factor-digit]')].map(node => node.textContent), ['1', '2', '3', '4', '5', '6'])
-    await h.submit('[data-login-factor]')
+    assert.equal(h.document.querySelectorAll('.code-slots__slot[data-filled]').length, 0, '失败后应清空验证码槽位')
     assert.deepEqual(verified, [])
     assert.match(h.require('[data-factor-feedback]').textContent, /验证码错误/)
     assert.equal(requests.filter(item => item.url === '/api/auth/me').length, 0, '错误验证码不能触发成功身份读取')
     rejectCode = false
     await h.input('[name="code"]', '654321')
-    await h.submit('[data-login-factor]')
     await h.until(() => verified.length === 1, '有效验证码和实时 Session 验证后应进入应用')
     assert.deepEqual(verified, ['user'])
     const challenge = requests.filter(item => item.url === '/api/auth/2fa/verify')
@@ -83,42 +82,22 @@ it('真实 React 登录必须完成 2FA 并重新确认 Session；失败验证�
   } })
 })
 
-it('React 搜索用真实输入和筛选控件区分本地与网易云歌曲、专辑和歌手', async () => {
-  const plays = [], queues = [], searches = []
+it('React 搜索结果窗口区分同名不同来源，提供播放与加入歌单', async () => {
+  const plays = [], saves = []
   await withReactHarness(async h => {
-    const { SearchPage } = await import('../frontend/src/features/search/SearchPage.tsx')
-    await h.render(h.React.createElement(SearchPage, {
-      active: true, play: async song => plays.push(song.key), enqueue: song => queues.push(song.key),
-      load: async (query, kind) => {
-        searches.push({ query, kind })
-        return [{ ...onlineSong, kind, key: `netease:${kind}:2` }]
-      },
+    const { SongSearchPanel } = await import('../frontend/src/features/search/SongSearchPanel.tsx')
+    await h.render(h.React.createElement(SongSearchPanel, {
+      query: {term:'相同',serial:1},onClose(){},onFocusToggle(){},
+      onPlay:async song=>plays.push(song.key),onSave:song=>saves.push(song.key),
     }))
-    assert.equal(h.document.querySelectorAll('[data-search-results] li').length, 1)
-    await h.input('[data-search-input]', '相同')
-    await h.submit('[data-search-form]')
-    await h.until(() => h.document.querySelectorAll('[data-search-results] li').length === 2, '同名不同来源不能合并成一首')
-    await h.click('[data-search-source="netease"]')
-    await h.until(() => h.document.querySelectorAll('[data-search-results] li').length === 1, '网易云筛选应只留下云端结果')
-    assert.match(h.require('[data-search-results]').textContent, /云端歌手/)
-    await h.click('[data-search-results] [data-search-play]')
-    await h.click('[data-search-results] [data-search-queue]')
-    assert.deepEqual(plays, ['netease:song:2'])
-    assert.deepEqual(queues, ['netease:song:2'])
-    for (const kind of ['album', 'artist']) {
-      await h.click(`[data-search-type="${kind}"]`)
-      await h.until(() => h.query(`[data-search-select="netease:${kind}:2"]`), `${kind} 筛选应请求对应类型`)
-      assert.equal(h.require('[data-search-results] [data-search-play]').disabled, true)
-    }
-    assert.deepEqual(searches.slice(-2).map(item => item.kind), ['album', 'artist'])
-    await h.click('[data-search-type="song"]')
-    await h.click('[data-search-source="local"]')
-    assert.match(h.require('[data-search-results]').textContent, /本地歌手/)
-    assert.doesNotMatch(h.require('[data-search-results]').textContent, /云端歌手/)
-  }, { fetch: async url => {
-    assert.equal(url, '/api/local/music')
-    return response({ success: true, tracks: [localTrack] })
-  } })
+    await h.until(()=>h.document.querySelectorAll('[data-song-search-panel] li').length===2, '同名不同来源不能合并成一首')
+    assert.match(h.require('[data-song-search-panel]').textContent,/云端歌手/)
+    assert.match(h.require('[data-song-search-panel]').textContent,/本地歌手/)
+    await h.click('[data-queue-play="netease:2"]')
+    await h.click('[data-queue-save="netease:2"]')
+    assert.deepEqual(plays,['netease:2']);assert.deepEqual(saves,['netease:2'])
+    assert.equal(h.query('[data-search-page]'),null)
+  }, { fetch: async url => response(url==='/api/local/music' ? {success:true,tracks:[localTrack]} : {code:200,result:{songs:[{id:2,name:'相同歌名',ar:[{name:'云端歌手'}],al:{name:'云端专辑'}}],songCount:1}}) })
 })
 
 it('React 用户页点击爱心同步状态；删除歌单必须明确确认，取消不提交', async () => {
@@ -209,7 +188,7 @@ it('真实 React Workspace 跨页保留唯一 Audio；混合队列恢复、清�
       assert.equal(queue.items.length, 2)
       assert.deepEqual(queue.items.map(song => song.source), ['local', 'netease'])
       assert.equal(saved.length, 0, '恢复队列时不能马上覆盖服务器原数据')
-      for (let repeat = 0; repeat < 2; repeat++) for (const page of ['search', 'upload', 'user', 'library']) {
+      for (let repeat = 0; repeat < 2; repeat++) for (const page of ['upload', 'user', 'library']) {
         await h.click(`[data-nav="${page}"]`)
         await h.until(() => h.query('[data-album-archive]').dataset.view === (page === 'library' ? 'archive' : page), `应切换至 ${page}`)
       }
@@ -222,9 +201,11 @@ it('真实 React Workspace 跨页保留唯一 Audio；混合队列恢复、清�
       assert.equal(h.require('[data-queue-count]').textContent, '00')
       assert.equal(player.get().track, null)
       await h.click('[data-nav="search"]')
-      await h.until(() => h.query('[data-search-page]'), '懒加载搜索页应完成挂载')
-      assert.equal(h.require('[data-album-archive]').dataset.view, 'search')
-      await h.click('[data-search-results] [data-search-play]')
+      await h.input('.gooey-search input', '相同')
+      await h.React.act(async()=>h.require('.gooey-search input').dispatchEvent(new h.window.KeyboardEvent('keydown',{key:'Enter',bubbles:true})))
+      await h.until(()=>h.query('[data-song-search-panel] [data-queue-play]'), '搜索窗口应显示歌曲')
+      assert.equal(h.require('[data-album-archive]').dataset.view, 'archive')
+      await h.click('[data-song-search-panel] [data-queue-play]')
       assert.equal(player.get().track.source, 'local')
       assert.equal(audioCreations, 1)
       await h.unmount()

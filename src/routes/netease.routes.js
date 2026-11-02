@@ -119,6 +119,15 @@ function createNeteaseRouter(neteaseService) {
     return callModule(res, 'playlistDetail', { id })
   })
 
+  router.get('/artist/songs', (req, res) => {
+    const id = readSingleQueryValue(req.query.id)
+    if (!isPositiveInteger(id)) return parameterError(res, 'id 必须是正整数')
+    const limit = parseIntegerParameter(req.query.limit, { minimum: 1, maximum: 100 })
+    const offset = parseIntegerParameter(req.query.offset, { minimum: 0, maximum: Number.MAX_SAFE_INTEGER })
+    if (limit === null || offset === null) return parameterError(res, '分页参数无效')
+    return callModule(res, 'artistSongs', { id, order: 'hot', limit: limit ?? 30, offset: offset ?? 0 })
+  })
+
   router.get('/album', (req, res) => {
     const id = readSingleQueryValue(req.query.id)
     if (!isPositiveInteger(id)) return parameterError(res, 'id 必须是正整数')

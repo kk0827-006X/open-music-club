@@ -63,3 +63,19 @@ it('斜俯视镜头两秒连续落到工作区，起止缓动且不同屏幕构�
     for (let i = 1; i < frames.length; i++) assert.ok(frames[i].span <= frames[i - 1].span)
   }
 })
+
+it('Gooey 搜索就地展开、聚焦并保留输入，Escape 关闭返回入口', async () => {
+  await withReactHarness(async h => {
+    const { GooeySearch } = await import('../frontend/src/shared/react/aceternity/GooeySearch.tsx')
+    await h.render(h.React.createElement(GooeySearch))
+    assert.equal(h.require('[data-nav="search"]').getAttribute('aria-expanded'), 'false')
+    await h.click('[data-nav="search"]')
+    assert.equal(h.document.activeElement, h.require('input[type="search"]'))
+    await h.input('input[type="search"]', '晴天')
+    await h.React.act(async () => h.require('input').dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    assert.equal(h.require('input').value, '晴天')
+    await h.React.act(async () => h.require('input').dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    assert.equal(h.require('[data-nav="search"]').getAttribute('aria-expanded'), 'false')
+    assert.equal(h.document.activeElement, h.require('[data-nav="search"]'))
+  })
+})

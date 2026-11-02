@@ -257,6 +257,15 @@ describe('网易云 API 白名单', () => {
     assert.equal(response.body.songs.length, 2)
     assert.deepEqual(calls, [{ moduleName: 'album', parameters: { id: '6590' } }])
   })
+  it('歌手曲目仅登录可读，校验分页并剔除凭据和任意上游参数', async () => {
+    assert.equal((await request(app).get('/api/netease/artist/songs?id=1')).status,401)
+    for (const query of ['id=x','id=1&limit=101','id=1&offset=-1','id=1&id=2']) {
+      assert.equal((await memberAgent.get('/api/netease/artist/songs?'+query)).status,400)
+    }
+    const response = await memberAgent.get('/api/netease/artist/songs?id=123&limit=30&offset=60&cookie=secret&proxy=http://evil&order=time')
+    assert.equal(response.status,200)
+    assert.deepEqual(calls.at(-1),{moduleName:'artistSongs',parameters:{id:'123',limit:30,offset:60,order:'hot'}})
+  })
 })
 
 describe('网易云服务适配器', () => {
@@ -534,4 +543,10 @@ describe('网易云服务适配器', () => {
     await assert.rejects(service.call('search', { keywords: 'test' }))
     assert.equal(moduleCalled, false)
   })
+})
+
+it('统一搜索默认使用 cloudsearch，歌手曲目复用 vendor 只读模块', () => {
+ const {DEFAULT_MODULES}=require('../src/services/netease.service')
+ assert.equal(DEFAULT_MODULES.search,require('../vendor/api-enhanced/module/cloudsearch'))
+ assert.equal(DEFAULT_MODULES.artistSongs,require('../vendor/api-enhanced/module/artist_songs'))
 })

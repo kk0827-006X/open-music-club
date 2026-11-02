@@ -5,11 +5,12 @@ const path = require('node:path')
 const VENDOR_PACKAGE = '@neteasecloudmusicapienhanced/api'
 
 const DEFAULT_MODULES = Object.freeze({
-  search: require(`${VENDOR_PACKAGE}/module/search`),
+  search: require(`${VENDOR_PACKAGE}/module/cloudsearch`),
   songDetail: require(`${VENDOR_PACKAGE}/module/song_detail`),
   songUrlV1: require(`${VENDOR_PACKAGE}/module/song_url_v1`),
   lyric: require(`${VENDOR_PACKAGE}/module/lyric`),
   playlistDetail: require(`${VENDOR_PACKAGE}/module/playlist_detail`),
+  artistSongs: require(`${VENDOR_PACKAGE}/module/artist_songs`),
   album: require(`${VENDOR_PACKAGE}/module/album`),
 })
 

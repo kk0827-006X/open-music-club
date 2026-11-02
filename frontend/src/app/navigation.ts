@@ -1,11 +1,10 @@
-export type WorkspacePage = 'search' | 'upload' | 'user'
+export type WorkspacePage = 'upload' | 'user'
 // element 是页面公开的根节点；协调器不查询页面私有 DOM。
 export interface PageController {
   element: HTMLElement
   focus?(): void
   refresh?(): unknown
   readonly hasOpenDialog?: boolean
-  ownsKeyboardTarget?(target: EventTarget | null): boolean
   destroy(): void
 }
 export function createNavigation(root: HTMLElement, options: {
@@ -46,7 +45,6 @@ export function createNavigation(root: HTMLElement, options: {
       hide(); options.resetArchive()
       let page = controllers.get(name)
       if (!page) { page = options.pages[name].mount(); controllers.set(name, page) }
-      else if (name === 'search') page.refresh?.()
       if (name === 'user') page.refresh?.()
       window.clearTimeout(timers.get(name)); timers.delete(name)
       current = name
