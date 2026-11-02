@@ -1187,3 +1187,127 @@ test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真�
  await close.click()
  await expect(panel).toHaveCount(0)
 })
+
+test.describe('音频响应图形验收', () => {
+  test.use({ deviceScaleFactor: .25 })
+
+test('音乐响应阵列复用音频节点，跨来源切换及拖动、详情、减少动态效果平滑衔接', async ({ page }, info) => {
+  test.setTimeout(300000)
+  const errors = []
+  page.on('pageerror', e => errors.push(e.message))
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { animate: false, frames: [], created: 0 }
+    const Original = window.AudioContext
+    window.__audioGraph = { contexts: 0, sources: 0, reads: 0, closed: 0 }
+    window.AudioContext = class extends Original {
+      constructor(...args) { super(...args); window.__audioGraph.contexts++ }
+      createMediaElementSource(...args) { window.__audioGraph.sources++; return super.createMediaElementSource(...args) }
+      createAnalyser() { const meter = super.createAnalyser(), read = meter.getFloatFrequencyData.bind(meter); meter.getFloatFrequencyData = data => { window.__audioGraph.reads++; return read(data) }; return meter }
+      close() { window.__audioGraph.closed++; return super.close() }
+    }
+  })
+  await mockWorkspace(page, 'user', [], true)
+  const tone = Buffer.alloc(44 + 8000 * 300 * 2)
+  require('./fixtures').wave().copy(tone, 0, 0, 44)
+  tone.writeUInt32LE(tone.length - 8, 4); tone.writeUInt32LE(tone.length - 44, 40)
+  for (let i = 44; i < tone.length; i += 2) tone.writeInt16LE(Math.round(12000 * Math.sin((i - 44) / 2 * Math.PI * 220 / 8000)), i)
+  const treble = Buffer.from(tone)
+  for (let i = 44; i < treble.length; i += 2) treble.writeInt16LE(Math.round(12000 * Math.sin((i - 44) / 2 * Math.PI * 5000 / 8000)), i)
+  await page.route('**/api/local/music/1/stream', route => route.fulfill({ contentType: 'audio/wav', body: tone }))
+  await page.route('https://e2e.music.126.net/reactive.wav', route => route.fulfill({ contentType: 'audio/wav', headers: { 'Access-Control-Allow-Origin': '*' }, body: treble }))
+  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/reactive.wav' }] } }))
+  await page.route('**/api/netease/search?**', route => route.fulfill({ json: { code: 200, result: { songs: [{ id: 991, name: '音乐响应测试', ar: [], al: {}, dt: 60000 }] } } }))
+  await page.locator('[data-nav="user"]').click()
+  await page.locator('[data-user-tab="uploads"]').click()
+  await page.locator('[data-user-play="local:1"]').click()
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false)
+  await page.locator('[data-nav="library"]').click()
+  await page.evaluate(() => { window.__archiveEntryProbe.animate = true })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats())
+  await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(.1)
+  await expect.poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 }).toBeGreaterThan(.9)
+  const spectrumPeak = () => page.evaluate(() => { const values = [...window.__archiveEntryProbe.scene.audioBands.spectrum]; return values.indexOf(Math.max(...values)) })
+  expect(await spectrumPeak()).toBeLessThan(12)
+  await page.evaluate(() => { window.__archiveEntryProbe.scene.holdingArchive = true })
+  await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(.25)
+  await page.evaluate(() => { window.__archiveEntryProbe.scene.holdingArchive = false })
+  await expect.poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 }).toBeGreaterThan(.9)
+  await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('detail'))
+  await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(.01)
+  await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('archive'))
+  await expect.poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 }).toBeGreaterThan(.9)
+  await page.screenshot({ path: info.outputPath('audio-reactive-archive.png') })
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect.poll(async () => (await stats()).spectrumActivity).toBe(0)
+  const reads = await page.evaluate(() => window.__audioGraph.reads)
+  await page.waitForTimeout(250)
+  expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(reads)
+  await page.locator('[data-nav="search"]').click()
+  await page.getByRole('searchbox', { name: '搜索音乐' }).fill('音乐响应测试')
+  await page.getByRole('searchbox', { name: '搜索音乐' }).press('Enter')
+  await page.getByRole('button', { name: '播放 音乐响应测试', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].src)).toContain('reactive.wav')
+  await page.locator('[data-search-close]').click()
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(.1)
+  await expect.poll(spectrumPeak).toBeGreaterThan(20)
+  expect(await page.evaluate(() => ({ contexts: window.__audioGraph.contexts, sources: window.__audioGraph.sources, audio: window.__migrationAudios.length, cors: window.__migrationAudios[0].crossOrigin }))).toEqual({ contexts: 1, sources: 1, audio: 1, cors: 'anonymous' })
+  await page.locator('[data-nav="user"]').click()
+  const hiddenReads = await page.evaluate(() => window.__audioGraph.reads)
+  await page.waitForTimeout(250)
+  expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(hiddenReads)
+  expect(await page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false)
+  expect(errors).toEqual([])
+})
+
+test('播放动效开关默认开启，关闭停采样但继续播放，键盘恢复并保存浏览器偏好', async ({ page }) => {
+  await page.addInitScript(() => {
+    const Original = window.AudioContext
+    window.__preferenceReads = 0
+    window.AudioContext = class extends Original {
+      createAnalyser() {
+        const meter = super.createAnalyser(), read = meter.getFloatFrequencyData.bind(meter)
+        meter.getFloatFrequencyData = data => { window.__preferenceReads++; return read(data) }
+        return meter
+      }
+    }
+  })
+  await mockWorkspace(page, 'user', [], true)
+  const tone = require('./fixtures').wave()
+  for (let i = 44; i < tone.length; i += 2) tone.writeInt16LE(Math.round(12000 * Math.sin((i - 44) / 2 * Math.PI * 220 / 8000)), i)
+  await page.route('**/api/local/music/1/stream', route => route.fulfill({ contentType: 'audio/wav', body: tone }))
+  await page.locator('[data-nav="user"]').click()
+  await page.locator('[data-user-tab="uploads"]').click()
+  await page.locator('[data-user-play="local:1"]').click()
+  await page.locator('[data-nav="library"]').click()
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await expect.poll(() => page.evaluate(() => window.__preferenceReads)).toBeGreaterThan(0)
+  await page.locator('[data-nav="settings"]').click()
+  const toggle = page.getByRole('switch', { name: '播放动效', exact: true })
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await expect(toggle).toHaveClass('squish-switch')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await page.locator('[data-settings-close]').click()
+  await expect(page.locator('[data-settings-dialog]')).not.toBeVisible()
+  const before = await page.evaluate(() => ({ reads: window.__preferenceReads, time: window.__migrationAudios[0].currentTime }))
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeGreaterThan(before.time + .2)
+  expect(await page.evaluate(() => window.__preferenceReads)).toBe(before.reads)
+  await page.locator('[data-nav="settings"]').click()
+  await toggle.focus(); await page.keyboard.press('Space')
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await page.locator('[data-settings-close]').click()
+  await expect.poll(() => page.evaluate(() => window.__preferenceReads)).toBeGreaterThan(before.reads)
+  await page.locator('[data-nav="settings"]').click()
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await page.reload()
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.getByRole('button', { name: /点击进入/ }).click()
+  await expect(page.locator('[data-album-archive]')).toBeVisible()
+  await page.locator('[data-nav="settings"]').click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+})
+
+})

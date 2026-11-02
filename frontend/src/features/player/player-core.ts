@@ -1,3 +1,4 @@
+import { createAudioAnalysis } from './audio-analysis'
 import { createState } from '../../shared/state.ts'
 import type { MusicItem } from '../../shared/music.ts'
 import type { MusicQueue } from "../queue/model.ts"
@@ -20,6 +21,8 @@ export function createPlayerController(options: {
   onPlayed?: (track: MusicItem) => void | Promise<void>
 }) {
   const audio = options.createAudio?.() ?? new Audio()
+  audio.crossOrigin = 'anonymous'
+  const analysis = createAudioAnalysis(audio)
   audio.preload = 'none'
   audio.volume = .62
   let track: MusicItem | null = null, request = 0, disposed = false
@@ -32,12 +35,19 @@ export function createPlayerController(options: {
   const cancel = () => { request++; pending?.abort(); pending = null }
   async function play(next: MusicItem) {
     if (disposed) return
+    const preparation = analysis.prepare()
+    // 立即接住恢复失败，避免等待取址时产生未处理的 Promise。
+    const prepared = preparation.then(() => null, () => new Error('音频上下文无法恢复，请再次点击播放。'))
     cancel()
     const current = request, controller = new AbortController()
     pending = controller
     const url = await options.resolveUrl(next, controller.signal)
     if (disposed || current !== request) return
+    const preparationError = await prepared
+    if (disposed || current !== request) return
+    if (preparationError) throw preparationError
     audio.pause()
+    analysis.reset()
     audio.src = url
     track = next; error = null
     update()
@@ -57,9 +67,14 @@ export function createPlayerController(options: {
   audio.addEventListener('ended', ended); audio.addEventListener('error', failed)
   return {
     get: state.get, subscribe: state.subscribe, play, next, previous,
+    readAudioBands: analysis.read, resetAudioBands: analysis.reset,
     async toggle() {
       if (disposed || !track) return
-      if (audio.paused) await audio.play()
+      if (audio.paused) {
+        const current = request
+        await analysis.prepare()
+        if (!disposed && track && current === request) await audio.play()
+      }
       else audio.pause()
     },
     setVolume(volume: number) { if (!disposed) { audio.volume = volume; update() } },
@@ -70,14 +85,14 @@ export function createPlayerController(options: {
     },
     clear() {
       if (disposed) return
-      cancel(); audio.pause(); audio.removeAttribute('src'); track = null; error = null; update()
+      cancel(); audio.pause(); analysis.reset(); audio.removeAttribute('src'); track = null; error = null; update()
     },
     destroy() {
       if (disposed) return
       disposed = true; cancel()
       events.forEach(event => audio.removeEventListener(event, update))
       audio.removeEventListener('ended', ended); audio.removeEventListener('error', failed)
-      state.destroy(); audio.pause(); audio.removeAttribute('src'); audio.load()
+      state.destroy(); audio.pause(); audio.removeAttribute('src'); audio.load(); analysis.destroy()
     },
   }
 }

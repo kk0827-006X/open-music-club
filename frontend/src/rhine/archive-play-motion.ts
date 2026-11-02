@@ -1,5 +1,6 @@
+import { approach } from './motion'
 const clamp = (value: number, low = 0, high = 1) => Math.min(high, Math.max(low, value));
-export type MusicBands = { low: number; mid: number; high: number; activity: number };
+export type MusicBands = { low: number; mid: number; high: number; activity: number; spectrum?: Float32Array };
 export const quietBands = (): MusicBands => ({ low: 0, mid: 0, high: 0, activity: 0 });
 export class SpectrumEnvelope {
   bands = quietBands();
@@ -33,10 +34,10 @@ export class SpectrumEnvelope {
     for (const key of ["low", "mid", "high"] as const) {
       const target = fresh ? this.target[key] : 0;
       const rate = target > this.bands[key] ? 16 : 3.2;
-      this.bands[key] += (target - this.bands[key]) * (1 - Math.exp(-Math.min(dt, .1) * rate));
+      this.bands[key] = approach(this.bands[key], target, rate, Math.min(dt, .1));
     }
     const active = fresh && time - this.audible < 1.5 ? 1 : 0;
-    this.bands.activity += (active - this.bands.activity) * (1 - Math.exp(-Math.min(dt, .1) * (active ? 3 : 1.5)));
+    this.bands.activity = approach(this.bands.activity, active, active ? 3 : 1.5, Math.min(dt, .1));
     return { ...this.bands };
   }
 }
@@ -100,4 +101,34 @@ export function rhythmDisplacement(row: number, lane: number, time: number, band
     + bands.high * .28 * (.55 + .45 * Math.sin(row * .62 + lane * .4 - time * 4.1));
   return musicDisplacement(row, lane, time, bands, strength) * frame.style.legacy
     + (frame.style.wave * wave + frame.style.lift * flow) * clamp(strength, 0, 2);
+}
+
+export const AUDIO_SPECTRUM_SIZE = 32;
+export const AUDIO_MAX_LIFT = 1.9;
+
+// 镜像往返频谱映射没有取模接缝；相邻行频率相近，各列错开六个频段。
+export function archiveSpectrumPosition(row: number, lane: number) {
+  const span = AUDIO_SPECTRUM_SIZE - 1;
+  const phase = ((row + lane * 6) % (span * 2) + span * 2) % (span * 2);
+  return span - Math.abs(phase - span);
+}
+
+// 保留既有高度场入口；音乐自己形成波峰，不再叠加自动播放的正弦波。
+export function audioWave(row: number, lane: number, _time: number, bands: MusicBands) {
+  const spectrum = bands.spectrum;
+  if (!spectrum || spectrum.length !== AUDIO_SPECTRUM_SIZE) return 0;
+  const sample = (position: number) => {
+    const x = clamp(position, 0, spectrum.length - 1);
+    const i = Math.floor(x), fraction = x - i;
+    return spectrum[i] * (1 - fraction) + spectrum[Math.min(i + 1, spectrum.length - 1)] * fraction;
+  };
+  const position = archiveSpectrumPosition(row, lane);
+  // 80% 自身频段，20% 邻域；连续插值同时用于档案高度和坡度采样。
+  const energy = clamp(.8 * sample(position) + .1 * sample(position - 1) + .1 * sample(position + 1));
+  return AUDIO_MAX_LIFT * (1 - Math.exp(-3 * energy));
+}
+
+export function interactionGain(value: number, dragging: boolean, detail: boolean, dt: number) {
+  const target = detail ? 0 : dragging ? .2 : 1
+  return approach(value, target, target < value ? 14 : 4, Math.min(.05, dt))
 }
