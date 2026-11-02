@@ -51,6 +51,20 @@ function releasePointer(element: HTMLElement | null, pointerId: number | null) {
   }
 }
 
+// 只滚动队列自身；scrollIntoView 会连带移动 overflow:hidden 的播放器和档案页。
+function revealQueueItem(panel: HTMLElement, item: HTMLElement, reduced: boolean) {
+  const bounds = panel.getBoundingClientRect()
+  const row = item.getBoundingClientRect()
+  const top = bounds.top + panel.clientTop
+  const bottom = top + panel.clientHeight
+  const header = panel.classList.contains('is-immersive') ? panel.querySelector('header') : null
+  const visibleTop = Math.max(top, header?.getBoundingClientRect().bottom ?? top)
+  const delta = row.top < visibleTop ? row.top - visibleTop : row.bottom > bottom ? row.bottom - bottom : 0
+  if (!delta) return
+  const target = Math.max(0, Math.min(panel.scrollTop + delta, panel.scrollHeight - panel.clientHeight))
+  panel.scrollTo({ top: target, behavior: reduced ? 'instant' as ScrollBehavior : 'smooth' })
+}
+
 function queueSignature(items: readonly SearchItem[]) {
   return items.map((item) => item.key).join('\u0000')
 }
@@ -139,7 +153,9 @@ function QueueRow(props: QueueRowProps) {
         if (!panel || panel.hidden) return
         const handle = Array.from(panel.querySelectorAll<HTMLElement>('[data-queue-drag]') ?? [])
           .find((button) => button.dataset.queueDrag === item.key)
-        handle?.focus()
+        handle?.focus({ preventScroll: true })
+        const row = handle?.closest<HTMLElement>('li')
+        if (row) revealQueueItem(panel, row, reduced)
       })
     })
   }
@@ -280,11 +296,13 @@ export const QueuePanel = memo(forwardRef<HTMLElement, QueuePanelProps>(function
   }, [ref])
 
   useEffect(() => {
-    if (open && immersive) localRef.current?.querySelector<HTMLButtonElement>('[data-queue-close]')?.focus()
+    if (open && immersive) localRef.current?.querySelector<HTMLButtonElement>('[data-queue-close]')?.focus({ preventScroll: true })
   }, [open, immersive])
 
   useEffect(() => {
-    if (open) localRef.current?.querySelector<HTMLElement>('li.is-active')?.scrollIntoView?.({ block: 'nearest', behavior: reduced ? 'instant' as ScrollBehavior : 'smooth' })
+    const panel = localRef.current
+    const active = panel?.querySelector<HTMLElement>('li.is-active')
+    if (open && panel && active) revealQueueItem(panel, active, reduced)
   }, [open, activeKey, reduced])
 
   const updateDraft = useCallback((next: SearchItem[]) => {

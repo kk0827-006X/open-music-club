@@ -11,14 +11,14 @@ Open Music Club 是面向受控成员、部署在公网 HTTPS 环境中的音乐
 
 ## 技术栈
 
-- 后端：Node.js 26.0.0（`.node-version`）、Express 5、SQLite（better-sqlite3）；生产环境另需 Redis。
+- 后端：Node.js 26.13.0 LTS（`.node-version`）、Express 5、SQLite（better-sqlite3）；生产环境另需 Redis。
 - 前端：TypeScript + React 19 + Vite 7；Three.js 档案墙、Motion、Radix Slider。
 - 认证：邮箱密码、Session、TOTP 2FA 和一次性恢复码；管理员在公网开放前必须启用 2FA。
 - 包管理：pnpm 12.3.4（`package.json` 的 `packageManager` 锁定）；不要用 npm 或 yarn 修改依赖。
 
 ## 本地运行
 
-先安装与锁定版本一致的 Node 和 pnpm，并初始化子模块：
+开发、CI 和未来生产后端统一使用 `.node-version` 中的精确 Node 版本及 `packageManager` 中的 pnpm 版本。先安装对应工具，并初始化子模块：
 
 ```bash
 git submodule update --init --recursive

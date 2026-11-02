@@ -18,7 +18,7 @@
     "test:coverage": "c8 --include='src/**' --exclude='vendor/**' --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 tsx --tsconfig frontend/tsconfig.json --test --test-concurrency=1 tests/*.test.js"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=26.13.0 <27"
   },
   "dependencies": {
     "@alicloud/dm20151123": "1.11.0",

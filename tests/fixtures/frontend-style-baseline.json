@@ -1,0 +1,101 @@
+{
+  "sourceCommit": "c2a9527d79735e599c208ca11b0f320ff0b53155",
+  "files": {
+    "frontend/public/theme.css": {
+      "declarations": 600,
+      "sha256": "c7df4211d267d8ac0a8a3b07c0b5377a701136c745d06e646f1f698c21bfcb4c"
+    },
+    "frontend/src/style.css": {
+      "declarations": 0,
+      "sha256": "e309cbe445deeb69283fe01cbca1c865b9f3cc99ed065a7a36d15dcfdcecef3a"
+    },
+    "frontend/src/styles/access-application.css": {
+      "declarations": 42,
+      "sha256": "50a93ab2e88d093960317ed6c12662939562d02a9bb0f34562e7d667f1027d8f"
+    },
+    "frontend/src/styles/ambient-album-background.css": {
+      "declarations": 111,
+      "sha256": "5f5b400aa863a437f9862cb919cdbc8c16be169989498327b4829e2912e45899"
+    },
+    "frontend/src/styles/application-activation.css": {
+      "declarations": 204,
+      "sha256": "0f9d8ed17e398e2af166d700631a2bbaddcd8b8259414d371360df6da6d583eb"
+    },
+    "frontend/src/styles/archive-entry.css": {
+      "declarations": 16,
+      "sha256": "3eaaeedc14e474a97c229c7ab7225e28e208831251ac7b7c477ec92ade5c4c81"
+    },
+    "frontend/src/styles/archive-shell.css": {
+      "declarations": 208,
+      "sha256": "cb217ba1f512e771dfda0ab9756fe84692e525f5004d31eb1dce653823109bef"
+    },
+    "frontend/src/styles/code-slots.css": {
+      "declarations": 108,
+      "sha256": "3abc7919605fa7203a345d847ec15e36ddf074c067c3a7ae9b8830223f1b8284"
+    },
+    "frontend/src/styles/entry-authorized.css": {
+      "declarations": 215,
+      "sha256": "c801d1256596f376a374fed191f952aba8f6653f24921b8f6103bcaed8095957"
+    },
+    "frontend/src/styles/footprint.css": {
+      "declarations": 539,
+      "sha256": "4224a92c0b21d3137126962a9e62a540d3d1b4417ea61fee902826e695608651"
+    },
+    "frontend/src/styles/gooey-search.css": {
+      "declarations": 100,
+      "sha256": "e2b288732a974a70b88f902162ed2be50716bce291ce964cbc21a60cf7d9d03a"
+    },
+    "frontend/src/styles/immersive-player.css": {
+      "declarations": 309,
+      "sha256": "6737da61504a9816fe78e5a2c77f2d2ae2fc84a6bc21c5a0cf2654e2a4f00528"
+    },
+    "frontend/src/styles/interaction.css": {
+      "declarations": 21,
+      "sha256": "79415f563ddf4dc2ebef07fd3d1b45e30d597a1980a594858adcb905800f7e12"
+    },
+    "frontend/src/styles/login.css": {
+      "declarations": 475,
+      "sha256": "99b5c4b57df5c0b523c7090e83bd1853efe7917d2d21db222845fff3e6d28318"
+    },
+    "frontend/src/styles/member-sidebar.css": {
+      "declarations": 185,
+      "sha256": "e4d7575ba4bf66f4025018eda2b181841c0f645b3d2d2b81df6b74bd787ba6f0"
+    },
+    "frontend/src/styles/music-library.css": {
+      "declarations": 145,
+      "sha256": "507e6e42c7be0e6f85e91413f76639cd7c878da06de570762273d5d918ee92fe"
+    },
+    "frontend/src/styles/player.css": {
+      "declarations": 400,
+      "sha256": "eb9e751e3e8a225bd904df6b0a58784611b06b4d7e27bbe86a843b58a1b75716"
+    },
+    "frontend/src/styles/react-components.css": {
+      "declarations": 22,
+      "sha256": "eb7f890932c5998ab5d94ffa32c0e5c08163bd91427b70ee03e2023491710181"
+    },
+    "frontend/src/styles/responsive.css": {
+      "declarations": 166,
+      "sha256": "9f8dbc984409b26a24af2486bb5f331d2360fc37c8822e9d37248bfb1df541be"
+    },
+    "frontend/src/styles/settings.css": {
+      "declarations": 172,
+      "sha256": "7bf916f09ef5c022710aaab471900e5f440834f18d3a0af1a939eb346aa9fbf1"
+    },
+    "frontend/src/styles/tokens-global.css": {
+      "declarations": 11,
+      "sha256": "6f8d4f52f4071e6604e764452225f553387fb5d3dbc1cdb4f65665e5a41d0bef"
+    },
+    "frontend/src/styles/upload.css": {
+      "declarations": 311,
+      "sha256": "629f948d9e06e946b70a6e8e159de38560d934ffa0c921717c3b7964a85bcda6"
+    },
+    "frontend/src/styles/user.css": {
+      "declarations": 573,
+      "sha256": "ae2822d4b77f1693c7c9ed969a8325eb6314ae5c59cc9fce14b4120a732bc993"
+    },
+    "frontend/src/styles/wake-slider.css": {
+      "declarations": 62,
+      "sha256": "d62c9da0f839286a489dc49b2668864ffdd81d683f8be159757dcd8061c915b3"
+    }
+  }
+}

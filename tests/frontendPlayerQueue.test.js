@@ -320,6 +320,41 @@ describe('播放队列面板交互（真实 React 组件）', () => {
     })
   })
 
+  it('打开沉浸队列聚焦不滚动祖先，当前曲目仅在队列内按最近边界定位', async () => {
+    await withPlayerHarness(async h => {
+      const { QueuePanel } = await load('features/queue/QueuePanel.tsx')
+      const props = panelProps([song(1), song(2), song(3)], { open: false, immersive: true, activeKey: 'local:2', reduced: true })
+      await h.render(h.React.createElement(QueuePanel, props))
+      const panel = h.require('[data-player-queue-panel]')
+      const close = h.require('[data-queue-close]')
+      const focus = close.focus.bind(close), focusOptions = [], scrolls = []
+      let ancestorTop = 106
+      close.focus = options => { focusOptions.push(options); if (!options?.preventScroll) ancestorTop--; focus(options) }
+      panel.scrollTop = 20
+      // 固定测量值检验最近边界计算；真实几何和祖先滚动由浏览器精确断言覆盖。
+      panel.getBoundingClientRect = () => ({ top: 100 })
+      Object.defineProperties(panel, { clientTop: { value: 1 }, clientHeight: { value: 100 }, scrollHeight: { value: 500 } })
+      panel.querySelector('header').getBoundingClientRect = () => ({ bottom: 121 })
+      panel.scrollTo = options => { scrolls.push(options); panel.scrollTop = options.top }
+      const row = key => h.require(`[data-queue-key="local:${key}"]`)
+      for (const key of [1, 2, 3]) row(key).scrollIntoView = () => assert.fail('不得滚动队列祖先')
+      row(1).getBoundingClientRect = () => ({ top: 130, bottom: 170 })
+      row(2).getBoundingClientRect = () => ({ top: 260, bottom: 300 })
+      row(3).getBoundingClientRect = () => ({ top: 80, bottom: 110 })
+      await h.render(h.React.createElement(QueuePanel, { ...props, open: true }))
+      assert.equal(h.document.activeElement, close)
+      assert.deepEqual(focusOptions, [{ preventScroll: true }])
+      assert.deepEqual(scrolls, [{ top: 119, behavior: 'instant' }])
+      await h.render(h.React.createElement(QueuePanel, { ...props, open: true, activeKey: 'local:1' }))
+      assert.equal(scrolls.length, 1, '已经可见时不滚动')
+      await h.render(h.React.createElement(QueuePanel, { ...props, open: true, activeKey: 'local:3', reduced: false }))
+      assert.deepEqual(scrolls[1], { top: 78, behavior: 'smooth' })
+      await h.render(h.React.createElement(QueuePanel, { ...props, activeKey: 'local:1' }))
+      assert.equal(scrolls.length, 2, '面板关闭时不滚动')
+      assert.equal(ancestorTop, 106)
+    })
+  })
+
   it('键盘上下方向键立即提交排序、边界不提交，并在两帧后把焦点还给同一手柄', async () => {
     await withPlayerHarness(async harness => {
       const { QueuePanel } = await load('features/queue/QueuePanel.tsx')
@@ -331,6 +366,9 @@ describe('播放队列面板交互（真实 React 组件）', () => {
       await harness.render(harness.React.createElement(QueuePanel, props))
 
       const handle = harness.require('[data-queue-drag="local:1"]')
+      const focusOptions = []
+      const focus = handle.focus.bind(handle)
+      handle.focus = options => { focusOptions.push(options); focus(options) }
       const initialFocus = harness.document.createElement('button')
       initialFocus.type = 'button'
       initialFocus.textContent = '排序前焦点'
@@ -362,6 +400,7 @@ describe('播放队列面板交互（真实 React 组件）', () => {
       assert.deepEqual(reorders, [{ keys: ['local:2', 'local:1', 'local:3'], movedKey: 'local:1' }])
       await advanceFocus()
       assert.equal(harness.document.activeElement, handle, '排序后焦点应回到同一首歌的手柄')
+      assert.deepEqual(focusOptions, [{ preventScroll: true }])
       initialFocus.remove()
 
       // 到达列表上边界时仍然消费按键，但不产生新的排序提交。

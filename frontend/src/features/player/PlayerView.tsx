@@ -659,7 +659,7 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(function
   const queueSnapshot = useMemo(() => [...queue.items], [queue, queueVersion])
   const closeQueue = useCallback(() => setQueueOpen(false), [setQueueOpen])
   const focusQueueToggle = useCallback(() => {
-    (expandedRef.current ? expandedQueueToggleRef : queueToggleRef).current?.focus()
+    (expandedRef.current ? expandedQueueToggleRef : queueToggleRef).current?.focus({ preventScroll: true })
   }, [])
   const removeQueueTrack = useCallback((item: SearchItem) => removeQueueItem(item.key), [removeQueueItem])
   const previewTrack = selectedAlbum.tracks[0]

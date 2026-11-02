@@ -105,7 +105,7 @@ PersistentKeepalive = 25
 
 建议首轮采用**独立非 root 系统账号 + systemd 管理单个 Node 进程 + 本机 Redis**，不同时引入 PM2、Kubernetes、集群或第二套网易云 HTTP 服务。
 
-仓库 `.node-version` 固定 `26.0.0`，根 `packageManager` 固定 `pnpm@12.3.4`，`engines` 虽接受 Node >=22，仍应先按锁定环境构建验收。国内现有 `/usr/bin/node` 为 22.22.1，**不要直接升级替换它影响已有服务**；为 OMC 准备独立运行时路径。在本机/CI 完成前端构建和全套验收，不在 842 MiB 的海外机器执行 pnpm/Vite/Playwright。国内只准备目标 Linux x86_64 的生产依赖；`bcrypt`、`better-sqlite3`、`sharp` 有原生依赖，不能复制 macOS 的 `node_modules`，安装失败不能靠跳过构建脚本来掩盖。
+仓库 `.node-version` 固定 `26.13.0`（LTS），根 `packageManager` 固定 `pnpm@12.3.4`，`engines` 限定 Node >=26.13.0 且 <27，开发、CI 和 OMC 生产后端均应按 `.node-version` 的精确版本构建验收。国内现有 `/usr/bin/node` 为 22.22.1，**不要直接升级替换它影响已有服务**；为 OMC 准备独立运行时路径。在本机/CI 完成前端构建和全套验收，不在 842 MiB 的海外机器执行 pnpm/Vite/Playwright。国内只准备目标 Linux x86_64 的生产依赖；`bcrypt`、`better-sqlite3`、`sharp` 有原生依赖，不能复制 macOS 的 `node_modules`，安装失败不能靠跳过构建脚本来掩盖。
 
 国内发布包需要 `src/`、根 package/锁文件/workspace 配置、初始化后的 `vendor/api-enhanced` 子模块和必要依赖，不是只上传 `src`。保留同一提交的实际 workspace 结构和成员清单（包括 `frontend/package.json`）。`pnpm install --prod --frozen-lockfile` 是目标生产安装方向，完整冻结安装/测试在构建端完成；若目标机原生编译资源不足，停止并讨论可复现的 Linux 构建产物，不当场改全局工具链。`src/server.js` 已在同一 Node 进程初始化网易云模块，不需要另启第三方 `app.js` 或占用现有 3001。
 

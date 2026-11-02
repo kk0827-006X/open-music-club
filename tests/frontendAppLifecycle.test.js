@@ -91,8 +91,11 @@ it('真实 App 不把待 2FA 的密码登录当作授权，验证码和 Session 
       assert.equal(h.query('[data-authorized-stage]'), null)
       assert.equal(clock.count(1150), 0, '仅密码认证成功不调度授权入场')
       assert.equal(requests.length, 0, '没有验证码不能请求提升权限')
+      await h.input('[name="code"]', '12345')
+      assert.deepEqual(requests, [], '验证码未满六位时不能提升权限')
+      assert.equal(clock.count(1150), 0)
+      // Code Slots 填满后自动验证，不能再提交已关闭的表单。
       await h.input('[name="code"]', '123456')
-      await h.submit('[data-login-factor]')
       await h.until(() => clock.count(1150) === 1, '2FA 与实时 Session 成功后应开始认证过渡计时')
       assert.ok(h.query('[data-login-form]'), '延迟尚未结束时继续显示登录页面')
       assert.equal(h.query('[data-authorized-stage]'), null)
