@@ -13,6 +13,7 @@ async function readMusicMetadata(filePath) {
   const pictureMimeType = picture?.format?.toLowerCase()
 
   return {
+    genre: Array.isArray(common.genre) ? String(common.genre[0] || '').slice(0, 60) : '',
     title: common.title || '',
     artist: common.artist || common.albumartist || '',
     album: common.album || '',

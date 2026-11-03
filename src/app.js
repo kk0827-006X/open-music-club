@@ -23,6 +23,7 @@ const { createAccessLifecycleService } = require('./services/accessLifecycle.ser
 const { createLocalMusicConfig } = require('./config/localMusic')
 const { createLocalMusicRouter } = require('./routes/localMusic.routes')
 const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes')
+const { createBlindBoxRouter } = require('./routes/blindBox.routes')
 const { createUserProfileRouter } = require('./routes/userProfile.routes')
 const { createFootprintRouter } = require('./routes/footprint.routes')
 const {
@@ -174,6 +175,7 @@ function createApp({
     ...(rateLimiters ? [rateLimiters.personalLibrary] : []),
     createUserProfileRouter(database),
     createPersonalLibraryRouter({ database, neteaseService }),
+    createBlindBoxRouter({ database, neteaseService }),
   )
   if (rateLimiters) {
     app.post('/api/local/music', rateLimiters.upload)
