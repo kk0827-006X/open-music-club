@@ -3,6 +3,7 @@ const path = require('node:path')
 const Database = require('better-sqlite3')
 const { initializeFootprintSchema } = require('./footprint')
 const { initializeApplicationNotificationSchema } = require('./applicationNotifications')
+const { initializeBlindBoxSchema } = require('./blindBox')
 const { initializeAccessLifecycleSchema } = require('./accessLifecycle')
 
 function createDatabase(databasePath) {
@@ -182,6 +183,7 @@ function initializeSchema(database) {
   `)
   initializeFootprintSchema(database)
   initializeApplicationNotificationSchema(database)
+  initializeBlindBoxSchema(database)
   initializeAccessLifecycleSchema(database)
 }
 

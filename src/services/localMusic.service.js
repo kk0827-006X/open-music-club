@@ -11,6 +11,7 @@ const {
   toTrack,
 } = require('../db/localMusic')
 const { readMusicMetadata } = require('./metadata.service')
+const blindBoxRepository = require('../db/blindBox')
 
 class LocalMusicError extends Error {
   constructor(message, status = 400) {
@@ -153,11 +154,13 @@ function createLocalMusicService({ database, config, metadataReader }) {
       const artist =
         cleanText(fields.artist) || cleanText(metadata.artist) || '未知艺术家'
       const album = cleanText(fields.album) || cleanText(metadata.album) || null
+      const genre = cleanText(metadata.genre).slice(0, 60) || null
 
       const music = createMusic(database, {
         title,
         artist,
         album,
+        genre,
         originalFilename: path.basename(file.originalname),
         storedFilename,
         filePath,
@@ -235,6 +238,7 @@ function createLocalMusicService({ database, config, metadataReader }) {
       }
 
       deleteMusicRecord(database, id)
+      blindBoxRepository.removeTrackData(database, { source: 'local', sourceId: String(id) })
     } catch (error) {
       for (const { source, staged } of stagedFiles.reverse()) {
         if (fs.existsSync(staged)) fs.renameSync(staged, source)
