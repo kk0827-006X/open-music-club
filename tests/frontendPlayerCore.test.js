@@ -97,3 +97,21 @@ it('迟到的开播承诺不能为已切换或销毁的歌曲记录足迹', asyn
   player.destroy(); last.resolve(); await destroyed
   assert.deepEqual(reports, ['local:2'])
 })
+
+it('恢复音频上下文期间清空，不会重新启动已清空的歌曲', async () => {
+  const saved = globalThis.AudioContext
+  const resumed = deferred()
+  let resume = async () => {}
+  const context = { state: 'suspended', destination: {}, createAnalyser: () => ({ disconnect() {} }),
+    createMediaElementSource: () => ({ connect() {}, disconnect() {} }), resume: () => resume(), close: async () => {} }
+  globalThis.AudioContext = class { constructor() { return context } }
+  try {
+    const { player, audio } = await setup()
+    await player.play(song(1)); await player.toggle()
+    resume = () => resumed.promise
+    const pending = player.toggle()
+    player.clear(); resumed.resolve(); await pending
+    assert.equal(audio.plays, 1); assert.equal(audio.src, ''); assert.equal(audio.paused, true)
+    player.destroy()
+  } finally { if (saved) globalThis.AudioContext = saved; else delete globalThis.AudioContext }
+})

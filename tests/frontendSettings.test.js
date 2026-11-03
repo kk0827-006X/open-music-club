@@ -79,3 +79,32 @@ it('退出登录通过已有接口和 CSRF 校验，接口失败不伪装成功'
   assert.equal(calls[1].init.method, 'POST')
   await assert.rejects(logoutSession(async () => ({ ok: false, status: 500, json: async () => ({}) })), /退出失败/)
 })
+
+it('播放动效使用受控 Squish Switch，默认开启，浏览器偏好可保存且存储失败仍可用', async () => {
+  await withReactHarness(async h => {
+    const { SettingsDialog } = await import('../frontend/src/features/settings/SettingsDialog.tsx')
+    const { readPlaybackMotion, savePlaybackMotion } = await import('../frontend/src/features/settings/playback-motion.ts')
+    h.window.localStorage.removeItem('omc:playback-motion')
+    assert.equal(readPlaybackMotion(), true)
+    savePlaybackMotion(false); assert.equal(readPlaybackMotion(), false)
+    savePlaybackMotion(true); assert.equal(readPlaybackMotion(), true)
+    const ref = h.React.createRef(), calls = []
+    function Settings() {
+      const [enabled, setEnabled] = h.React.useState(true)
+      return h.React.createElement(SettingsDialog, { ref, onOpen() {}, onClose() {}, playbackMotion: enabled,
+        onPlaybackMotionChange(value) { calls.push(value); setEnabled(value) } })
+    }
+    await h.render(h.React.createElement(Settings))
+    await h.React.act(async () => ref.current.show())
+    const button = h.require('[aria-label="播放动效"]')
+    assert.equal(button.getAttribute('aria-checked'), 'true')
+    assert.ok(button.classList.contains('squish-switch'))
+    assert.equal(h.query('[aria-label="节省流量"]'), null)
+    await h.click('[aria-label="播放动效"]')
+    assert.equal(button.getAttribute('aria-checked'), 'false')
+    assert.deepEqual(calls, [false])
+    Object.defineProperty(h.window, 'localStorage', { configurable: true, get() { throw Error('blocked') } })
+    assert.equal(readPlaybackMotion(), true)
+    assert.doesNotThrow(() => savePlaybackMotion(false))
+  })
+})

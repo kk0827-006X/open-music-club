@@ -1,7 +1,9 @@
+import type { MusicBands } from '../../rhine/archive-play-motion'
 import type { ArchiveCell, ArchiveNavigation } from '../../rhine/archive-loop.ts'
 import { getThemeState, subscribeTheme } from '../../shared/theme.ts'
 export type ArchiveEntryPhase = 'loading' | 'entering' | 'settling' | 'ready' | 'failed'
 export interface ArchiveSceneController {
+  setAudioBands?(bands?: MusicBands): void
   load(): Promise<void>
   setReduced(reduced: boolean): void
   setTheme?(dark: boolean, immediate?: boolean): void
@@ -21,6 +23,9 @@ export interface ArchiveSceneController {
 }
 // 只有这个宿主持有档案 RAF；场景负责模拟与渲染，不负责页面导航。
 export function mountArchiveScene(container: HTMLElement, options: {
+  audioEnabled?: boolean
+  readAudioBands?(now: number): MusicBands
+  resetAudioBands?(): void
   entry?: boolean; onEntryPhase?(phase: ArchiveEntryPhase): void
   reduced: boolean; initialRecord: number; covers: readonly string[]
   loadScene?: () => Promise<ArchiveSceneController>
@@ -31,6 +36,7 @@ export function mountArchiveScene(container: HTMLElement, options: {
   let frame = 0, visible = true, disposed = false, ready = false
   let scene: ArchiveSceneController | null = null
   let phase: ArchiveEntryPhase = 'loading', elapsed = 0, lastFrame: number | null = null
+  let audioEnabled = options.audioEnabled ?? true
   let reduced = options.reduced, skipped = false
   const changePhase = (next: ArchiveEntryPhase) => {
     if (phase === next || disposed) return
@@ -41,9 +47,12 @@ export function mountArchiveScene(container: HTMLElement, options: {
     const cinematic = phase === 'entering' ? {
       time: 21.9 + elapsed, reveal: Math.min(1, elapsed / .4), lift: 0, zoom: 0,
     } : undefined
+    const enabled = audioEnabled && visible && !document.hidden && !reduced && phase === 'ready'
+    const bands = enabled ? options.readAudioBands?.(now / 1000) : undefined
+    scene.setAudioBands?.(bands)
     scene.update(now / 1000, cinematic)
   }
-  const stop = () => { window.cancelAnimationFrame(frame); frame = 0; lastFrame = null }
+  const stop = () => { window.cancelAnimationFrame(frame); frame = 0; lastFrame = null; options.resetAudioBands?.() }
   const animate = (now: number) => {
     frame = 0
     if (disposed || !visible || document.hidden || !ready || !scene) return
@@ -113,9 +122,15 @@ export function mountArchiveScene(container: HTMLElement, options: {
     changePhase('ready'); wake()
   }
   return {
+    setAudioEnabled(enabled: boolean) {
+      audioEnabled = enabled
+      options.resetAudioBands?.()
+      if (!enabled) scene?.setAudioBands?.(undefined)
+      wake()
+    },
     get ready() { return ready && phase === 'ready' },
     get entryPhase() { return phase }, wake,
-    setReduced(value: boolean) { reduced = value; scene?.setReduced(value); if (value && options.entry) skipEntry(); wake() },
+    setReduced(value: boolean) { reduced = value; if (value) options.resetAudioBands?.(); scene?.setReduced(value); if (value && options.entry) skipEntry(); wake() },
     setVisible(value: boolean) { visible = value; if (!value) stop(); else wake() },
     setMode(mode: 'archive' | 'detail') { scene?.setMode(mode); wake() },
     select(index: number, navigation?: ArchiveNavigation) { if (ready && phase === 'ready') scene?.select(index, navigation) },

@@ -7,7 +7,7 @@ import { SharedDepthAO, SharedDepthBokeh } from "./shared-depth";
 import { collectThreeTextures, disposeThreeTree } from "./three-resources";
 import { ThemeWave } from "./theme-motion";
 import { themeMaterial, themeEnvironment } from "./theme-material";
-import { RhythmMotion, rhythmDisplacement, quietBands, type MusicBands, type RhythmStyle } from "./archive-play-motion";
+import { audioWave, interactionGain, RhythmMotion, rhythmDisplacement, quietBands, type MusicBands, type RhythmStyle } from "./archive-play-motion";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { createArchiveLighting, type LightingLook } from "./archive-lighting";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
@@ -123,6 +123,10 @@ export class ArchiveScene {
   setTheme(dark: boolean, immediate = false) { this.theme.set(dark, performance.now() / 1000, this.selectedCell, immediate); }
   private playfield = { enabled: false, bands: quietBands(), strength: 1, flatten: 0, target: null as string | null, breathing: true };
   private flatMix = 0;
+  private audioGain = 0;
+  private audioBands: MusicBands | undefined;
+  setAudioBands(bands?: MusicBands) { this.audioBands = bands; }
+  private audioFieldCache = new Map<string, number>();
   private rhythm = new RhythmMotion();
   private rhythmStyle: RhythmStyle = "legacy";
   setRhythmStyle(style: RhythmStyle) { this.rhythmStyle = style; }
@@ -1361,7 +1365,7 @@ export class ArchiveScene {
       ? 0
       : THREE.MathUtils.lerp(
           this.idleGain,
-          idle ? (this.playfield.enabled ? (this.playfield.breathing && !this.relayActive ? 1 - this.playfield.bands.activity : 0) : 1) : 0,
+          idle ? (this.playfield.enabled ? (this.playfield.breathing && !this.relayActive ? 1 - this.playfield.bands.activity : 0) : 1 - (this.audioBands?.activity ?? 0)) : 0,
           1 - Math.exp(-dt * (idle ? 0.8 : 4)),
         );
     this.pulseGain = THREE.MathUtils.lerp(
@@ -1370,6 +1374,7 @@ export class ArchiveScene {
       1 - Math.exp(-dt * 8),
     );
     const play = this.playfield;
+    this.audioGain = interactionGain(this.audioGain, this.holdingArchive || Boolean(this.archiveMomentum), Boolean(this.targetDetail || this.detail > .01 || this.returnY !== null || aligningCopy), dt);
     const activePlay = !cinematic && !this.targetDetail && play.enabled;
     const rhythm = this.rhythm.update(activePlay && !this.reduced ? play.bands : quietBands(), time, dt, this.rhythmStyle);
     this.flatMix += ((activePlay ? play.flatten : 0) - this.flatMix) * (this.reduced ? 1 : 1 - Math.exp(-dt * 4));
@@ -1388,7 +1393,12 @@ export class ArchiveScene {
       spectrumPoint.set((lane - 2) * COLUMN_SPACING - trackX, -4.6, (row - 15.5) * ROW_SPACING + this.rail.value).project(this.camera);
       return (spectrumPoint.x + 1) / 2;
     };
-    const field = (row: number, lane: number) => {
+    const fieldCache = this.audioFieldCache;
+    fieldCache.clear();
+    const field = (row: number, lane: number): number => {
+      const key = `${row}:${lane}`;
+      const cached = fieldCache.get(key);
+      if (cached !== undefined) return cached;
       if (cinematic)
         return cinematicField(
           row,
@@ -1428,11 +1438,14 @@ export class ArchiveScene {
         settlingWave(distance, 26.56) *
           columnStrength(lane, this.laneFocus.value)) * (1 - this.flatMix) + breathing + pulseHeight +
         (activePlay && !this.reduced ? rhythmDisplacement(row, lane, time, play.bands, play.strength, rhythm, screenX(row, lane)) : 0) +
+        (this.audioBands && !this.reduced ? audioWave(row + this.coordinateOrigin.row, lane + this.coordinateOrigin.lane, time, this.audioBands) * this.audioGain : 0) +
         (this.relayLifts.get(cellKey({ row, lane })) ?? 0)
       );
       // 24.9 秒尚未开始选档肩波；将同一阵列平滑接回交互波形。
-      return this.openingMix > 0 ? THREE.MathUtils.lerp(interactive,
+      const result = this.openingMix > 0 ? THREE.MathUtils.lerp(interactive,
         cinematicField(row, lane, this.openingFieldTime, this.shoulder.value, this.laneFocus.value), this.openingMix) : interactive;
+      fieldCache.set(key, result);
+      return result;
     };
     const selectedBase = chosen.y + field(selectedRow, selectedLane);
     if (!cinematic) {
@@ -1944,7 +1957,8 @@ export class ArchiveScene {
       cameraDetail: Math.round(this.detail * 1000) / 1000,
       idleGain: this.idleGain,
       flatten: this.flatMix,
-      spectrumActivity: this.playfield.bands.activity,
+      spectrumActivity: Math.max(this.playfield.bands.activity, this.audioBands?.activity ?? 0),
+      audioReactiveGain: this.audioGain,
       selectedIndexDim: this.model.children.find(child => child.userData.surface === "Index_Inlay")?.userData.subduedIndex?.value,
       returningIndexDims: this.outgoing.map(o => ({ cell: o.cell, dim: o.group.children.find(child => child.userData.surface === "Index_Inlay")?.userData.subduedIndex?.value })),
       cameraDistance: this.camera.position.distanceTo(this.cameraAim),

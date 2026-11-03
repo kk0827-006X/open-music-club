@@ -114,3 +114,8 @@ export function damp(s: Spring, target: number, rate: number, dt: number) {
   s.value = target + (delta + impulse * dt) * decay;
   s.velocity = (s.velocity - rate * impulse * dt) * decay;
 }
+
+// 帧率无关的一阶阻尼，共用于音频包络和交互强度过渡。
+export function approach(value: number, target: number, rate: number, dt: number) {
+  return value + (target - value) * (1 - Math.exp(-Math.max(0, dt) * rate));
+}

@@ -1,3 +1,4 @@
+import SquishSwitch from '../../shared/react/react-bits/SquishSwitch'
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type ReactNode } from 'react'
 import { IconButton, Modal } from '../../shared/react/ui.tsx'
 import { useReducedMotion } from '../../shared/react/hooks.ts'
@@ -21,10 +22,12 @@ function PreviewToggle({ label }: { label: string }) {
 }
 
 export const SettingsDialog = forwardRef<SettingsDialogHandle, {
+  playbackMotion?: boolean
+  onPlaybackMotionChange?: (enabled: boolean) => void
   logout?: () => Promise<void>
   onOpen: () => void
   onClose: () => void
-}>(function SettingsDialog({ logout, onOpen, onClose }, ref) {
+}>(function SettingsDialog({ logout, onOpen, onClose, playbackMotion = true, onPlaybackMotionChange }, ref) {
   const [open, setOpen] = useState(false)
   const [category, setCategory] = useState<Category>('appearance')
   const [factor, setFactor] = useState(false)
@@ -96,7 +99,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
       if (mounted.current && id === generation.current) { reportBusy(false); setStatus('退出失败，请稍后重试') }
     }
   }
-  const heading = (en: string, title: string) => <div className="settings-section-heading"><p>{en}</p><h3 id="settings-section-title">{title}</h3><span>{category === 'appearance' ? '主题立即生效；其他偏好仅展示' : '仅展示界面；设置功能尚未接入'}</span></div>
+  const heading = (en: string, title: string) => <div className="settings-section-heading"><p>{en}</p><h3 id="settings-section-title">{title}</h3><span>{category === 'appearance' ? '主题与播放动效立即生效；其他偏好仅展示' : '仅展示界面；设置功能尚未接入'}</span></div>
   const section = () => {
     if (factor) return <TwoFactorPanel onBusyChange={reportBusy} />
     if (category === 'appearance') return <>
@@ -108,7 +111,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
       <SettingsRow name="播放器常驻显示" description="保留原有播放器动效，此处不控制播放器"><PreviewToggle label="播放器常驻显示" /></SettingsRow>
       <SettingsRow name="歌词字号" description="展开播放器中的歌词文字大小"><select aria-label="歌词字号" disabled><option>标准</option><option>小</option><option>大</option></select></SettingsRow>
       <SettingsRow name="三维档案墙画质" description="画质与设备性能之间的选择"><select aria-label="三维档案墙画质" disabled><option>原始</option><option>流畅</option><option>高清</option></select></SettingsRow>
-      <SettingsRow name="节省流量" description="图片与资源加载偏好"><PreviewToggle label="节省流量" /></SettingsRow>
+      <SettingsRow name="播放动效" description="专辑档案随音乐起伏；关闭可减少性能开销"><SquishSwitch checked={playbackMotion} onChange={onPlaybackMotionChange} ariaLabel="播放动效" width={64} height={32} radius={16} trackColor="var(--hairline)" trackOnColor="var(--amber)" thumbColor="var(--paper)" thumbOnColor="var(--paper)" /></SettingsRow>
     </>
     if (category === 'playback') return <>
       {heading('PLAYBACK', '播放偏好')}
@@ -133,7 +136,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
     </>
     return <>
       {heading('DATA & ABOUT', '数据与关于')}
-      <SettingsRow name="恢复默认设置" description="主题偏好保存在当前浏览器；其他设置暂未接入"><button type="button" disabled>恢复默认</button></SettingsRow>
+      <SettingsRow name="恢复默认设置" description="主题与播放动效偏好保存在当前浏览器；其他设置暂未接入"><button type="button" disabled>恢复默认</button></SettingsRow>
       <SettingsRow name="清理缓存" description="不删除音乐、歌单或收藏"><button type="button" disabled>清理缓存</button></SettingsRow>
       <SettingsRow name="音乐来源" description="本地音乐与网易云独立存储，共用播放器"><span>LOCAL / NETEASE</span></SettingsRow>
       <SettingsRow name="Open Music Club" description="社区音乐终端"><span>MUSIC ARCHIVE</span></SettingsRow>
@@ -145,7 +148,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
     <div className="settings-layout"><aside className="settings-sidebar"><nav aria-label="设置分类">
       {categories.map(([id, label]) => <button key={id} type="button" data-settings-category={id} aria-current={category === id ? 'page' : 'false'} disabled={busy || closing} onClick={() => { setCategory(id); setFactor(false); setStatus('') }}>{label}</button>)}
     </nav><p>PERSONAL PREFERENCES<span>个人偏好设置</span></p></aside>
-      <section className="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content>{section()}</div><footer><span>主题、两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status">{feedback}</span></footer></section>
+      <section className="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content>{section()}</div><footer><span>主题、播放动效、两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status">{feedback}</span></footer></section>
     </div>
   </Modal>
 })

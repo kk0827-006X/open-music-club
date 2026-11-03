@@ -1,3 +1,4 @@
+import { readPlaybackMotion, savePlaybackMotion } from '../features/settings/playback-motion'
 import { SongSearchPanel } from '../features/search/SongSearchPanel'
 import { GooeySearch } from '../shared/react/aceternity/GooeySearch'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -44,6 +45,8 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
   const user = useRef<UserPageHandle>(null)
   const footprint = useRef<FootprintPageHandle>(null)
   const reduced = useReducedMotion()
+  const [playbackMotion, setPlaybackMotion] = useState(readPlaybackMotion)
+  const changePlaybackMotion = (enabled: boolean) => { savePlaybackMotion(enabled); setPlaybackMotion(enabled) }
   const [scene, setScene] = useState<ReturnType<typeof mountArchiveScene> | null>(null)
   const [entryPhase, setEntryPhase] = useState<ArchiveEntryPhase>('loading')
   const entering = entryPhase !== 'ready' && entryPhase !== 'failed'
@@ -60,6 +63,9 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
   useLayoutEffect(() => {
     if (!sceneContainer.current) return
     const host = mountArchiveScene(sceneContainer.current, {
+      resetAudioBands: () => player.resetAudioBands?.(),
+      readAudioBands: now => player.readAudioBands?.(now) ?? { low: 0, mid: 0, high: 0, activity: 0 },
+      audioEnabled: readPlaybackMotion(),
       entry: true, onEntryPhase: setEntryPhase,
       reduced: sceneInputs.current.reduced, initialRecord: 16, covers: demoAlbums.map(album => album.coverUrl),
       loadScene: sceneInputs.current.loadScene,
@@ -69,11 +75,12 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     })
     setScene(host)
     return () => host.destroy()
-  }, [loadScene])
+  }, [loadScene, player])
   useEffect(() => {
     scene?.setVisible(page === 'archive' && !expanded && !settingsOpen)
   }, [scene, page, expanded, settingsOpen])
   useEffect(() => { scene?.setReduced(reduced) }, [scene, reduced])
+  useEffect(() => { scene?.setAudioEnabled(playbackMotion) }, [scene, playbackMotion])
   const show = useCallback((next: Page) => {
     setSongQuery(null)
     if (next !== 'archive') {
@@ -144,6 +151,6 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     </Suspense></ErrorBoundary>
     <div className="archive-player-layer" inert={entering ? true : undefined}><PlayerView ref={playerView} player={player} queue={queue} personalLibrary={client} root={archive} selectedAlbum={selected} defaultTrack={albumTrack(selected)} onExpandedChanged={setExpanded} collectionChanged={collectionChanged} /></div>
     {songQuery && <div hidden={expanded} inert={expanded ? true : undefined}><SongSearchPanel query={songQuery} onClose={() => setSongQuery(null)} onFocusToggle={() => { const input = archive.current?.querySelector<HTMLInputElement>('.gooey-search input'); if (input && !input.disabled) input.focus({ preventScroll: true }); else archive.current?.querySelector<HTMLButtonElement>('[data-nav="search"]')?.focus({ preventScroll: true }) }} onPlay={actions.play} onSave={track => { void playerView.current?.choosePlaylist(track) }} /></div>}
-    <SettingsDialog ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />
+    <SettingsDialog playbackMotion={playbackMotion} onPlaybackMotionChange={changePlaybackMotion} ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />
   </main>
 }
