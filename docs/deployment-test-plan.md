@@ -199,10 +199,19 @@ location = /index.html {
     add_header Referrer-Policy "no-referrer" always;
     # 完整站点仍须配置并继承本节要求的 CSP/HSTS 等安全头。
 }
+# 缺失的资源不可回退成 HTML，否则会掩盖失效的懒加载资源。
+location ^~ /assets/ {
+    try_files $uri =404;
+}
+location ~* \.(?:js|mjs|css|map|json|svg|png|jpe?g|webp|ico|woff2?|ttf|glb|wasm)$ {
+    try_files $uri =404;
+}
 location / {
     try_files $uri $uri/ /index.html;
 }
 ```
+
+主页面使用 `/library`、`/upload`、`/user`、`/footprint`；直接访问、刷新均应返回应用入口后由 React Router 解析。未知页面由前端显示不存在页面。生产环境应核对全部静态资源后缀与专属目录的真实 404；API 不进入页面回退。
 
 完整配置还需 TLS、Host 拒绝、安全头、各类静态文件缓存/真实 404、压缩和日志。上游 `proxy_pass` 没有结尾 URI `/`，保证 `/api/...` 不被删掉；API 失败不做 SPA fallback，不重试写请求。100 MiB 音频上传仍保留时，站点 `client_max_body_size` 建议 110m；上传读取空闲超时与 Node `requestTimeout` 一并测试，不能靠把请求缓冲区调成巨大内存值来解决跨境上传。
 

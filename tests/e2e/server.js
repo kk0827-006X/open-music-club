@@ -45,10 +45,14 @@ async function start() {
   createUser(app.locals.database, { ...REVIEWER, nickname: '审核界面验收管理员', passwordHash: await bcrypt.hash(REVIEWER.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
   const web = express()
   app.locals.accessLifecycle.start()
-  web.use((req, res, next) => req.path.startsWith('/api/') || req.path === '/health' ? app(req, res, next) : next())
+  web.use((req, res, next) => req.path === '/api' || req.path.startsWith('/api/') || req.path === '/health' ? app(req, res, next) : next())
   web.use((req,res,next) => { res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy':'no-referrer' }); next() })
   web.use(express.static(dist))
-  for (const route of ['/verify-email', '/activate', '/admin/applications']) web.get(route, (req,res) => res.sendFile(path.join(dist,'index.html')))
+  // 与生产入口一致：页面导航回退到应用，缺失静态资源保持 404。
+  web.get('/{*path}', (req, res, next) => {
+    if (path.extname(req.path) || !req.accepts('html')) return next()
+    res.sendFile(path.join(dist, 'index.html'))
+  })
   const server = web.listen(4317, '127.0.0.1')
   let closing = false
   const close = () => {

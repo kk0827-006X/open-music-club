@@ -81,6 +81,14 @@ frontend/src/
 | PlayerView | 音频状态订阅、歌词请求、队列持久化同步、浮层 | 视图卸载取消订阅/请求/监听，不停止应用音频 |
 | 场景宿主 | 唯一档案 RAF、resize/visibility、主题订阅 | 隐藏暂停；退出释放含迟到加载的场景 |
 
+### URL 路由
+
+- 使用 React Router 的 BrowserRouter；主页面路径集中在 `app/routes.ts`，目前为 `/library`、`/upload`、`/user`、`/footprint`，后续按功能扩展。用户页内部分类、歌单详情、搜索窗口和设置弹窗暂不独立路由。
+- `/` 保留入口，`/login` 提供登录；直接打开主页面时以实时 Session 恢复身份，成功直达目标，失败转登录。登录的 next 参数仅接受登记的业务路径，拒绝外站跳转；登录成功继续原授权动画后返回目标。
+- 普通切页与浏览器前进/后退只更新 Workspace 当前页面，不重建 SessionWorkspace、队列或 Audio。Dock 由 Workspace 共享渲染；档案墙入场锁定仅作用于音乐库，非音乐库页面的导航、播放器与键盘返回不等待隐藏场景，返回音乐库再继续其原入场。浏览器整页刷新会重新创建音频，不自动恢复播放进度或绕过浏览器自动播放限制。
+- `/activate`、`/verify-email` 和 `/admin/applications` 保留原用途；激活 token 仅留组件内存并立即清除地址栏 fragment。未知地址显示不存在页面，API 权限仍由后端检查。
+- 生产静态入口必须配置页面回退，同时保持 `/api`、缺失静态资源的真实错误响应；具体规则见部署测试方案。
+
 ### 页面动作
 
 - `MusicActions.play(track)` / `enqueue(track)` 是搜索、用户、专辑、足迹等页面的统一入口。

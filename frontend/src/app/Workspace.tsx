@@ -1,3 +1,4 @@
+import type { WorkspacePage } from './routes.ts'
 import { readPlaybackMotion, savePlaybackMotion } from '../features/settings/playback-motion'
 import { SongSearchPanel } from '../features/search/SongSearchPanel'
 import { GooeySearch } from '../shared/react/aceternity/GooeySearch'
@@ -22,7 +23,7 @@ import type { FootprintPageHandle } from '../features/footprint/FootprintPage.ts
 const UploadPage = lazy(() => import('../features/upload/UploadPage.tsx'))
 const UserPage = lazy(() => import('../features/user/UserPage.tsx'))
 const FootprintPage = lazy(() => import('../features/footprint/FootprintPage.tsx'))
-type Page = 'archive' | 'upload' | 'user' | 'footprint'
+type Page = WorkspacePage
 const tabs = [['library', '音乐库', 'library'], ['search', '搜索', 'search'], ['upload', '上传音乐', 'upload'], ['footprint', '音乐足迹', 'route'], ['user', '用户', 'user']] as const
 
 export interface WorkspaceProps {
@@ -34,9 +35,11 @@ export interface WorkspaceProps {
   footprintRevision?: number
   onLogout?: () => Promise<void>
   loadScene?: () => Promise<ArchiveSceneController>
+  page?: Page
+  onNavigate?: (page: Page) => void
   initialIndex?: number
 }
-export default function Workspace({ role = 'user', player, queue, personalLibrary, footprintClient, footprintRevision = 0, onLogout, loadScene, initialIndex = 0 }: WorkspaceProps) {
+export default function Workspace({ role = 'user', player, queue, personalLibrary, footprintClient, footprintRevision = 0, onLogout, loadScene, initialIndex = 0, page: routedPage, onNavigate }: WorkspaceProps) {
   const archive = useRef<HTMLElement>(null)
   const sceneContainer = useRef<HTMLDivElement>(null)
   const library = useRef<LibraryViewHandle>(null)
@@ -49,10 +52,13 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
   const changePlaybackMotion = (enabled: boolean) => { savePlaybackMotion(enabled); setPlaybackMotion(enabled) }
   const [scene, setScene] = useState<ReturnType<typeof mountArchiveScene> | null>(null)
   const [entryPhase, setEntryPhase] = useState<ArchiveEntryPhase>('loading')
-  const entering = entryPhase !== 'ready' && entryPhase !== 'failed'
   const [songQuery, setSongQuery] = useState<{ term: string; serial: number } | null>(null)
-  const [page, setPage] = useState<Page>('archive')
-  const [visited, setVisited] = useState<Set<Page>>(() => new Set())
+  const [localPage, setPage] = useState<Page>('archive')
+  const page = routedPage ?? localPage
+  // 隐藏的档案墙会暂停入场，不能因此锁定其他页面的共享导航和播放器。
+  const pageEntryPhase = page === 'archive' ? entryPhase : 'ready'
+  const entering = pageEntryPhase !== 'ready' && pageEntryPhase !== 'failed'
+  const [visited, setVisited] = useState<Set<Page>>(() => new Set(page === 'archive' ? [] : [page]))
   const [selected, setSelected] = useState<DemoAlbum>(demoAlbums[initialIndex])
   const [expanded, setExpanded] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -87,8 +93,16 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
       library.current?.resetDetail()
       setVisited(previous => new Set(previous).add(next))
     }
-    setPage(next)
-  }, [])
+    if (onNavigate) onNavigate(next)
+    else setPage(next)
+  }, [onNavigate])
+  useEffect(() => {
+    setSongQuery(null)
+    if (page !== 'archive') {
+      library.current?.resetDetail()
+      setVisited(previous => previous.has(page) ? previous : new Set(previous).add(page))
+    }
+  }, [page])
   const actions = useMemo<MusicActions>(() => ({
     play: track => playerView.current?.play(track) ?? Promise.resolve(),
     enqueue: track => playerView.current?.enqueue(track),
@@ -98,7 +112,7 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     const keyboard = (event: KeyboardEvent) => {
       if (event.defaultPrevented || settings.current?.open) return
       if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"], [data-song-search-panel]')) return
-      if (scene && scene.entryPhase !== 'ready' && scene.entryPhase !== 'failed') {
+      if (page === 'archive' && scene && scene.entryPhase !== 'ready' && scene.entryPhase !== 'failed') {
         return
       }
       if (playerView.current?.expanded) {
@@ -131,7 +145,7 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     window.addEventListener('keydown', keyboard)
     return () => window.removeEventListener('keydown', keyboard)
   }, [page, show, scene])
-  return <main ref={archive} className="album-archive" data-album-archive data-view={page} data-entry-phase={entryPhase} data-layout={entering ? 'opening' : undefined} onErrorCapture={event => {
+  return <main ref={archive} className="album-archive" data-album-archive data-view={page} data-entry-phase={pageEntryPhase} data-layout={entering ? 'opening' : undefined} onErrorCapture={event => {
     const image = event.target
     if (image instanceof HTMLImageElement && !image.src.endsWith('/images/album-placeholder-01.svg')) image.src = '/images/album-placeholder-01.svg'
   }}>

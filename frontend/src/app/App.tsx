@@ -1,3 +1,5 @@
+import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate } from 'react-router'
+import { adminPath, loginDestination, workspacePage, workspacePaths, type WorkspacePage } from './routes.ts'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { loginAndVerify, logoutSession, restoreSession, type LoginCredentials } from '../services/auth/session.ts'
 import { EntryPage } from '../features/auth/EntryPage.tsx'
@@ -13,7 +15,7 @@ import { AdminApplicationsPage } from '../features/auth/AdminApplicationsPage.ts
 
 const Workspace = lazy(() => import('./Workspace.tsx'))
 type Role = 'admin' | 'user'
-type Stage = 'entry' | 'login' | 'authorized' | 'workspace'
+type Stage = 'entry' | 'restoring' | 'login' | 'authorized' | 'workspace'
 
 export interface AppServices {
   restore: typeof restoreSession
@@ -22,7 +24,7 @@ export interface AppServices {
 }
 const services: AppServices = { restore: restoreSession, login: loginAndVerify, logout: logoutSession }
 
-function SessionWorkspace({ onLogout, role }: { onLogout(): Promise<void>; role: Role }) {
+function SessionWorkspace({ onLogout, role, page, onNavigate }: { onLogout(): Promise<void>; role: Role; page: WorkspacePage; onNavigate(page: WorkspacePage): void }) {
   const [session, setSession] = useState<{ queue: MusicQueue; player: PlayerController; footprintClient: ReturnType<typeof createFootprintClient> } | null>(null)
   const [footprintRevision, setFootprintRevision] = useState(0)
   useEffect(() => {
@@ -45,12 +47,21 @@ function SessionWorkspace({ onLogout, role }: { onLogout(): Promise<void>; role:
     setSession({ queue, player, footprintClient })
     return () => { disposed = true; reports.forEach(controller => controller.abort()); reports.clear(); player.destroy() }
   }, [])
-  return session && <ErrorBoundary><Suspense fallback={null}><Workspace {...session} role={role} footprintRevision={footprintRevision} onLogout={onLogout} /></Suspense></ErrorBoundary>
+  return session && <ErrorBoundary><Suspense fallback={null}><Workspace {...session} page={page} onNavigate={onNavigate} role={role} footprintRevision={footprintRevision} onLogout={onLogout} /></Suspense></ErrorBoundary>
 }
 
 // App 只调度身份和会话；音频属于认证后的会话，不属于任何单个页面。
-function SessionApp({ api = services, adminRoute = false }: { api?: AppServices; adminRoute?: boolean }) {
-  const [stage, setStage] = useState<Stage>('entry')
+function SessionApp({ api = services }: { api?: AppServices }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const currentLocation = useRef(location.key)
+  currentLocation.current = location.key
+  const page = workspacePage(location.pathname)
+  const adminRoute = location.pathname === adminPath
+  const knownRoute = Boolean(page || adminRoute || location.pathname === '/' || location.pathname === '/login')
+  const destination = useRef(loginDestination(location.pathname === '/login'
+    ? new URLSearchParams(location.search).get('next') : location.pathname))
+  const [stage, setStage] = useState<Stage>(() => location.pathname === '/' ? 'entry' : 'restoring')
   const [role, setRole] = useState<Role>('user')
   const generation = useRef(0)
   const disposed = useRef(false)
@@ -59,18 +70,45 @@ function SessionApp({ api = services, adminRoute = false }: { api?: AppServices;
     disposed.current = false
     return () => { disposed.current = true; generation.current++; clearTimeout(timer.current) }
   }, [])
-  const enter = async () => {
+  useEffect(() => () => clearTimeout(timer.current), [location.key])
+  const enter = async (direct = false) => {
     const current = ++generation.current
-    const user = await api.restore()
-    if (disposed.current || current !== generation.current) return
-    if (user) { setRole(user.role); setStage(adminRoute ? 'workspace' : 'authorized') }
-    else setStage('login')
+    const requestLocation = location.key
+    setStage('restoring')
+    let user
+    try { user = await api.restore() } catch { user = null }
+    if (disposed.current || current !== generation.current || requestLocation !== currentLocation.current) return
+    if (user) {
+      setRole(user.role)
+      setStage(direct ? 'workspace' : 'authorized')
+      if (direct) navigate(destination.current, { replace: true })
+    } else {
+      setStage('login')
+      navigate(`/login?next=${encodeURIComponent(destination.current)}`, { replace: true })
+    }
   }
-  useEffect(() => { if (adminRoute) void enter() }, [adminRoute])
+  useEffect(() => {
+    if (knownRoute && stage === 'restoring') {
+      if (location.pathname === '/') setStage('entry')
+      else void enter(true)
+    }
+    // 只在待恢复入口变化时重试；迟到结果不得覆盖新的历史位置。
+  }, [knownRoute, location.key])
+  useEffect(() => {
+    if (page || adminRoute) destination.current = location.pathname
+    else if (location.pathname === '/login') destination.current = loginDestination(new URLSearchParams(location.search).get('next'))
+    if (stage === 'login' && (page || adminRoute)) {
+      navigate(`/login?next=${encodeURIComponent(location.pathname)}`, { replace: true })
+    }
+    if (stage === 'workspace' && (location.pathname === '/' || location.pathname === '/login')) {
+      navigate(destination.current, { replace: true })
+    }
+  }, [location.pathname, location.search, page, adminRoute, stage, navigate])
   const authenticate = async (credentials: LoginCredentials) => {
     const current = generation.current
+    const requestLocation = location.key
     const result = await api.login(credentials)
-    if (disposed.current || current !== generation.current) return {}
+    if (disposed.current || current !== generation.current || requestLocation !== currentLocation.current) return {}
     if (!result.user) return result
     return { role: result.user.role }
   }
@@ -78,8 +116,9 @@ function SessionApp({ api = services, adminRoute = false }: { api?: AppServices;
     if (disposed.current) return
     clearTimeout(timer.current)
     const current = generation.current
+    const requestLocation = location.key
     timer.current = setTimeout(() => {
-      if (disposed.current || current !== generation.current) return
+      if (disposed.current || current !== generation.current || requestLocation !== currentLocation.current) return
       setRole(nextRole); setStage('authorized')
     }, 1150)
   }
@@ -88,28 +127,36 @@ function SessionApp({ api = services, adminRoute = false }: { api?: AppServices;
     if (disposed.current) return
     generation.current++; clearTimeout(timer.current)
     setStage('login')
+    navigate(`/login?next=${encodeURIComponent(destination.current)}`, { replace: true })
   }
-  if (adminRoute && stage === 'entry') return <main className="application-standalone"><p role="status">正在验证管理会话…</p></main>
+  if (!knownRoute) return <NotFound />
+  if (stage === 'restoring') return <main className="application-standalone"><p role="status">正在验证登录会话…</p></main>
   if (stage === 'entry') return <EntryPage onEnter={() => { void enter() }} />
-  if (stage === 'login') return <LoginPage onAuthenticate={authenticate} onVerified={verified} />
-  if (stage === 'authorized') return <AuthorizedSequence role={role} onComplete={() => setStage('workspace')} />
-  if (adminRoute) return role === 'admin' ? <AdminApplicationsPage onLogout={logout} /> : <main className="application-standalone"><h2>无权访问申请审核</h2><p>此页面仅供已完成两步验证的管理员使用。</p><a href="/">返回音乐俱乐部</a></main>
-  return <SessionWorkspace role={role} onLogout={logout} />
+  if (stage === 'login') return <LoginPage key={location.key} onAuthenticate={authenticate} onVerified={verified} />
+  if (stage === 'authorized') return <AuthorizedSequence role={role} onComplete={() => { setStage('workspace'); navigate(destination.current, { replace: true }) }} />
+  if (adminRoute) return role === 'admin' ? <AdminApplicationsPage onLogout={logout} /> : <main className="application-standalone"><h2>无权访问申请审核</h2><p>此页面仅供已完成两步验证的管理员使用。</p><Link to={workspacePaths.archive}>返回音乐俱乐部</Link></main>
+  return <SessionWorkspace role={role} page={page ?? 'archive'} onNavigate={next => navigate(workspacePaths[next])} onLogout={logout} />
+}
+
+function NotFound() {
+  return <main className="application-standalone"><h1>页面不存在</h1><p>这个地址尚未开放，或已发生变更。</p><Link to={workspacePaths.archive}>返回音乐库</Link></main>
 }
 
 // 凭证只留在当前组件内存；首次渲染即移除 fragment，邮件扫描 GET 不会提交验证。
-export function App({ api = services }: { api?: AppServices }) {
-  const [route] = useState(() => {
-    const path = window.location.pathname
-    const purpose = path === '/activate' ? 'activate' : path === '/verify-email' ? 'verify' : null
-    let token = ''
-    if (purpose) {
-      const value = new URLSearchParams(window.location.hash.slice(1)).get('token') || ''
-      token = /^[A-Za-z0-9_-]{43}$/.test(value) ? value : ''
-      window.history.replaceState(null, '', path)
-    }
-    return { purpose, token, admin: path === '/admin/applications' } as const
+function ApplicationRoute({ purpose }: { purpose: 'activate' | 'verify' }) {
+  const [token] = useState(() => {
+    const value = new URLSearchParams(window.location.hash.slice(1)).get('token') || ''
+    const token = /^[A-Za-z0-9_-]{43}$/.test(value) ? value : ''
+    window.history.replaceState(window.history.state, '', window.location.pathname)
+    return token
   })
-  if (route.purpose) return <ApplicationLinkPage purpose={route.purpose} initialToken={route.token} />
-  return <SessionApp api={api} adminRoute={route.admin} />
+  return <ApplicationLinkPage purpose={purpose} initialToken={token} />
+}
+
+export function App({ api = services }: { api?: AppServices }) {
+  return <BrowserRouter><Routes>
+    <Route path="/activate" element={<ApplicationRoute key="activate" purpose="activate" />} />
+    <Route path="/verify-email" element={<ApplicationRoute key="verify" purpose="verify" />} />
+    <Route path="*" element={<SessionApp api={api} />} />
+  </Routes></BrowserRouter>
 }

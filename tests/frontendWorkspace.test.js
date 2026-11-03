@@ -132,3 +132,48 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
     }
   }, { fetch: async url => response(url.startsWith('/api/admin/applications') ? {success:true,applications:[],total:0} : url === '/api/local/music' ? { success: true, tracks: [track] } : { code: 200, result: { songs: [] } }) })
 })
+
+
+it('普通动效下直接进入非音乐库页面，待加载的档案墙不能锁定共享导航与键盘返回', async () => {
+  await withReactHarness(async h => {
+    h.window.matchMedia = query => ({ media: query, matches: false, addEventListener() {}, removeEventListener() {} })
+    const [{ default: Workspace }, { MusicQueue }, { createPlayerController }] = await Promise.all([
+      import('../frontend/src/app/Workspace.tsx'), import('../frontend/src/features/queue/model.ts'), import('../frontend/src/features/player/player-core.ts'),
+    ])
+    const queue = new MusicQueue()
+    const audio = new h.window.EventTarget()
+    Object.assign(audio, { paused: true, volume: .6, currentTime: 0, pause() {}, removeAttribute() {}, load() {} })
+    const player = createPlayerController({ queue, resolveUrl: async () => '/isolated/stream', createAudio: () => audio })
+    const navigations = []
+    let releaseScene
+    const loadScene = () => new Promise(resolve => { releaseScene = resolve })
+    const client = { queue: async () => [], profile: async () => ({ id: 1, nickname: '隔离成员' }), playlists: async () => [] }
+    const footprintClient = { timeline: async () => ({ events: [], total: 0 }) }
+    const render = page => h.render(h.React.createElement(Workspace, { page, onNavigate: next => navigations.push(next), player, queue, personalLibrary: client, footprintClient, loadScene }))
+    try {
+      for (const page of ['upload', 'user', 'footprint']) {
+        await render(page)
+        const navigation = h.require('[data-archive-navigation]')
+        assert.equal(navigation.hasAttribute('inert'), false)
+        assert.equal(h.require('[data-album-archive]').dataset.entryPhase, 'ready')
+        assert.equal(h.query('[data-archive-entry]'), null)
+        assert.equal(h.require('.archive-player-layer').hasAttribute('inert'), false)
+        await h.click('[data-nav="library"]')
+        assert.equal(navigations.at(-1), 'archive')
+        const beforeEscape = navigations.length
+        await h.React.act(async () => h.window.dispatchEvent(new h.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+        assert.equal(navigations.length, beforeEscape + 1, '场景未就绪不能阻止其他页面的 Escape 返回')
+        assert.equal(navigations.at(-1), 'archive')
+      }
+      await render('archive')
+      assert.equal(h.require('[data-archive-navigation]').hasAttribute('inert'), true)
+      assert.equal(h.require('[data-album-archive]').dataset.entryPhase, 'loading')
+      assert.ok(h.query('[data-archive-entry]'), '音乐库仍保留自身的加载与入场隔离')
+      await h.unmount()
+      let disposed = 0
+      await h.React.act(async () => releaseScene({ dispose() { disposed++ } }))
+      await h.flush()
+      assert.equal(disposed, 1)
+    } finally { player.destroy() }
+  })
+})
