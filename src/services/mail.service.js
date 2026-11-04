@@ -59,6 +59,14 @@ function createMailService({ env = process.env, transport, logger = console, sen
             ? `编号 ${application.id} 的申请已提交，请登录管理员后台审核。`
             : '你的 Open Music Club 申请未通过审核。如有需要，可在 7 天后重新申请。'
       }
+      if (metadata?.kind === 'reset' || metadata?.kind === 'changed') {
+        message.to = mailbox(application.email, '通知邮箱')
+        message.subject = metadata.kind === 'reset' ? 'Open Music Club：重置密码' : 'Open Music Club：密码已更新'
+        message.text = metadata.kind === 'reset'
+          ? `请在15分钟内设置新密码：\n${metadata.origin}/reset-password#token=${metadata.token}\n若已开启两步验证，还需认证器验证码或恢复码。请勿转发链接；若非本人操作，可忽略此邮件。`
+          : '你的 Open Music Club 密码已更新，所有旧登录已失效。两步验证保持原样。如果不是本人操作，请立即联系管理员。'
+        delete message.messageId
+      }
       // 总超时覆盖任何传输实现；晚到的拒绝由 Promise.race 接管，不会成为未处理异常。
       const result = await Promise.race([
         Promise.resolve().then(() => sender.sendMail(message)),
@@ -85,6 +93,7 @@ function createMailService({ env = process.env, transport, logger = console, sen
     return status === 'accepted' ? 'sent' : status === 'disabled' ? 'skipped' : 'failed'
   }
   return {
+    sendPasswordMessage: (user, metadata) => deliver(user, 'password', undefined, metadata),
     getDeliveryConfig: () => ({ enabled: config.enabled, ...(config.enabled ? { from: config.from, adminTo: config.adminTo } : {}) }),
     submitNotification: (application, requestId, metadata) => deliver(application, 'submitted', requestId, metadata),
     applicationSubmitted: (application, requestId) => legacy(application, 'submitted', requestId),

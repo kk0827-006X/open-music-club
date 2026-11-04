@@ -7,8 +7,13 @@ const { requiredFor, sessionIsValid } = require('../services/twoFactor.service')
 
 function completeLogin(req, res, next, user, rememberMe, extra = {}) {
   const deadline = req.session.rememberUntil
+  const version = req.app.locals.twoFactor.state(user.id)?.session_version || 0
   return req.session.regenerate((error) => {
     if (error) return next(error)
+    const fresh = findUserById(req.app.locals.database, user.id)
+    if (fresh?.status !== 'active' || fresh.password_hash !== user.password_hash || (req.app.locals.twoFactor.state(user.id)?.session_version || 0) !== version) {
+      return destroySession(req, res, next, () => res.status(401).json({ success: false, message: '安全状态已变化，请重新登录' }))
+    }
     req.session.userId = user.id
     req.session.role = user.role
     const factor = req.app.locals.twoFactor.state(user.id)
@@ -74,7 +79,7 @@ function createAuthRouter() {
       }
 
       const passwordMatches = await bcrypt.compare(password, user.password_hash)
-      if (!passwordMatches) {
+      if (!passwordMatches || findUserById(req.app.locals.database, user.id)?.password_hash !== user.password_hash) {
         return res
           .status(401)
           .json({ success: false, message: '邮箱或密码错误' })

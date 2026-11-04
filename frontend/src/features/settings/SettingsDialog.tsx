@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Reac
 import { IconButton, Modal } from '../../shared/react/ui.tsx'
 import { useReducedMotion } from '../../shared/react/hooks.ts'
 import { getThemeState, setThemePreference, subscribeTheme } from '../../shared/theme.ts'
+import { PasswordForm } from '../auth/PasswordForm.tsx'
 import { TwoFactorPanel } from '../auth/TwoFactorPanel.tsx'
 
 const categories = [['account', '账号与安全'], ['playback', '播放偏好'], ['appearance', '外观与动效'], ['upload', '上传偏好'], ['about', '数据与关于']] as const
@@ -30,6 +31,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
 }>(function SettingsDialog({ logout, onOpen, onClose, playbackMotion = true, onPlaybackMotionChange }, ref) {
   const [open, setOpen] = useState(false)
   const [category, setCategory] = useState<Category>('appearance')
+  const [changingPassword, setChangingPassword] = useState(false)
   const [factor, setFactor] = useState(false)
   const [closing, setClosing] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -71,7 +73,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
     timer.current = window.setTimeout(() => {
       if (!mounted.current || id !== generation.current) return
       openRef.current = false; closingRef.current = false
-      setOpen(false); setClosing(false); setFactor(false)
+      setOpen(false); setClosing(false); setFactor(false); setChangingPassword(false)
       callbacks.current.onClose()
       restoreFocus.current = true
     }, reduced ? 0 : 180)
@@ -82,7 +84,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
       if (!mounted.current || openRef.current) return
       opener.current = button ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
       generation.current++
-      setCategory('appearance'); setFactor(false); setStatus(''); setTheme(getThemeState())
+      setCategory('appearance'); setFactor(false); setChangingPassword(false); setStatus(''); setTheme(getThemeState())
       openRef.current = true
       setOpen(true)
       callbacks.current.onOpen()
@@ -101,6 +103,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
   }
   const heading = (en: string, title: string) => <div className="settings-section-heading"><p>{en}</p><h3 id="settings-section-title">{title}</h3><span>{category === 'appearance' ? '主题与播放动效立即生效；其他偏好仅展示' : '仅展示界面；设置功能尚未接入'}</span></div>
   const section = () => {
+    if (changingPassword) return <PasswordForm mode="change" onBusyChange={reportBusy} onComplete={() => window.location.assign('/login')} />
     if (factor) return <TwoFactorPanel onBusyChange={reportBusy} />
     if (category === 'appearance') return <>
       {heading('APPEARANCE', '外观与动效')}
@@ -121,9 +124,9 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
       <SettingsRow name="播放进度恢复" description="重新打开网站后的播放位置"><PreviewToggle label="播放进度恢复" /></SettingsRow>
     </>
     if (category === 'account') return <>
-      <div className="settings-section-heading"><p>ACCOUNT &amp; SECURITY</p><h3 id="settings-section-title">账号与安全</h3><span>两步验证与退出登录已接入，其他设置暂不开放</span></div>
+      <div className="settings-section-heading"><p>ACCOUNT &amp; SECURITY</p><h3 id="settings-section-title">账号与安全</h3><span>密码修改、两步验证与退出登录已接入，其他设置暂不开放</span></div>
       <SettingsRow name="账户资料" description="头像与个人音乐收藏仍在用户页管理"><Pending /></SettingsRow>
-      <SettingsRow name="修改密码" description="账号密码管理"><button type="button" disabled>修改密码</button></SettingsRow>
+      <SettingsRow name="修改密码" description="账号密码管理"><button type="button" data-settings-password onClick={() => setChangingPassword(true)}>修改密码</button></SettingsRow>
       <SettingsRow name="两步验证" description="认证器与一次性恢复码管理"><button type="button" data-settings-factor onClick={() => { setFactor(true); setStatus('安全设置已接入；其他偏好仍仅展示') }}>管理 2FA</button></SettingsRow>
       <SettingsRow name="设备与登录" description="登录设备与会话管理"><Pending /></SettingsRow>
       <SettingsRow name="退出当前登录" description="清除当前会话，停止播放并返回登录页"><button type="button" data-settings-logout disabled={!logout || busy} onClick={() => void exit()}>退出登录</button></SettingsRow>
@@ -146,9 +149,9 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
   return <Modal open={open} onClose={close} busy={busy || closing} className={`settings-dialog${closing ? ' is-closing' : ''}`} data-settings-dialog aria-labelledby="settings-title">
     <header className="settings-header"><div><p>OPEN MUSIC CLUB / SYSTEM PREFERENCES</p><h2 id="settings-title">设置</h2></div><IconButton icon="close" type="button" data-settings-close aria-label="关闭设置" disabled={busy || closing} onClick={close} /></header>
     <div className="settings-layout"><aside className="settings-sidebar"><nav aria-label="设置分类">
-      {categories.map(([id, label]) => <button key={id} type="button" data-settings-category={id} aria-current={category === id ? 'page' : 'false'} disabled={busy || closing} onClick={() => { setCategory(id); setFactor(false); setStatus('') }}>{label}</button>)}
+      {categories.map(([id, label]) => <button key={id} type="button" data-settings-category={id} aria-current={category === id ? 'page' : 'false'} disabled={busy || closing} onClick={() => { setCategory(id); setFactor(false); setChangingPassword(false); setStatus('') }}>{label}</button>)}
     </nav><p>PERSONAL PREFERENCES<span>个人偏好设置</span></p></aside>
-      <section className="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content>{section()}</div><footer><span>主题、播放动效、两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status">{feedback}</span></footer></section>
+      <section className="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content>{section()}</div><footer><span>主题、播放动效、密码修改和两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status">{feedback}</span></footer></section>
     </div>
   </Modal>
 })

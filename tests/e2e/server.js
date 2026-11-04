@@ -5,7 +5,7 @@ const express = require('express')
 const bcrypt = require('bcrypt')
 const { createApp } = require('../../src/app')
 const { createUser } = require('../../src/db/users')
-const { ADMIN, REVIEWER, CLOUD } = require('./fixtures')
+const { ADMIN, REVIEWER, PASSWORD, CLOUD } = require('./fixtures')
 const mailbox = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json')
 
 async function start() {
@@ -43,6 +43,7 @@ async function start() {
   })
   createUser(app.locals.database, { ...ADMIN, nickname: '验收管理员', passwordHash: await bcrypt.hash(ADMIN.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
   createUser(app.locals.database, { ...REVIEWER, nickname: '审核界面验收管理员', passwordHash: await bcrypt.hash(REVIEWER.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
+  createUser(app.locals.database, { ...PASSWORD, nickname: '密码流程验收成员', passwordHash: await bcrypt.hash(PASSWORD.password, 4), role: 'user', status: 'active', mustChangePassword: false })
   const web = express()
   app.locals.accessLifecycle.start()
   web.use((req, res, next) => req.path === '/api' || req.path.startsWith('/api/') || req.path === '/health' ? app(req, res, next) : next())

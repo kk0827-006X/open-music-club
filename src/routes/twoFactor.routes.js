@@ -29,10 +29,22 @@ function createTwoFactorRouter(createStore) {
     return requireLogin(req, res, next)
   }
   function audit(req, event) { req.app.locals.security.logger.info?.({ event, userId: req.user?.id, requestId: req.requestId }) }
+  function passwordCurrent(req, res) {
+    const service = req.app.locals.twoFactor, fresh = findUserById(req.app.locals.database, req.user.id)
+    if (fresh?.status !== 'active' || fresh.password_hash !== req.user.password_hash
+      || (service.state(req.user.id)?.session_version || 0) !== req.passwordVerificationVersion) {
+      reject(res, 401, '安全状态已变化，请重新登录'); return false
+    }
+    if (!service.checkUnlocked(req.user.id)) { reject(res, 429, '尝试过于频繁，请稍后再试'); return false }
+    return true
+  }
   async function password(req, res) {
     const service = req.app.locals.twoFactor
     if (!service.checkUnlocked(req.user.id)) { reject(res, 429, '尝试过于频繁，请稍后再试'); return false }
-    if (typeof req.body?.password !== 'string' || !(await bcrypt.compare(req.body.password, req.user.password_hash))) {
+    req.passwordVerificationVersion = service.state(req.user.id)?.session_version || 0
+    const matches = typeof req.body?.password === 'string' && await bcrypt.compare(req.body.password, req.user.password_hash)
+    if (!passwordCurrent(req, res)) return false
+    if (!matches) {
       service.fail(req.user.id); reject(res); return false
     }
     return true
@@ -47,7 +59,7 @@ function createTwoFactorRouter(createStore) {
       const service = req.app.locals.twoFactor
       if (!service.available) return reject(res, 503, '两步验证暂未配置，请联系管理员')
       if (service.state(req.user.id)?.enabled) return reject(res, 409, '两步验证已启用')
-      if (!(await password(req, res))) return
+      if (!(await password(req, res)) || !passwordCurrent(req, res)) return
       const setup = service.setup(req.user, req.sessionID)
       const qrCode = await QRCode.toDataURL(setup.otpauthUrl)
       return res.json({ success: true, ...setup, qrCode })
@@ -77,7 +89,7 @@ function createTwoFactorRouter(createStore) {
   for (const disable of [false, true]) router.post(disable ? '/disable' : '/recovery-codes/regenerate', requireLogin, async (req, res, next) => {
     try {
       if (disable && req.user.role === 'admin') return reject(res, 403, '管理员不能自行关闭两步验证')
-      if (!(await password(req, res))) return
+      if (!(await password(req, res)) || !passwordCurrent(req, res)) return
       const service = req.app.locals.twoFactor, codes = service.change(req.user.id, req.body?.code, disable)
       if (!codes) { service.fail(req.user.id); return reject(res) }
       audit(req, disable ? 'two_factor_disabled' : 'two_factor_recovery_regenerated')

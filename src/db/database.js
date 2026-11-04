@@ -180,6 +180,14 @@ function initializeSchema(database) {
       UNIQUE (user_id, code_hash)
     );
   `)
+  database.exec(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    digest TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL, expires_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS password_reset_user ON password_reset_tokens(user_id);
+  CREATE TABLE IF NOT EXISTS password_reset_requests (
+    email_digest TEXT PRIMARY KEY, last_at INTEGER NOT NULL, day INTEGER NOT NULL, count INTEGER NOT NULL
+  );`)
   initializeFootprintSchema(database)
   initializeApplicationNotificationSchema(database)
   initializeAccessLifecycleSchema(database)

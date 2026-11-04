@@ -1,3 +1,4 @@
+import { ResetPasswordPage } from '../features/auth/ResetPasswordPage.tsx'
 import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { adminPath, loginDestination, workspacePage, workspacePaths, type WorkspacePage } from './routes.ts'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
@@ -155,6 +156,7 @@ function ApplicationRoute({ purpose }: { purpose: 'activate' | 'verify' }) {
 
 export function App({ api = services }: { api?: AppServices }) {
   return <BrowserRouter><Routes>
+    <Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route path="/activate" element={<ApplicationRoute key="activate" purpose="activate" />} />
     <Route path="/verify-email" element={<ApplicationRoute key="verify" purpose="verify" />} />
     <Route path="*" element={<SessionApp api={api} />} />

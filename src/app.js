@@ -8,6 +8,7 @@ const {
 const { createSecurityConfig } = require('./config/security')
 const { requireLogin } = require('./middleware/requireLogin')
 const { requireAdmin } = require('./middleware/requireAdmin')
+const { createPasswordRouter } = require('./routes/password.routes')
 const { createAuthRouter } = require('./routes/auth.routes')
 const { createTwoFactorRouter } = require('./routes/twoFactor.routes')
 const { createTwoFactorService } = require('./services/twoFactor.service')
@@ -145,6 +146,7 @@ function createApp({
   app.get('/health', (req, res) => res.json({ status: 'ok' }))
   if (rateLimiters) app.use('/api/auth/login', rateLimiters.login)
   if (rateLimiters) app.use('/api/auth/activate', rateLimiters.applicationActivation)
+  app.use('/api/auth/password', createPasswordRouter(app, infrastructure.createRateLimitStore))
   app.use('/api/auth', createAuthRouter())
   if (rateLimiters) app.post('/api/applications', rateLimiters.applications)
   if (rateLimiters) {

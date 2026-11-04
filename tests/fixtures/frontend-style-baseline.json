@@ -7,7 +7,7 @@
     },
     "frontend/src/style.css": {
       "declarations": 0,
-      "sha256": "a413f28b9f055d193494aa0726ac04ea9c52d72ae7c14aa65a978d13d5227d24"
+      "sha256": "71d4fabbd7ac6e7c76f17a0af1f59850747a95aa93206306f27cbeae4645dc38"
     },
     "frontend/src/styles/access-application.css": {
       "declarations": 42,
@@ -100,6 +100,10 @@
     "frontend/src/styles/squish-switch.css": {
       "declarations": 62,
       "sha256": "5fd1b00418155d56ecb48deacd29b2f00675470acc7a7236846e14a8ed2d15a9"
+    },
+    "frontend/src/styles/password.css": {
+      "declarations": 19,
+      "sha256": "cd3afc3bdb12704e3853a9719e8175106d4a91b6be018da82ede108793e4f4d9"
     }
   }
 }

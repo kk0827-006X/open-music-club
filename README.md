@@ -13,7 +13,7 @@ Open Music Club 是面向受控成员、部署在公网 HTTPS 环境中的音乐
 
 - 后端：Node.js 26.13.0 LTS（`.node-version`）、Express 5、SQLite（better-sqlite3）；生产环境另需 Redis。
 - 前端：TypeScript + React 19 + Vite 7；Three.js 档案墙、Motion、Radix Slider。
-- 认证：邮箱密码、Session、TOTP 2FA 和一次性恢复码；管理员在公网开放前必须启用 2FA。
+- 认证：邮箱密码、Session、TOTP 2FA、一次性恢复码、设置改密和邮件找回密码；管理员在公网开放前必须启用 2FA。
 - 包管理：pnpm 12.3.4（`package.json` 的 `packageManager` 锁定）；不要用 npm 或 yarn 修改依赖。
 
 ## 本地运行
@@ -70,7 +70,7 @@ pnpm audit --registry=https://registry.npmjs.org --audit-level=high --json
 - [申请审核与自动激活](docs/application-activation.md) — 申请、邮件配置、激活、接口与验收边界。
 - [部署测试方案](docs/deployment-test-plan.md) — 海外 Nginx、国内 Express、WireGuard 方案（未部署）。
 - [音乐足迹功能说明](docs/music-footprint-integration.md)
-- [两步验证](docs/security/two-factor.md)
+- [两步验证与密码恢复](docs/security/two-factor.md)
 - [修改记录](docs/修改记录.md)
 
 安全底线：公网 HTTPS、Secure/HttpOnly/SameSite Cookie、CSRF 与同源 CORS、分级限流、精确 `trust proxy`、上传校验与失败清理、错误和日志脱敏；数据库、Session、存储和内部端口不得直接暴露。

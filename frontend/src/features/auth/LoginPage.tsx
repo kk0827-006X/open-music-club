@@ -6,6 +6,7 @@ import { useReducedMotion } from '../../shared/react/hooks.ts'
 import CodeSlots, { type CodeSlotsStatus } from '../../shared/react/react-bits/CodeSlots.tsx'
 import { LoginBackgroundEffect } from '../../shared/react/LoginBackgroundEffect.tsx'
 import { TwoFactorPanel } from './TwoFactorPanel.tsx'
+import { ForgotPasswordDialog } from './ForgotPasswordDialog.tsx'
 import { AccessApplicationDialog } from './AccessApplicationDialog.tsx'
 
 type Role = 'admin' | 'user'
@@ -77,6 +78,9 @@ export function LoginPage({ onAuthenticate, onVerified }: {
 }) {
   const reduced = useReducedMotion()
   const [visible, setVisible] = useState(false)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const restoreForgotFocus = useRef(false)
+  const forgotTrigger = useRef<HTMLButtonElement>(null)
   const [applicationOpen, setApplicationOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [factor, setFactor] = useState<'challenge' | 'enrollment' | null>(null)
@@ -106,6 +110,9 @@ export function LoginPage({ onAuthenticate, onVerified }: {
       password.current?.focus()
     }
   }, [factor])
+  useEffect(() => {
+    if (!forgotOpen && restoreForgotFocus.current) { restoreForgotFocus.current = false; forgotTrigger.current?.focus({ preventScroll: true }) }
+  }, [forgotOpen])
   useEffect(() => {
     if (!applicationOpen && restoreApplicationFocus.current) {
       restoreApplicationFocus.current = false
@@ -194,7 +201,7 @@ export function LoginPage({ onAuthenticate, onVerified }: {
               <input ref={password} id="password" name="password" type={visible ? 'text' : 'password'} autoComplete="current-password" placeholder="请输入密码" />
               <IconButton icon={visible ? 'eye' : 'eyeOff'} type="button" className={`reveal-password${visible ? ' is-visible' : ''}`} data-reveal-password aria-label={visible ? '隐藏密码' : '显示密码'} aria-pressed={visible} onClick={() => setVisible(value => !value)} />
             </span></label>
-            <div className="form-options"><label><input type="checkbox" name="rememberMe" data-remember-me /><span>保持登录状态</span></label><button ref={applicationTrigger} className="text-action login-application-entry" type="button" data-application-open disabled={busy || factor !== null} onClick={() => setApplicationOpen(true)}>申请账号<Icon name="right" /></button></div>
+            <div className="form-options"><label><input type="checkbox" name="rememberMe" data-remember-me /><span>保持登录状态</span></label><button ref={forgotTrigger} className="text-action" type="button" data-forgot-password-open disabled={busy || factor !== null || applicationOpen} onClick={() => setForgotOpen(true)}>忘记密码</button><button ref={applicationTrigger} className="text-action login-application-entry" type="button" data-application-open disabled={busy || factor !== null || forgotOpen} onClick={() => setApplicationOpen(true)}>申请账号<Icon name="right" /></button></div>
             <button className="primary-action" type="submit" disabled={busy}><span data-submit-label>{label}</span><Icon name="right" /></button>
             <p className="form-footnote login-layout-spacer" aria-hidden="true">&nbsp;</p>
             <p className={`preview-notice${busy && !factor && label === '正在验证身份' ? ' is-running' : ''}`} role="status" data-preview-status>{status}</p>
@@ -206,6 +213,7 @@ export function LoginPage({ onAuthenticate, onVerified }: {
         </div>
       </motion.section>
     </main>
+    {forgotOpen && <ForgotPasswordDialog onClose={() => { restoreForgotFocus.current = true; setForgotOpen(false) }} />}
     {applicationOpen && <AccessApplicationDialog onClose={() => { restoreApplicationFocus.current = true; setApplicationOpen(false) }} />}
     <Modal open={factor !== null} onClose={() => closeFactor()} busy={factorBusy || closing} className={`login-factor-dialog${factor === 'challenge' ? ' is-challenge' : ''}${closing ? ' is-closing' : ''}`} data-login-factor-dialog aria-labelledby={factor === 'enrollment' ? 'settings-section-title' : 'authenticator-title'}>
       <section className="authenticator-panel is-active">

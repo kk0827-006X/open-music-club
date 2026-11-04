@@ -144,6 +144,7 @@ describe('公网通信安全基线', () => {
       'personalLibrary',
       'footprint',
       'twoFactor',
+      'password',
     ])
   })
 
