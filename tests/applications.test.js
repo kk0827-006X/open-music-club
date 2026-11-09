@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict')
 const { afterEach, beforeEach, describe, it } = require('node:test')
+const { once } = require('node:events')
 const { createHash } = require('node:crypto')
 const bcrypt = require('bcrypt')
 const request = require('supertest')
@@ -12,10 +13,16 @@ const NEW_PASSWORD = 'Private-Password-2026!'
 const KEY = Buffer.alloc(32, 9).toString('base64')
 const CANDIDATE = { email: 'candidate@example.com', nickname: '候选成员', reason: '小组成员申请' }
 const GENERIC = '符合条件的申请会进入审核，审核结果通过邮件通知。'
+// 测试复用明确的回环监听；请求异常必须在有限时间内失败，不能卡住整套验收。
+const httpRequest = server => Object.fromEntries(Object.entries(request(server)).map(([method, create]) => [
+  method, (...args) => create(...args).timeout({ deadline: 15_000 }),
+]))
+const httpAgent = server => request.agent(server).timeout({ deadline: 15_000 })
 
 describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
-  let app, database, admin, member, messages, clock
+  let app, database, server, admin, member, messages, clock
   beforeEach(async () => {
+    app = undefined; database = undefined; server = undefined
     messages = []; clock = 1800000000000
     app = createApp({ databasePath: ':memory:', sessionSecret: 'isolated-application-test',
       security: { publicOrigin: 'https://club.example.com', logger: { warn() {}, info() {}, error() {} } },
@@ -29,14 +36,27 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
     database = app.locals.database
     const passwordHash = await bcrypt.hash(PASSWORD, 4)
     for (const [email, role] of [['admin@example.com', 'admin'], ['member@example.com', 'user']]) createUser(database, { email, nickname: role, passwordHash, role, status: 'active', mustChangePassword: false })
-    admin = request.agent(app); member = request.agent(app)
+    server = app.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    admin = httpAgent(server); member = httpAgent(server)
     await admin.post('/api/auth/login').send({ email: 'admin@example.com', password: PASSWORD }).expect(200)
     const setup = await admin.post('/api/auth/2fa/setup').send({ password: PASSWORD }).expect(200)
     await admin.post('/api/auth/2fa/confirm').send({ code: generateSync({ secret: setup.body.secret, epoch: clock / 1000 }) }).expect(200)
     await member.post('/api/auth/login').send({ email: 'member@example.com', password: PASSWORD }).expect(200)
   })
-  afterEach(() => { app.locals.accessLifecycle.stop(); database.close(); app.locals.sessionStore.stopInterval?.() })
-  const submit = (overrides = {}) => request(app).post('/api/applications').send({ ...CANDIDATE, ...overrides })
+  afterEach(async () => {
+    try {
+      await app?.locals.accessLifecycle.stop()
+      if (server?.listening) await new Promise((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve())
+        server.closeAllConnections()
+      })
+    } finally {
+      app?.locals.sessionStore.stopInterval?.()
+      database?.close()
+    }
+  })
+  const submit = (overrides = {}) => httpRequest(server).post('/api/applications').send({ ...CANDIDATE, ...overrides })
   const stored = () => database.prepare('SELECT * FROM access_requests WHERE email = ? ORDER BY id DESC LIMIT 1').get(CANDIDATE.email)
   const workflow = id => database.prepare('SELECT * FROM access_workflow WHERE application_id = ?').get(id)
   async function activationToken() {
@@ -89,7 +109,7 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
     assert.equal(stored().status, 'approved'); assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
     assert.equal(workflow(id).verified_at, null)
     assert.equal(database.prepare("SELECT count(*) count FROM access_mail_jobs WHERE kind='verify'").get().count, 0)
-    const visitor = request.agent(app)
+    const visitor = httpAgent(server)
     await visitor.post('/api/auth/login').send({ email: CANDIDATE.email, password: NEW_PASSWORD }).expect(401)
     privateResponse((await visitor.post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(200)).body)
     await visitor.get('/api/protected').expect(401)
@@ -171,7 +191,7 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
   it('verify API 停用并返回固定 410，不消费凭证也不改变审核资格', async () => {
     const id = await submittedId()
     for (const method of ['post', 'get']) {
-      const response = await request(app)[method]('/api/applications/verify-email').send({ token: 'invalid-token' }).expect(410)
+      const response = await httpRequest(server)[method]('/api/applications/verify-email').send({ token: 'invalid-token' }).expect(410)
       assert.equal(response.body.success, false); assert.equal(response.body.message, VERIFY_DISABLED_MESSAGE)
       assert.doesNotMatch(JSON.stringify(response.body), /invalid-token|sqlite|stack/)
     }
@@ -180,20 +200,20 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
   })
   it('公开 resend 仅允许 activate，verify 用途返回 400', async () => {
     await submit().expect(202)
-    const verify = await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'verify' }).expect(400)
+    const verify = await httpRequest(server).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'verify' }).expect(400)
     assert.match(verify.body.message, /无需验证邮箱/)
-    await request(app).post('/api/applications/resend').send({ email: 'invalid', purpose: 'activate' }).expect(400)
-    await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'other' }).expect(400)
+    await httpRequest(server).post('/api/applications/resend').send({ email: 'invalid', purpose: 'activate' }).expect(400)
+    await httpRequest(server).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'other' }).expect(400)
   })
   it('未批准或未知邮箱的公开重发不消耗激活额度，审批仍原子生成激活任务', async () => {
     await submit().expect(202)
     const id = stored().id
     for (let index = 0; index < 6; index++) {
       clock += 61000
-      await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
+      await httpRequest(server).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
     }
     clock += 61000
-    await request(app).post('/api/applications/resend').send({ email: 'missing@example.com', purpose: 'activate' }).expect(202)
+    await httpRequest(server).post('/api/applications/resend').send({ email: 'missing@example.com', purpose: 'activate' }).expect(202)
     assert.equal(database.prepare('SELECT count(*) count FROM access_resend_limits WHERE email_digest=?').get(activationDigest(CANDIDATE.email)).count, 0)
     assert.equal(database.prepare('SELECT count(*) count FROM access_resend_limits WHERE email_digest=?').get(activationDigest('missing@example.com')).count, 0)
     await admin.post(`/api/admin/applications/${id}/approve`).send({}).expect(200)
@@ -236,15 +256,15 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
   it('公开重发撤销旧激活链接，未知邮箱及冷却响应保持统一提示', async () => {
     const { id, credential } = await approved()
     clock += 61000
-    const resent = await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
+    const resent = await httpRequest(server).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
     assert.deepEqual(resent.body, { success: true, message: GENERIC })
     await app.locals.accessLifecycle.tick()
     const replacement = messages.filter(item => item.to === CANDIDATE.email && item.text.includes('/activate#')).at(-1)
       .text.match(/#token=([A-Za-z0-9_-]+)/)[1]
     assert.notEqual(credential, replacement)
-    await request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(400)
+    await httpRequest(server).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(400)
     for (const email of ['missing@example.com', CANDIDATE.email]) {
-      const response = await request(app).post('/api/applications/resend').send({ email, purpose: 'activate' }).expect(202)
+      const response = await httpRequest(server).post('/api/applications/resend').send({ email, purpose: 'activate' }).expect(202)
       assert.deepEqual(response.body, resent.body)
     }
     assert.equal(workflow(id).activated_at, null)
@@ -273,30 +293,30 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
       12345678,
     ]
     for (const password of invalid) {
-      const response = await request(app).post('/api/auth/activate').send({ token: credential, password }).expect(400)
+      const response = await httpRequest(server).post('/api/auth/activate').send({ token: credential, password }).expect(400)
       assert.match(response.body.message, /8～72 位/)
       assert.doesNotMatch(JSON.stringify(response.body), /字节|UTF-?8/)
       assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
       assert.equal(database.prepare("SELECT count(*) count FROM access_tokens WHERE purpose='activate' AND consumed_at IS NULL").get().count, 1)
     }
     // 恰好 8 位的合规密码可以激活，并可用同一密码正常登录。
-    await request(app).post('/api/auth/activate').send({ token: credential, password: 'Abcdef1!' }).expect(200)
+    await httpRequest(server).post('/api/auth/activate').send({ token: credential, password: 'Abcdef1!' }).expect(200)
     const user = findUserByEmail(database, CANDIDATE.email)
     assert.equal(await bcrypt.compare('Abcdef1!', user.password_hash), true)
-    await request(app).post('/api/auth/login').send({ email: CANDIDATE.email, password: 'Abcdef1!' }).expect(200)
+    await httpRequest(server).post('/api/auth/login').send({ email: CANDIDATE.email, password: 'Abcdef1!' }).expect(200)
   })
   it('72 位合规密码可激活，73 位被拒绝且不消费 Token', async () => {
     const { credential } = await approved()
     const maximum = 'Aa1!' + 'x'.repeat(68)
     assert.equal(maximum.length, 72)
-    await request(app).post('/api/auth/activate').send({ token: credential, password: `${maximum}x` }).expect(400)
+    await httpRequest(server).post('/api/auth/activate').send({ token: credential, password: `${maximum}x` }).expect(400)
     assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
     assert.equal(database.prepare("SELECT count(*) count FROM access_tokens WHERE purpose='activate' AND consumed_at IS NULL").get().count, 1)
-    await request(app).post('/api/auth/activate').send({ token: credential, password: maximum }).expect(200)
+    await httpRequest(server).post('/api/auth/activate').send({ token: credential, password: maximum }).expect(200)
     const user = findUserByEmail(database, CANDIDATE.email)
     assert.equal(bcrypt.getRounds(user.password_hash), 12)
     assert.equal(await bcrypt.compare(maximum, user.password_hash), true)
-    await request(app).post('/api/auth/login').send({ email: CANDIDATE.email, password: maximum }).expect(200)
+    await httpRequest(server).post('/api/auth/login').send({ email: CANDIDATE.email, password: maximum }).expect(200)
   })
   it('并发审批只允许一个结果，不能覆盖审核记录', async () => {
     const id = await submittedId()
@@ -306,20 +326,20 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
   })
   it('并发激活只消费一次并创建一个账号', async () => {
     const { credential } = await approved()
-    const results = await Promise.all([1, 2].map(() => request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD })))
+    const results = await Promise.all([1, 2].map(() => httpRequest(server).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD })))
     assert.deepEqual(results.map(item => item.status).sort(), [200, 400])
     assert.equal(database.prepare('SELECT count(*) count FROM users WHERE email = ?').get(CANDIDATE.email).count, 1)
   })
   it('激活 24 小时后过期，重发激活无需重新审核', async () => {
     const { id, credential } = await approved()
     clock += 24 * 60 * 60000 + 1
-    await request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(400)
-    await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
+    await httpRequest(server).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(400)
+    await httpRequest(server).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
     await app.locals.accessLifecycle.tick()
     const replacement = messages.filter(item => item.to === CANDIDATE.email && item.text.includes('/activate#')).at(-1)
       .text.match(/#token=([A-Za-z0-9_-]+)/)[1]
     assert.equal(workflow(id).activated_at, null)
-    await request(app).post('/api/auth/activate').send({ token: replacement, password: NEW_PASSWORD }).expect(200)
+    await httpRequest(server).post('/api/auth/activate').send({ token: replacement, password: NEW_PASSWORD }).expect(200)
   })
   it('拒绝后七天冷却，不发送激活链接也不能借重发修改资料', async () => {
     const id = await submittedId()
@@ -329,7 +349,7 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
     assert.doesNotMatch(rejection.text, /#token=|initial-password/)
     await submit({ nickname: '被篡改' })
     assert.equal(stored().status, 'rejected'); assert.equal(stored().nickname, CANDIDATE.nickname)
-    await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
+    await httpRequest(server).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
     assert.equal(database.prepare("SELECT count(*) count FROM access_mail_jobs WHERE kind='activate'").get().count, 0)
     clock += 7 * 24 * 60 * 60000 + 1
     await submit().expect(202)
@@ -370,8 +390,8 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
     const replacement = messages.filter(item => item.to === CANDIDATE.email && item.text.includes('/activate#')).at(-1)
       .text.match(/#token=([A-Za-z0-9_-]+)/)[1]
     assert.notEqual(first, replacement)
-    await request(app).post('/api/auth/activate').send({ token: first, password: NEW_PASSWORD }).expect(400)
-    await request(app).post('/api/auth/activate').send({ token: replacement, password: NEW_PASSWORD }).expect(200)
+    await httpRequest(server).post('/api/auth/activate').send({ token: first, password: NEW_PASSWORD }).expect(400)
+    await httpRequest(server).post('/api/auth/activate').send({ token: replacement, password: NEW_PASSWORD }).expect(200)
   })
   it('并发补发只有一个成功，429 不撤销已签发的新链接', async () => {
     const id = await submittedId()
@@ -396,7 +416,7 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
     const { id } = await approved()
     clock += 61000
     await admin.post(`/api/admin/applications/${id}/resend-activation`).send({}).expect(200)
-    await request(app).post('/api/auth/activate').send({ token: await activationToken(), password: NEW_PASSWORD }).expect(200)
+    await httpRequest(server).post('/api/auth/activate').send({ token: await activationToken(), password: NEW_PASSWORD }).expect(200)
     await admin.post(`/api/admin/applications/${id}/resend-activation`).send({}).expect(409)
     const rejected = database.prepare("INSERT INTO access_requests(email,nickname,status,reviewed_at) VALUES(?,?,?,?)")
       .run('rejected@example.com', '已拒绝申请', 'rejected', new Date(clock).toISOString())
@@ -421,8 +441,8 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
     await app.locals.accessLifecycle.tick()
     const replacement = messages.filter(item => item.to === CANDIDATE.email && item.text.includes('/activate#')).at(-1)
       .text.match(/#token=([A-Za-z0-9_-]+)/)[1]
-    await request(app).post('/api/auth/activate').send({ token: first, password: NEW_PASSWORD }).expect(400)
-    await request(app).post('/api/auth/activate').send({ token: replacement, password: NEW_PASSWORD }).expect(200)
+    await httpRequest(server).post('/api/auth/activate').send({ token: first, password: NEW_PASSWORD }).expect(400)
+    await httpRequest(server).post('/api/auth/activate').send({ token: replacement, password: NEW_PASSWORD }).expect(200)
   })
   it('公开与管理员补发共享每邮箱额度，跨入口不能绕过 24 小时五次上限', async () => {
     const { id } = await approved()
@@ -430,7 +450,7 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
     // 审批首次激活邮件占用第 1 次；公开入口再重发 4 次达到当日上限。
     for (let index = 0; index < 4; index++) {
       clock += 61000
-      await request(app).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
+      await httpRequest(server).post('/api/applications/resend').send({ email: CANDIDATE.email, purpose: 'activate' }).expect(202)
       await app.locals.accessLifecycle.tick()
     }
     const before = database.prepare("SELECT id,digest FROM access_tokens WHERE purpose='activate' AND consumed_at IS NULL ORDER BY id DESC LIMIT 1").get()
@@ -467,12 +487,12 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
   })
   it('访客、普通成员与未完成 2FA 的管理员不能读写后台或补发', async () => {
     const id = await submittedId()
-    const unverified = request.agent(app)
+    const unverified = httpAgent(server)
     createUser(database, { email: 'unenrolled@example.com', nickname: '未绑定管理员', passwordHash: await bcrypt.hash(PASSWORD, 4), role: 'admin', status: 'active', mustChangePassword: false })
-    const unenrolled = request.agent(app)
+    const unenrolled = httpAgent(server)
     await unenrolled.post('/api/auth/login').send({ email: 'unenrolled@example.com', password: PASSWORD }).expect(200)
     await unverified.post('/api/auth/login').send({ email: 'admin@example.com', password: PASSWORD }).expect(200)
-    for (const client of [request(app), member, unverified, unenrolled]) {
+    for (const client of [httpRequest(server), member, unverified, unenrolled]) {
       const responses = [
         await client.get('/api/admin/applications'),
         await client.post(`/api/admin/applications/${id}/approve`).send({}),
@@ -486,14 +506,14 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
   it('CSRF 覆盖全部新写接口并拒绝跨站来源', async () => {
     app.locals.security.csrfEnabled = true
     for (const route of ['/api/applications', '/api/applications/verify-email', '/api/applications/resend', '/api/auth/activate', '/api/admin/applications/1/resend-activation']) {
-      await request(app).post(route).send({ ...CANDIDATE, token: 'invalid', password: NEW_PASSWORD, purpose: 'activate' }).expect(403)
-      await request(app).post(route).set('Origin', 'https://evil.example').send({}).expect(403)
+      await httpRequest(server).post(route).send({ ...CANDIDATE, token: 'invalid', password: NEW_PASSWORD, purpose: 'activate' }).expect(403)
+      await httpRequest(server).post(route).set('Origin', 'https://evil.example').send({}).expect(403)
     }
-    const visitor = request.agent(app), csrf = await visitor.get('/api/security/csrf-token').expect(200)
+    const visitor = httpAgent(server), csrf = await visitor.get('/api/security/csrf-token').expect(200)
     await visitor.post('/api/applications').set('Origin', 'https://club.example.com').set('X-CSRF-Token', csrf.body.csrfToken).send(CANDIDATE).expect(202)
   })
   it('Host 伪造不影响激活邮件链接且敏感接口禁止缓存', async () => {
-    const response = await request(app).post('/api/applications').set('Host', 'evil.example').send(CANDIDATE).expect(202)
+    const response = await httpRequest(server).post('/api/applications').set('Host', 'evil.example').send(CANDIDATE).expect(202)
     assert.match(response.headers['cache-control'], /no-store/)
     await admin.post(`/api/admin/applications/${stored().id}/approve`).send({}).expect(200)
     await activationToken()
@@ -503,11 +523,11 @@ describe('简化申请、审核与一次性激活 HTTP 闭环', () => {
   it('激活事务后半段失败时回滚用户与凭证消费，修复后仍可激活', async () => {
     const { credential } = await approved()
     database.exec("CREATE TRIGGER fail_activation BEFORE UPDATE OF activated_at ON access_workflow WHEN NEW.activated_at IS NOT NULL BEGIN SELECT RAISE(ABORT, 'isolated-failure'); END")
-    const failed = await request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(500)
+    const failed = await httpRequest(server).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(500)
     assert.equal(findUserByEmail(database, CANDIDATE.email), undefined)
     assert.doesNotMatch(JSON.stringify(failed.body), /isolated-failure|sqlite|stack/)
     database.exec('DROP TRIGGER fail_activation')
-    await request(app).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(200)
+    await httpRequest(server).post('/api/auth/activate').send({ token: credential, password: NEW_PASSWORD }).expect(200)
   })
   it('审批不再接受手动初始密码，分页和状态参数不能注入', async () => {
     const id = await submittedId()

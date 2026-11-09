@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict')
 const { it, beforeEach, afterEach } = require('node:test')
+const { once } = require('node:events')
 const express = require('express')
 const session = require('express-session')
 const request = require('supertest')
@@ -10,21 +11,34 @@ const LOCAL = 'http://127.0.0.1:5173'
 // 测试使用虚构的虚拟网地址，不把本机实际网络信息写入版本库。
 const ZEROTIER = 'http://10.147.17.2:5173'
 const PRODUCTION = 'https://music.example.com'
-let previousOrigins
+let previousOrigins, servers
+// 保留真实 CORS/CSRF HTTP 行为，只隔离监听并限制请求等待时间。
+const httpRequest = server => Object.fromEntries(Object.entries(request(server)).map(([method, create]) => [
+  method, (...args) => create(...args).timeout({ deadline: 15_000 }),
+]))
+const httpAgent = server => request.agent(server).timeout({ deadline: 15_000 })
 
 beforeEach(() => {
+  servers = []
   previousOrigins = process.env.DEV_ALLOWED_ORIGINS
   process.env.DEV_ALLOWED_ORIGINS = `${LOCAL},http://localhost:5173,${ZEROTIER}`
 })
-afterEach(() => {
-  if (previousOrigins === undefined) delete process.env.DEV_ALLOWED_ORIGINS
-  else process.env.DEV_ALLOWED_ORIGINS = previousOrigins
+afterEach(async () => {
+  try {
+    await Promise.all(servers.filter(server => server.listening).map(server => new Promise((resolve, reject) => {
+      server.close(error => error ? reject(error) : resolve())
+      server.closeAllConnections()
+    })))
+  } finally {
+    if (previousOrigins === undefined) delete process.env.DEV_ALLOWED_ORIGINS
+    else process.env.DEV_ALLOWED_ORIGINS = previousOrigins
+  }
 })
 
 function developmentConfig() {
   return createSecurityConfig({ production: false, publicOrigin: PRODUCTION, csrfEnabled: true })
 }
-function testApp(config = developmentConfig()) {
+async function testApp(config = developmentConfig()) {
   const app = express()
   app.use(createSameOriginCors(config))
   app.use(session({ secret: 'isolated-origin-test-only', resave: false, saveUninitialized: false }))
@@ -32,7 +46,10 @@ function testApp(config = developmentConfig()) {
   app.use(createCsrfProtection(config))
   app.get('/health', (req, res) => res.json({ ok: true }))
   app.post('/write', (req, res) => res.json({ ok: true }))
-  return app
+  const server = app.listen(0, '127.0.0.1')
+  servers.push(server)
+  await once(server, 'listening')
+  return server
 }
 
 it('开发环境使用独立的精确 Origin 列表，不继承正式域名', () => {
@@ -66,15 +83,15 @@ it('生产环境忽略全部开发 Origin 配置，保留 HTTPS、Cookie、CSRF 
     assert.equal(config.enforceHttps, true)
     assert.equal(config.csrfEnabled, true)
     assert.equal(config.trustProxyHops, 1)
-    const response = await request(testApp(config)).get('/health').set('Origin', ZEROTIER)
+    const response = await httpRequest(await testApp(config)).get('/health').set('Origin', ZEROTIER)
     assert.equal(response.status, 403)
   }
 })
 
 it('本机和 ZeroTier 的 CORS 预检都返回各自的精确 Origin，不使用通配符', async () => {
-  const app = testApp()
+  const server = await testApp()
   for (const origin of [LOCAL, 'http://localhost:5173', ZEROTIER]) {
-    const response = await request(app).options('/write').set('Origin', origin).set('Access-Control-Request-Method', 'POST')
+    const response = await httpRequest(server).options('/write').set('Origin', origin).set('Access-Control-Request-Method', 'POST')
     assert.equal(response.status, 204)
     assert.equal(response.headers['access-control-allow-origin'], origin)
     assert.equal(response.headers['access-control-allow-credentials'], 'true')
@@ -83,15 +100,15 @@ it('本机和 ZeroTier 的 CORS 预检都返回各自的精确 Origin，不使�
 })
 
 it('不信任其他群内 IP、不同端口、伪装域名或正式站点对开发服务的跨域请求', async () => {
-  const app = testApp()
+  const server = await testApp()
   for (const origin of ['http://10.147.17.3:5173', 'http://10.147.17.2:5174', 'http://10.147.17.2.attacker.example:5173', PRODUCTION]) {
-    assert.equal((await request(app).get('/health').set('Origin', origin)).status, 403)
+    assert.equal((await httpRequest(server).get('/health').set('Origin', origin)).status, 403)
   }
 })
 
 it('ZeroTier 和本机来源仍须正确的 Session CSRF Token 才能写入', async () => {
   for (const origin of [LOCAL, ZEROTIER]) {
-    const agent = request.agent(testApp())
+    const agent = httpAgent(await testApp())
     const csrf = await agent.get('/csrf').set('Origin', origin)
     assert.equal(csrf.status, 200)
     assert.equal((await agent.post('/write').set('Origin', origin)).status, 403)

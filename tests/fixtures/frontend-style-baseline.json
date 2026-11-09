@@ -2,8 +2,8 @@
   "sourceCommit": "c2a9527d79735e599c208ca11b0f320ff0b53155",
   "files": {
     "frontend/public/theme.css": {
-      "declarations": 600,
-      "sha256": "c7df4211d267d8ac0a8a3b07c0b5377a701136c745d06e646f1f698c21bfcb4c"
+      "declarations": 608,
+      "sha256": "8fe5f3b25405375211502eef84854a6f6e704826a497f025486c97253a2fbeb2"
     },
     "frontend/src/style.css": {
       "declarations": 0,
@@ -99,7 +99,7 @@
     },
     "frontend/src/styles/squish-switch.css": {
       "declarations": 62,
-      "sha256": "5fd1b00418155d56ecb48deacd29b2f00675470acc7a7236846e14a8ed2d15a9"
+      "sha256": "deb68728db6e8f3791d07e12ab83be0721e8ffd889347617f2bc85bc97d4148b"
     },
     "frontend/src/styles/password.css": {
       "declarations": 19,

@@ -39,6 +39,10 @@
   --scene-dark-orange: #bb8850;
   --scene-dark-other: #969f9f;
   --on-accent: #20211e;
+  --squish-track: #27272a;
+  --squish-track-on: #f5f5f5;
+  --squish-thumb: #4e4e51;
+  --squish-thumb-on: #27272a;
   --color-text-01: #20211e;
   --color-surface-01: #eeece7;
   --color-surface-02: rgba(238,236,231,.16);
@@ -341,6 +345,10 @@
   --scene-dark-orange: #bb8850;
   --scene-dark-other: #969f9f;
   --on-accent: #161c1f;
+  --squish-track: #27272a;
+  --squish-track-on: #f5f5f5;
+  --squish-thumb: #4e4e51;
+  --squish-thumb-on: #27272a;
   --color-text-01: #e7e7e0;
   --color-surface-01: #182126;
   --color-surface-02: rgba(24,33,38,0.16);

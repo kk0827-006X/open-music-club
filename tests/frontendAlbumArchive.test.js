@@ -50,7 +50,7 @@ describe('三维专辑档案 UI', () => {
     assert.doesNotMatch(markup, /<audio/i)
   })
 
-  it('档案墙复用原场景、模型和波动算法，不载入拆解模型', () => {
+  it('档案墙保留原波动算法和模型，允许已审查的音频阻尼扩展，不载入拆解模型', () => {
     const fs = require('node:fs')
     const scenePath = path.join(projectRoot, 'frontend/src/rhine/scene.ts')
     const motionPath = path.join(projectRoot, 'frontend/src/rhine/motion.ts')
@@ -58,15 +58,41 @@ describe('三维专辑档案 UI', () => {
 
     assert.match(readFrontendSource(scenePath), /export class ArchiveScene/)
     assert.match(readFrontendSource(scenePath), /archiveWave\(/)
+    const motion = fs.readFileSync(motionPath, 'utf8')
+    // 音乐响应仅在文件末尾扩展阻尼；原算法仍逐字锁定，不能通过更新整文件哈希掩盖变化。
     assert.equal(
-      crypto.createHash('sha256').update(fs.readFileSync(motionPath)).digest('hex'),
+      crypto.createHash('sha256').update(motion.split('\n// 帧率无关的一阶阻尼，共用于音频包络和交互强度过渡。')[0]).digest('hex'),
       '60c4bbef70f34f69e36ff60aa631b3b88b2eb42a6e9b431b6af3c6fd69eb744e'
+    )
+    assert.equal(
+      crypto.createHash('sha256').update(motion).digest('hex'),
+      '53a08516427628a5ace785b8c4aa1eb570eccf0e16fd8ff152cd756d8649de01'
     )
     assert.equal(
       crypto.createHash('sha256').update(fs.readFileSync(modelPath)).digest('hex'),
       'dda42b9b3b471d11c69820a64084d254a64b27761287ab0e35dd8387ec0a0bed'
     )
     assert.equal(fs.existsSync(path.join(projectRoot, 'frontend/public/assets/archive-assembly.glb')), false)
+  })
+
+  it('新增音频阻尼在不同帧率下收敛一致，无时间推进时不改变强度且不越过目标', async () => {
+    const { approach } = await import(frontendModule('rhine/motion.ts'))
+    for (const [start, target] of [[0, 1], [1, 0], [.2, .8]]) {
+      const oneSecond = approach(start, target, 7, 1)
+      for (const fps of [15, 30, 60, 144]) {
+        let value = start
+        for (let frame = 0; frame < fps; frame++) {
+          const next = approach(value, target, 7, 1 / fps)
+          assert.ok(next >= Math.min(value, target) && next <= Math.max(value, target))
+          value = next
+        }
+        assert.ok(Math.abs(value - oneSecond) < 1e-12, `${fps} FPS 的包络应与相同总时长一致`)
+      }
+      assert.equal(approach(start, target, 7, 0), start)
+      assert.equal(approach(start, target, 7, -1), start)
+      assert.equal(approach(start, target, 0, 1), start)
+      assert.equal(approach(start, target, 7, 100), target)
+    }
   })
 
   it('三维档案模型先完成加载，远程封面只作为随后更新的贴图', () => {

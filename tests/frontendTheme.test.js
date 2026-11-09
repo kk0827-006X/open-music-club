@@ -85,6 +85,42 @@ it('配置先于模块和界面载入，颜色只在统一表定义，主题模�
   for (const file of ['frontend/public/theme-init.js', 'frontend/src/shared/theme.ts']) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /new Audio|\.pause\(|\.play\(|currentTime|music-workspace|player-core/)
 })
 
+it('Squish Switch 默认色集中在主题表，组件默认值和设置页自定义色均使用变量', async () => {
+  const postcss = require(require.resolve('postcss', { paths: [require.resolve('../frontend/node_modules/vite/package.json')] }))
+  const expected = new Map([
+    ['--squish-track', '#27272a'], ['--squish-track-on', '#f5f5f5'],
+    ['--squish-thumb', '#4e4e51'], ['--squish-thumb-on', '#27272a'],
+  ])
+  const palettes = []
+  postcss.parse(fs.readFileSync('frontend/public/theme.css', 'utf8')).walkRules(rule => {
+    if (!rule.selector.includes('data-theme')) return
+    const colors = new Map()
+    rule.walkDecls(declaration => { if (expected.has(declaration.prop)) colors.set(declaration.prop, declaration.value) })
+    palettes.push(colors)
+  })
+  assert.equal(palettes.length, 2)
+  for (const colors of palettes) assert.deepEqual(colors, expected, '迁移默认色不能改变两套主题下的现有效果')
+
+  await withReactHarness(async h => {
+    const { default: SquishSwitch } = await import('../frontend/src/shared/react/react-bits/SquishSwitch.tsx')
+    await h.render(h.React.createElement(SquishSwitch, { ariaLabel: '默认开关' }))
+    const style = h.require('[role="switch"]').style
+    assert.equal(style.getPropertyValue('--ss-track'), 'var(--squish-track)')
+    assert.equal(style.getPropertyValue('--ss-track-on'), 'var(--squish-track-on)')
+    assert.equal(style.getPropertyValue('--ss-thumb-on'), 'var(--squish-track)')
+    assert.equal(style.getPropertyValue('--ss-thumb-color'), 'color-mix(in srgb, var(--squish-track-on) 19%, var(--squish-track))')
+    await h.render(h.React.createElement(SquishSwitch, {
+      ariaLabel: '主题开关', trackColor: 'var(--hairline)', trackOnColor: 'var(--amber)',
+      thumbColor: 'var(--paper)', thumbOnColor: 'var(--paper)',
+    }))
+    const custom = h.require('[role="switch"]').style
+    assert.equal(custom.getPropertyValue('--ss-track'), 'var(--hairline)')
+    assert.equal(custom.getPropertyValue('--ss-track-on'), 'var(--amber)')
+    assert.equal(custom.getPropertyValue('--ss-thumb-color'), 'var(--paper)')
+    assert.equal(custom.getPropertyValue('--ss-thumb-on'), 'var(--paper)')
+  })
+})
+
 it('两套 token 一一对应，新增深色关键文字和操作颜色符合 AA 对比度', () => {
   const postcss = require(require.resolve('postcss', { paths: [require.resolve('../frontend/node_modules/vite/package.json')] }))
   const palettes = []

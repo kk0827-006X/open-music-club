@@ -55,6 +55,9 @@ async function mockWorkspace(page, role = 'user', initialQueue, skipAuthorized =
           (window.__migrationScenes ??= []).push(this.probe);
         }
         update(...args) {
+          // 资源验收要响应晚到的封面；只补真实待上传贴图的渲染，不持续占用软件 GPU。
+          if (window.__archiveEntryProbe?.resourceReadiness && this.coverTextures.some(texture =>
+            texture !== this.fallbackCover && !this.renderer.properties.get(texture).__webglTexture)) this.pendingFrame = true;
           super.update(...args);
           if (!this.probe) return;
           this.probe.updates++;
@@ -274,10 +277,20 @@ test('长队列定位末尾当前歌曲只滚动抽屉，打开和关闭不移�
 })
 
 test('退出重进释放旧场景与音频；后台页面不持续驱动场景，资源不逐轮增长', async ({ page }, info) => {
+  // 本用例按完整封面负载比较 GPU 资源，测试包装器需响应晚到的贴图。
+  await page.addInitScript(() => { window.__archiveEntryProbe = { created: 0, frames: [], resourceReadiness: true } })
   await mockWorkspace(page)
   const samples = []
   for (let cycle = 0; cycle < 3; cycle++) {
+    // 登录会恢复退出前的上传页；每轮先返回音乐库，不能比较隐藏场景的半加载状态。
+    if (cycle > 0) await page.locator('[data-nav="library"]').click()
+    await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive')
     await expect.poll(() => page.evaluate(() => window.__migrationScenes?.at(-1)?.geometries || 0), { timeout: 60000 }).toBeGreaterThan(0)
+    await expect.poll(() => page.evaluate(() => {
+      const scene = window.__archiveEntryProbe.scene
+      return scene.coverTextures.length === scene.coverUrls.length && scene.coverTextures.every(texture =>
+        texture !== scene.fallbackCover && Boolean(scene.renderer.properties.get(texture).__webglTexture))
+    }), { timeout: 60000 }).toBe(true)
     await page.locator('[data-nav="upload"]').click()
     await expect(page.locator('[data-upload-page]')).toBeVisible()
     const sample = await page.evaluate(async () => {
@@ -433,14 +446,27 @@ test('歌单散放卡片首屏显示封面，拖动不进入详情，点击、�
   expect(detailCalls).toBe(0)
   const card = page.locator('[data-user-list="3"]')
   await card.focus()
-  const before = await card.boundingBox()
-  const start = { x: before.x + before.width * .65, y: before.y + before.height * .5 }
+  // 随机重叠与三维旋转会让边界盒内的点落在另一张卡片上；先确认真实命中目标。
+  let start
+  await expect.poll(async () => {
+    start = await card.evaluate(node => {
+      const box = node.getBoundingClientRect()
+      for (const horizontal of [.5, .35, .65]) {
+        for (const vertical of [.5, .35, .65]) {
+          const x = box.x + box.width * horizontal, y = box.y + box.height * vertical
+          if (node.contains(document.elementFromPoint(x, y))) return { x, y, beforeX: box.x }
+        }
+      }
+      return null
+    })
+    return Boolean(start)
+  }).toBe(true)
   await page.mouse.move(start.x, start.y)
+  await expect.poll(() => card.evaluate((node, point) => node.contains(document.elementFromPoint(point.x, point.y)), start)).toBe(true)
   await page.mouse.down()
   await page.mouse.move(start.x - 65, start.y + 22, { steps: 12 })
   await page.mouse.up()
-  const after = await card.boundingBox()
-  expect(Math.abs(after.x - before.x)).toBeGreaterThan(30)
+  await expect.poll(async () => Math.abs((await card.boundingBox()).x - start.beforeX)).toBeGreaterThan(30)
   expect(detailCalls).toBe(0)
   await page.screenshot({ path: info.outputPath('playlist-draggable-desktop.png') })
   await card.focus()
@@ -1286,6 +1312,26 @@ test('播放动效开关默认开启，关闭停采样但继续播放，键盘�
   const toggle = page.getByRole('switch', { name: '播放动效', exact: true })
   await expect(toggle).toHaveAttribute('aria-checked', 'true')
   await expect(toggle).toHaveClass('squish-switch')
+  // 验证真实 CSS 变量解析、两套主题和开关状态，避免只更新样式哈希却改变配色。
+  const switchColors = () => toggle.evaluate(button => ({
+    track: getComputedStyle(button.querySelector('.squish-switch__track')).backgroundColor,
+    thumb: getComputedStyle(button.querySelector('.squish-switch__thumb')).backgroundColor,
+    width: getComputedStyle(button.querySelector('.squish-switch__track')).width,
+    height: getComputedStyle(button.querySelector('.squish-switch__track')).height,
+  }))
+  for (const [theme, active, inactive, thumb] of [
+    ['light', 'rgb(183, 121, 34)', 'rgba(32, 33, 30, 0.2)', 'rgb(239, 237, 231)'],
+    ['dark', 'rgb(217, 170, 107)', 'rgba(182, 193, 198, 0.24)', 'rgb(20, 27, 31)'],
+  ]) {
+    await page.locator(`button[data-theme-preference="${theme}"]`).click()
+    await expect.poll(switchColors).toEqual({ track: active, thumb, width: '64px', height: '32px' })
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await expect.poll(switchColors).toEqual({ track: inactive, thumb, width: '64px', height: '32px' })
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  }
+  await page.locator('button[data-theme-preference="light"]').click()
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-checked', 'false')
   await page.locator('[data-settings-close]').click()
