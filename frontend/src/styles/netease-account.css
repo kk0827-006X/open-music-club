@@ -1,0 +1,5 @@
+/* 管理员扫码面板复用设置和认证器控件，只补二维码与操作区布局。 */
+.netease-account-panel p { line-height: 1.6; }
+.netease-login-qr { display: block; width: 210px; max-width: 100%; height: auto; margin: 16px auto; }
+.netease-account-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.netease-account-actions button { max-width: 100%; white-space: normal; }

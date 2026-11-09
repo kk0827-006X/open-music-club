@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const Database = require('better-sqlite3')
+const { initializeNeteaseSessionSchema } = require('./neteaseSession')
 const { initializeFootprintSchema } = require('./footprint')
 const { initializeApplicationNotificationSchema } = require('./applicationNotifications')
 const { initializeAccessLifecycleSchema } = require('./accessLifecycle')
@@ -188,6 +189,7 @@ function initializeSchema(database) {
   CREATE TABLE IF NOT EXISTS password_reset_requests (
     email_digest TEXT PRIMARY KEY, last_at INTEGER NOT NULL, day INTEGER NOT NULL, count INTEGER NOT NULL
   );`)
+  initializeNeteaseSessionSchema(database)
   initializeFootprintSchema(database)
   initializeApplicationNotificationSchema(database)
   initializeAccessLifecycleSchema(database)

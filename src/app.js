@@ -16,6 +16,7 @@ const { createApplicationsRouter } = require('./routes/applications.routes')
 const {
   createAdminApplicationsRouter,
 } = require('./routes/adminApplications.routes')
+const { createNeteaseQrRouter } = require('./routes/neteaseQr.routes')
 const { createNeteaseRouter } = require('./routes/netease.routes')
 const { createNeteaseService } = require('./services/netease.service')
 const { createMailService } = require('./services/mail.service')
@@ -38,13 +39,15 @@ const {
 function createApp({
   databasePath,
   sessionSecret,
-  neteaseService = createNeteaseService(),
+  neteaseService,
+  neteaseAuth = { mode: 'anonymous' },
   localMusic = {},
   security = {},
   infrastructure = {},
   twoFactor = {},
   mail = {},
 }) {
+  neteaseService ||= createNeteaseService({ auth: neteaseAuth })
   if (!sessionSecret) {
     throw new Error('SESSION_SECRET 不能为空')
   }
@@ -161,6 +164,8 @@ function createApp({
     requireAdmin,
     createAdminApplicationsRouter(),
   )
+  try { app.use('/api/admin/netease-session', createNeteaseQrRouter({ app, neteaseService, auth: neteaseAuth, createStore: infrastructure.createRateLimitStore })) }
+  catch (error) { database.close(); throw error }
   if (rateLimiters) app.use('/api/netease', rateLimiters.netease)
   app.use('/api/netease', requireLogin, createNeteaseRouter(neteaseService))
   app.use(

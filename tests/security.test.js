@@ -145,6 +145,8 @@ describe('公网通信安全基线', () => {
       'footprint',
       'twoFactor',
       'password',
+      'neteaseQr',
+      'neteaseQrStart',
     ])
   })
 

@@ -7,7 +7,7 @@
     },
     "frontend/src/style.css": {
       "declarations": 0,
-      "sha256": "71d4fabbd7ac6e7c76f17a0af1f59850747a95aa93206306f27cbeae4645dc38"
+      "sha256": "4971dc843a73e946aeb6a43286218d4b7f053e60491cc1f7ca247a578bd5bac2"
     },
     "frontend/src/styles/access-application.css": {
       "declarations": 42,
@@ -104,6 +104,10 @@
     "frontend/src/styles/password.css": {
       "declarations": 19,
       "sha256": "cd3afc3bdb12704e3853a9719e8175106d4a91b6be018da82ede108793e4f4d9"
+    },
+    "frontend/src/styles/netease-account.css": {
+      "declarations": 11,
+      "sha256": "dca896370297e7c469463c05461eafd4c02ab89c6c3aaffed1908aa971eb7bf3"
     }
   }
 }

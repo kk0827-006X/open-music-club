@@ -165,6 +165,6 @@ export default function Workspace({ role = 'user', player, queue, personalLibrar
     </Suspense></ErrorBoundary>
     <div className="archive-player-layer" inert={entering ? true : undefined}><PlayerView ref={playerView} player={player} queue={queue} personalLibrary={client} root={archive} selectedAlbum={selected} defaultTrack={albumTrack(selected)} onExpandedChanged={setExpanded} collectionChanged={collectionChanged} /></div>
     {songQuery && <div hidden={expanded} inert={expanded ? true : undefined}><SongSearchPanel query={songQuery} onClose={() => setSongQuery(null)} onFocusToggle={() => { const input = archive.current?.querySelector<HTMLInputElement>('.gooey-search input'); if (input && !input.disabled) input.focus({ preventScroll: true }); else archive.current?.querySelector<HTMLButtonElement>('[data-nav="search"]')?.focus({ preventScroll: true }) }} onPlay={actions.play} onSave={track => { void playerView.current?.choosePlaylist(track) }} /></div>}
-    <SettingsDialog playbackMotion={playbackMotion} onPlaybackMotionChange={changePlaybackMotion} ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />
+    <SettingsDialog role={role} playbackMotion={playbackMotion} onPlaybackMotionChange={changePlaybackMotion} ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />
   </main>
 }

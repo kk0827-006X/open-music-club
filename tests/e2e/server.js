@@ -3,9 +3,10 @@ const os = require('node:os')
 const path = require('node:path')
 const express = require('express')
 const bcrypt = require('bcrypt')
+const { createNeteaseService } = require('../../src/services/netease.service')
 const { createApp } = require('../../src/app')
 const { createUser } = require('../../src/db/users')
-const { ADMIN, REVIEWER, PASSWORD, CLOUD } = require('./fixtures')
+const { ADMIN, REVIEWER, PASSWORD, QRADMIN, CLOUD } = require('./fixtures')
 const mailbox = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json')
 
 async function start() {
@@ -16,7 +17,14 @@ async function start() {
   fs.mkdirSync(path.dirname(mailbox), { recursive: true })
   fs.writeFileSync(mailbox, '[]')
   const messages = []
+  const qrAuth = { mode: 'qrcode', storage: 'memory' }, qrChecks = new Map()
+  let qrId = 0
+  const qrBackend = createNeteaseService({ auth: qrAuth, requestClient: async () => {}, qrModules: {
+    key: async () => { const key = `acceptance-qr-${++qrId}`; qrChecks.set(key, 0); return { body: { data: { unikey: key } } } },
+    check: async parameters => { const count = (qrChecks.get(parameters.key) || 0) + 1; qrChecks.set(parameters.key, count); return { body: { code: count === 1 ? 801 : count === 2 ? 802 : 803 }, cookie: ['MUSIC_U=isolated-qr-acceptance-cookie; HttpOnly'] } },
+  } })
   const app = createApp({
+    neteaseAuth: qrAuth,
     databasePath: path.join(directory, 'database.sqlite'), sessionSecret: 'isolated-acceptance-session-only',
     twoFactor: { encryptionKey: Buffer.alloc(32, 11).toString('base64') },
     localMusic: { storageRoot: path.join(directory, 'storage'), maximumUploadMegabytes: 5 },
@@ -32,7 +40,7 @@ async function start() {
     security: { production: false, publicOrigin: 'http://127.0.0.1:4317', csrfEnabled: true, rateLimitEnabled: true,
       logger: { info() {}, warn() {}, error(event) { console.error(JSON.stringify(event)) } } },
     // 仅在独立测试进程中注入上游适配；不添加任何生产测试后门。
-    neteaseService: { async call(name) {
+    neteaseService: { ...qrBackend, async call(name) {
       if (name === 'search') return { code: 200, result: { songs: [CLOUD] } }
       if (name === 'songDetail') return { code: 200, songs: [CLOUD] }
       if (name === 'songUrlV1') return { code: 200, data: [{ id: CLOUD.id, url: 'https://e2e.music.126.net/audio.wav' }] }
@@ -44,6 +52,8 @@ async function start() {
   createUser(app.locals.database, { ...ADMIN, nickname: '验收管理员', passwordHash: await bcrypt.hash(ADMIN.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
   createUser(app.locals.database, { ...REVIEWER, nickname: '审核界面验收管理员', passwordHash: await bcrypt.hash(REVIEWER.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
   createUser(app.locals.database, { ...PASSWORD, nickname: '密码流程验收成员', passwordHash: await bcrypt.hash(PASSWORD.password, 4), role: 'user', status: 'active', mustChangePassword: false })
+  createUser(app.locals.database, { ...QRADMIN, nickname: '扫码验收管理员', passwordHash: await bcrypt.hash(QRADMIN.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
+  await qrBackend.initialize()
   const web = express()
   app.locals.accessLifecycle.start()
   web.use((req, res, next) => req.path === '/api' || req.path.startsWith('/api/') || req.path === '/health' ? app(req, res, next) : next())
@@ -60,6 +70,8 @@ async function start() {
     if (closing) return
     closing = true
     server.close(async () => {
+      app.locals.neteaseQr.close()
+      await qrBackend.close()
       await app.locals.accessLifecycle.stop()
       app.locals.sessionStore.stopInterval?.()
       app.locals.database.close()

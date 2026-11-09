@@ -6,11 +6,13 @@ const {
   createNeteaseService,
   initializeNeteaseRuntime,
 } = require('./services/netease.service')
+const { createNeteaseAuthConfig } = require('./config/netease')
 const { parsePositiveInteger } = require('./config/security')
 
 dotenv.config({ quiet: true })
 
 async function start() {
+  const neteaseAuth = createNeteaseAuthConfig()
   const databasePath =
     process.env.DATABASE_PATH || './data/open-music-club.sqlite'
   const port = parsePositiveInteger(process.env.PORT, 'PORT', 3000)
@@ -50,15 +52,16 @@ async function start() {
     console.error('网易云运行时初始化失败，相关接口将返回 502')
   }
 
+  const neteaseService = createNeteaseService({ initializationError, runtimeCredentials, auth: neteaseAuth })
+  try { if (neteaseAuth.mode !== 'qrcode') await neteaseService.initialize() } catch { console.error('网易云身份初始化未成功，相关接口将返回 502；请检查配置或上游验证要求') }
+
   let app
   try {
     app = createApp({
       databasePath,
       sessionSecret: process.env.SESSION_SECRET,
-      neteaseService: createNeteaseService({
-        initializationError,
-        runtimeCredentials,
-      }),
+      neteaseService,
+      neteaseAuth,
       infrastructure,
       security: {
         production,
@@ -68,9 +71,11 @@ async function start() {
       },
     })
   } catch (error) {
+    await neteaseService.close()
     await infrastructure.close()
     throw error
   }
+  if (neteaseAuth.mode === 'qrcode') { try { await neteaseService.initialize() } catch { console.error('网易云扫码身份初始化未成功') } }
   app.locals.redisClient = infrastructure.client
 
   const server = http.createServer(app)
@@ -85,6 +90,8 @@ async function start() {
     console.log(`Open Music Club 已启动：${visibleAddress}`)
   })
   server.on('close', () => {
+    app.locals.neteaseQr.close()
+    neteaseService.close().catch(() => console.error('网易云请求资源关闭失败'))
     app.locals.accessLifecycle.stop().catch(() => console.error('申请邮件任务停止失败'))
     infrastructure.close().catch(() => {
       console.error('Redis 连接关闭失败')

@@ -3,6 +3,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Reac
 import { IconButton, Modal } from '../../shared/react/ui.tsx'
 import { useReducedMotion } from '../../shared/react/hooks.ts'
 import { getThemeState, setThemePreference, subscribeTheme } from '../../shared/theme.ts'
+import { NeteaseAccountPanel } from './NeteaseAccountPanel.tsx'
 import { PasswordForm } from '../auth/PasswordForm.tsx'
 import { TwoFactorPanel } from '../auth/TwoFactorPanel.tsx'
 
@@ -23,14 +24,16 @@ function PreviewToggle({ label }: { label: string }) {
 }
 
 export const SettingsDialog = forwardRef<SettingsDialogHandle, {
+  role?: 'admin' | 'user'
   playbackMotion?: boolean
   onPlaybackMotionChange?: (enabled: boolean) => void
   logout?: () => Promise<void>
   onOpen: () => void
   onClose: () => void
-}>(function SettingsDialog({ logout, onOpen, onClose, playbackMotion = true, onPlaybackMotionChange }, ref) {
+}>(function SettingsDialog({ role = 'user', logout, onOpen, onClose, playbackMotion = true, onPlaybackMotionChange }, ref) {
   const [open, setOpen] = useState(false)
   const [category, setCategory] = useState<Category>('appearance')
+  const [neteaseOpen, setNeteaseOpen] = useState(false)
   const [changingPassword, setChangingPassword] = useState(false)
   const [factor, setFactor] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -73,7 +76,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
     timer.current = window.setTimeout(() => {
       if (!mounted.current || id !== generation.current) return
       openRef.current = false; closingRef.current = false
-      setOpen(false); setClosing(false); setFactor(false); setChangingPassword(false)
+      setOpen(false); setClosing(false); setFactor(false); setChangingPassword(false); setNeteaseOpen(false)
       callbacks.current.onClose()
       restoreFocus.current = true
     }, reduced ? 0 : 180)
@@ -84,7 +87,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
       if (!mounted.current || openRef.current) return
       opener.current = button ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
       generation.current++
-      setCategory('appearance'); setFactor(false); setChangingPassword(false); setStatus(''); setTheme(getThemeState())
+      setCategory('appearance'); setFactor(false); setChangingPassword(false); setNeteaseOpen(false); setStatus(''); setTheme(getThemeState())
       openRef.current = true
       setOpen(true)
       callbacks.current.onOpen()
@@ -103,6 +106,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
   }
   const heading = (en: string, title: string) => <div className="settings-section-heading"><p>{en}</p><h3 id="settings-section-title">{title}</h3><span>{category === 'appearance' ? '主题与播放动效立即生效；其他偏好仅展示' : '仅展示界面；设置功能尚未接入'}</span></div>
   const section = () => {
+    if (neteaseOpen && role === 'admin') return <NeteaseAccountPanel />
     if (changingPassword) return <PasswordForm mode="change" onBusyChange={reportBusy} onComplete={() => window.location.assign('/login')} />
     if (factor) return <TwoFactorPanel onBusyChange={reportBusy} />
     if (category === 'appearance') return <>
@@ -128,6 +132,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
       <SettingsRow name="账户资料" description="头像与个人音乐收藏仍在用户页管理"><Pending /></SettingsRow>
       <SettingsRow name="修改密码" description="账号密码管理"><button type="button" data-settings-password onClick={() => setChangingPassword(true)}>修改密码</button></SettingsRow>
       <SettingsRow name="两步验证" description="认证器与一次性恢复码管理"><button type="button" data-settings-factor onClick={() => { setFactor(true); setStatus('安全设置已接入；其他偏好仍仅展示') }}>管理 2FA</button></SettingsRow>
+      {role === 'admin' && <SettingsRow name="网易云账号" description="管理员扫码连接全站共用的网易云身份"><button type="button" data-settings-netease onClick={() => setNeteaseOpen(true)}>管理网易云账号</button></SettingsRow>}
       <SettingsRow name="设备与登录" description="登录设备与会话管理"><Pending /></SettingsRow>
       <SettingsRow name="退出当前登录" description="清除当前会话，停止播放并返回登录页"><button type="button" data-settings-logout disabled={!logout || busy} onClick={() => void exit()}>退出登录</button></SettingsRow>
     </>
@@ -149,7 +154,7 @@ export const SettingsDialog = forwardRef<SettingsDialogHandle, {
   return <Modal open={open} onClose={close} busy={busy || closing} className={`settings-dialog${closing ? ' is-closing' : ''}`} data-settings-dialog aria-labelledby="settings-title">
     <header className="settings-header"><div><p>OPEN MUSIC CLUB / SYSTEM PREFERENCES</p><h2 id="settings-title">设置</h2></div><IconButton icon="close" type="button" data-settings-close aria-label="关闭设置" disabled={busy || closing} onClick={close} /></header>
     <div className="settings-layout"><aside className="settings-sidebar"><nav aria-label="设置分类">
-      {categories.map(([id, label]) => <button key={id} type="button" data-settings-category={id} aria-current={category === id ? 'page' : 'false'} disabled={busy || closing} onClick={() => { setCategory(id); setFactor(false); setChangingPassword(false); setStatus('') }}>{label}</button>)}
+      {categories.map(([id, label]) => <button key={id} type="button" data-settings-category={id} aria-current={category === id ? 'page' : 'false'} disabled={busy || closing} onClick={() => { setCategory(id); setFactor(false); setChangingPassword(false); setNeteaseOpen(false); setStatus('') }}>{label}</button>)}
     </nav><p>PERSONAL PREFERENCES<span>个人偏好设置</span></p></aside>
       <section className="settings-operations" aria-labelledby="settings-section-title"><div data-settings-content>{section()}</div><footer><span>主题、播放动效、密码修改和两步验证已接入；其他偏好仅展示</span><span data-settings-status role="status">{feedback}</span></footer></section>
     </div>

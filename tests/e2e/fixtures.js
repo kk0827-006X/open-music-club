@@ -3,6 +3,7 @@ const ADMIN = { email: 'acceptance-admin@example.com', password: 'Acceptance-adm
 const MEMBER = { email: 'acceptance-member@example.com', password: 'Acceptance-member-only-2026!' }
 const REVIEWER = { email: 'acceptance-reviewer@example.com', password: 'Acceptance-reviewer-only-2026!' }
 const PASSWORD = { email: 'acceptance-password@example.com', password: 'Acceptance-password-only-2026!' }
+const QRADMIN = { email: 'acceptance-qr-admin@example.com', password: 'Acceptance-qr-admin-only-2026!' }
 const CLOUD = { id: 900001, name: '验收云端歌曲', ar: [{ id: 1, name: '验收歌手' }], al: { id: 1, name: '验收专辑', picUrl: 'https://e2e.music.126.net/cover.svg' }, dt: 60000 }
 function wave() {
   const buffer = Buffer.alloc(44 + 8000 * 60 * 2)
@@ -13,7 +14,7 @@ function wave() {
   buffer.writeUInt32LE(buffer.length - 44, 40)
   return buffer
 }
-module.exports = { ADMIN, MEMBER, REVIEWER, PASSWORD, CLOUD, wave }
+module.exports = { ADMIN, MEMBER, REVIEWER, PASSWORD, QRADMIN, CLOUD, wave }
 
 // 仅从隔离服务的模拟邮件产物读取，不增加生产路由或发送真实邮件。
 function readApplicationLink(email, purpose) {

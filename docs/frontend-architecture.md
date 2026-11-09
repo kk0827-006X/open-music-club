@@ -113,6 +113,13 @@ frontend/src/
 - Motion 拖拽只改本地 draft，松手提交一次；cancel/Escape/卸载不提交。
 - 页面异步操作使用 `AbortController`/`signal`；离页、切视图、卸载时取消请求并隔离迟到响应；Object URL 在下载或卸载后撤销。
 
+### 管理员网易云扫码面板
+
+- Workspace 将实时网站角色传给 SettingsDialog；仅管理员显示「账号与安全 → 管理网易云账号」。面板开启后才请求状态，不让普通成员设置页发管理请求；最终权限仍在后端校验。
+- NeteaseAccountPanel 持有仅组件内存的二维码图片和短期ticket，成功/过期/错误后停止轮询；使用三秒串行定时器、AbortController和代次隔离。关闭设置或切换分类卸载面板，清理计时器和在途请求，并尽力取消扫码，后端HTTP中断及三分钟TTL兜底，不自行后台轮询。
+- services/music/netease-session.ts 只访问固定同源管理接口，主动写入每次获取CSRF，卸载取消仅使用面板已有的CSRF令牌，避免创建新会话干扰退出或重新登录；所有响应不缓存。JSON解析或上游错误统一安全提示；只接收PNG data URI与明确状态，不在URL、localStorage或Session Storage保存ticket/Cookie。
+- 扫码身份供全站网易云业务使用；连接、切换和退出不会重建网站会话或唯一Audio。服务器加密持久化和演示用内存模式由后端配置，客户端仅展示；不提供浏览器导出Cookie、修改存储方式或普通成员绑定账号功能。
+
 ### 主题
 
 - 全站颜色唯一配置表为 `frontend/public/theme.css`，包含同名浅色/深色 Design Tokens；`frontend/src/styles/` 不直接写十六进制或 RGB 颜色。

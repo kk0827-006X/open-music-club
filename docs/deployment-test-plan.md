@@ -150,6 +150,7 @@ ENABLE_GENERAL_UNBLOCK=false
 
 - `HOST` 改为隧道地址，否则默认 `127.0.0.1` 无法被海外代理连接；不能改为公网 `0.0.0.0` 图方便。
 - 超时 300000 是兼容较大上传的建议，并非源码当前默认 30000；部署时需实测。没有因此放宽上传格式/签名/数量或 JSON 限制。
+- 网易云身份默认匿名，支持管理员扫码及兼容手机号模式。当前扫码配置 `NETEASE_AUTH_MODE=qrcode`、`NETEASE_SESSION_STORAGE=encrypted` 和独立 `NETEASE_SESSION_ENCRYPTION_KEY`，只在国内SQLite保存AES-GCM密文，密钥仅放受保护后端配置。用户确认课堂演示部署改为 `NETEASE_SESSION_STORAGE=memory`，不落盘、重启重扫，不采用明文Cookie文件；切换memory启动时会删除旧密文行。两种存储均不把凭据放入海外静态资源或日志；网站Session及管理员2FA独立。具体步骤见README“网易云账号配置”，真实扫码及生产环境仍待验收。
 - `TMPDIR` 是运行时临时目录，不是持久用户数据；配合 systemd 可写目录权限。首次网易云初始化可能需要出网，失败时服务可启动但网易云返回 502。
 - 解灰仍保持现有业务白名单/参数限制；不能把环境变量当成全部解灰防护，更不能接入 NapCat 的 3001 充当音乐接口。
 - Redis 生产环境必需；项目校验其 URL 为回环地址。建议独立实例或独立配置，AOF everysec、明确持久目录，初始 maxmemory 可设 64 MiB、noeviction，内存占满时告警，不能悄悄淘汰限流/Session。此值是试运行预算，不是实测容量结论。
