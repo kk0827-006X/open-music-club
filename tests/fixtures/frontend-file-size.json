@@ -3,7 +3,6 @@
   "features/auth/LoginPage.tsx": 500,
   "features/footprint/FootprintPage.tsx": 1200,
   "features/music-library/LibraryView.tsx": 598,
-  "features/player/PlayerView.tsx": 1159,
   "features/queue/QueuePanel.tsx": 703,
   "features/settings/SettingsDialog.tsx": 452,
   "features/upload/UploadPage.tsx": 528,

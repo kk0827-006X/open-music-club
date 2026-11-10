@@ -134,6 +134,60 @@ async function mountPlayerView(harness, options = {}) {
 }
 
 describe('播放队列面板交互（真实 React 组件）', () => {
+  it('删除非当前曲保持播放，删除当前曲清理状态，清空的最终快照不被在途保存覆盖', async () => {
+    await withPlayerHarness(async (h) => {
+      const writes = [],
+        pending = [];
+      const personalLibrary = stubPersonalLibrary({
+        queue: async () => [],
+        saveQueue: (tracks) => {
+          writes.push(tracks);
+          return new Promise((resolve) => pending.push(resolve));
+        },
+      });
+      const { view, player, queue, audio, created } = await mountPlayerView(h, { personalLibrary });
+      try {
+        await h.flush();
+        await h.React.act(async () => view.current.play(song(1)));
+        await h.until(() => writes.length === 1, '应开始保存播放队列');
+        await h.React.act(async () => {
+          view.current.enqueue(song(2));
+          view.current.enqueue(song(3));
+        });
+        await h.click('[data-player-queue-toggle]');
+        await h.click('[data-queue-remove="local:2"]');
+        assert.equal(player.get().track.key, 'local:1');
+        assert.equal(audio.paused, false);
+        assert.equal(h.require('[data-queue-count]').textContent, '02');
+        await h.click('[data-queue-remove="local:1"]');
+        assert.equal(player.get().track, null);
+        assert.equal(audio.paused, true);
+        assert.equal(h.require('[data-queue-count]').textContent, '01');
+        assert.equal(h.require('[data-player-previous]').disabled, true);
+        assert.equal(h.require('[data-player-next]').disabled, true);
+        assert.equal(h.require('[data-player-like]').disabled, true);
+        await h.click('[data-queue-clear]');
+        assert.deepEqual(queue.items, []);
+        assert.equal(player.get().track, null);
+        assert.equal(h.require('[data-queue-count]').textContent, '00');
+        assert.equal(
+          h.require('[data-player-queue-toggle]').getAttribute('aria-expanded'),
+          'false',
+        );
+        assert.equal(writes.length, 1, '在途保存期间不得并发写入');
+        await h.React.act(async () => pending.shift()());
+        await h.until(() => writes.length === 2, '旧保存结束后应保存最终空队列');
+        assert.deepEqual(writes[1], []);
+        await h.React.act(async () => pending.shift()());
+        assert.deepEqual(queue.items, []);
+        assert.equal(created(), 1);
+      } finally {
+        pending.forEach((resolve) => resolve());
+        player.destroy();
+      }
+    });
+  });
+
   it('生产播放器只挂载一个队列面板，初始隐藏并可由队标开关', async () => {
     await withPlayerHarness(async (harness) => {
       await mountPlayerView(harness);

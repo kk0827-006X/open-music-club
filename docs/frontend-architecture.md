@@ -90,8 +90,11 @@ frontend/src/
 | SessionWorkspace | MusicQueue、唯一 PlayerController/Audio、足迹客户端 | 整个认证会话结束；不随普通切页销毁 |
 | Workspace | 当前页面、已访问页面、场景宿主、公开动作 | 工作区卸载；不销毁外部注入的 Audio |
 | 各页面 | 表单、筛选、分页、请求序号、AbortController、Object URL | 组件卸载；隐藏与销毁不是同一件事 |
-| PlayerView | 音频状态订阅、歌词请求、队列持久化同步、浮层 | 视图卸载取消订阅/请求/监听，不停止应用音频 |
+| PlayerView 与其 hooks | 音频状态订阅、歌曲切换协调、歌词请求、队列持久化同步、浮层 | 各 hook 清理所属请求/监听/计时器；视图卸载不停止应用音频 |
 | 场景宿主 | 唯一档案 RAF、resize/visibility、主题订阅 | 隐藏暂停；退出释放含迟到加载的场景 |
+
+- `features/player/PlayerView.tsx` 保留原对外 ref 接口与队列装配入口；按依赖调用 `usePlayerCollection`、`usePlayerVisibility`、`usePlayerQueue`、`usePlayerLikes`、`usePlayerLyrics`。队列及持久化工厂通过能力参数传入 hook，既有跨 feature 精确引用白名单不扩张。
+- `CompactPlayer` 与 `ExpandedPlayer` 只呈现状态和转交动作，不持有音频、网络请求或焦点生命周期。可见性 hook 负责展开/收起的焦点归还与重试取消；歌词 hook 负责请求序号、中止和容器内滚动；队列 hook 保留删除/清空、版本快照及串行持久化的原行为。
 
 ### URL 路由
 

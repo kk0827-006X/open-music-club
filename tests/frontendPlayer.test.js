@@ -90,35 +90,159 @@ async function setupPlayer(harness, tracks = []) {
   return { queue, audio, player, created: () => created };
 }
 
-async function renderPlayer(harness, { player, queue, personalLibrary, defaultTrack }) {
+async function renderPlayer(
+  harness,
+  { player, queue, personalLibrary, defaultTrack, strict = false },
+) {
   const { PlayerView } = await load('features/player/PlayerView.tsx');
   const view = harness.React.createRef();
   const root = harness.React.createRef();
   root.current = harness.query('#app');
   const expanded = [];
   const collection = [];
+  const element = harness.React.createElement(PlayerView, {
+    ref: view,
+    player,
+    queue,
+    personalLibrary: personalLibrary || stubPersonalLibrary(),
+    selectedAlbum: {
+      title: '测试专辑',
+      artist: '测试歌手',
+      coverUrl: '/images/album-placeholder-01.svg',
+      tracks: [{ title: '预览曲目', duration: '3:00' }],
+    },
+    defaultTrack: defaultTrack || song(99),
+    onExpandedChanged: (open) => expanded.push(open),
+    collectionChanged: () => collection.push(1),
+    root,
+  });
   await harness.render(
-    harness.React.createElement(PlayerView, {
-      ref: view,
-      player,
-      queue,
-      personalLibrary: personalLibrary || stubPersonalLibrary(),
-      selectedAlbum: {
-        title: '测试专辑',
-        artist: '测试歌手',
-        coverUrl: '/images/album-placeholder-01.svg',
-        tracks: [{ title: '预览曲目', duration: '3:00' }],
-      },
-      defaultTrack: defaultTrack || song(99),
-      onExpandedChanged: (open) => expanded.push(open),
-      collectionChanged: () => collection.push(1),
-      root,
-    }),
+    strict ? harness.React.createElement(harness.React.StrictMode, null, element) : element,
   );
   return { view, expanded, collection };
 }
 
 describe('底部播放器与歌词画面（真实 React 组件）', () => {
+  it('开发期双重挂载保留注入音频和现有队列，重启歌词请求并清理旧请求', async () => {
+    const signals = [];
+    await withPlayerHarness(
+      async (h) => {
+        const track = song(9, 'netease');
+        const { player, queue, audio, created } = await setupPlayer(h, [track]);
+        await player.play(track);
+        try {
+          await renderPlayer(h, { player, queue, strict: true });
+          assert.equal(signals.length, 2, '双重挂载应取消旧生命周期并重启请求');
+          assert.equal(signals[0].aborted, true);
+          assert.equal(signals[1].aborted, false);
+          assert.deepEqual(queue.items, [track]);
+          assert.equal(player.get().track, track);
+          assert.equal(audio.paused, false);
+          assert.equal(audio.plays, 1, '视图重挂载不能重播音频');
+          await h.unmount();
+          assert.equal(signals[1].aborted, true);
+          assert.equal(player.get().track, track);
+          assert.equal(created(), 1);
+        } finally {
+          player.destroy();
+        }
+      },
+      {
+        fetch: (_url, options) => {
+          signals.push(options.signal);
+          return new Promise(() => {});
+        },
+      },
+    );
+  });
+
+  it('切歌中止旧歌词请求，迟到响应不覆盖新曲，清空与卸载中止仍在途的请求', async () => {
+    const requests = new Map();
+    const fetcher = (url, options) =>
+      new Promise((resolve) => {
+        const id = new URL(url, 'http://localhost').searchParams.get('id');
+        requests.set(id, { signal: options.signal, resolve });
+      });
+    await withPlayerHarness(
+      async (h) => {
+        const { player, queue, audio, created } = await setupPlayer(h);
+        const { view } = await renderPlayer(h, { player, queue });
+        const start = async (id) => {
+          await h.React.act(async () => view.current.play(song(id, 'netease')));
+          await h.until(() => requests.has(String(id)), '应发出当前曲目的歌词请求');
+        };
+        const finish = async (id, text) => {
+          await h.React.act(async () =>
+            requests.get(String(id)).resolve({
+              ok: true,
+              json: async () => ({ lrc: { lyric: `[00:01.00]${text}` } }),
+            }),
+          );
+        };
+        try {
+          await start(1);
+          await start(2);
+          assert.equal(requests.get('1').signal.aborted, true);
+          await finish(2, '新曲歌词');
+          await finish(1, '迟到的旧歌词');
+          assert.equal(h.require('[data-player-lyrics]').textContent, '新曲歌词');
+          audio.currentTime = 4;
+          await h.React.act(async () => audio.dispatchEvent(new h.window.Event('timeupdate')));
+          assert.equal(requests.size, 2, '播放进度更新不能重复请求歌词');
+          await h.React.act(async () => view.current.play(song(3, 'local')));
+          assert.equal(requests.size, 2, '本地曲目不得发出网易云歌词请求');
+          await start(4);
+          await h.click('[data-player-queue-toggle]');
+          await h.click('[data-queue-clear]');
+          assert.equal(requests.get('4').signal.aborted, true);
+          await finish(4, '清空后迟到的歌词');
+          assert.equal(player.get().track, null);
+          assert.equal(
+            h.require('[data-player-lyrics]').textContent,
+            '播放音乐后将在这里显示歌词。',
+          );
+          await start(5);
+          await h.unmount();
+          assert.equal(requests.get('5').signal.aborted, true);
+          assert.equal(created(), 1);
+        } finally {
+          player.destroy();
+        }
+      },
+      { fetch: fetcher },
+    );
+  });
+
+  it('窄屏收起后归还可见入口的焦点，展开期间用户另选焦点后不再抢回', async () => {
+    await withPlayerHarness(async (h) => {
+      const { player, queue } = await setupPlayer(h);
+      const { view } = await renderPlayer(h, { player, queue });
+      try {
+        h.require('[data-player-open]').parentElement.style.display = 'none';
+        await h.React.act(async () => view.current.setExpanded(true));
+        assert.equal(h.document.activeElement, h.require('[data-player-close]'));
+        await h.React.act(async () => view.current.setExpanded(false, true));
+        assert.equal(h.document.activeElement, h.require('[data-player-open-compact]'));
+        const close = h.require('[data-player-close]');
+        const focus = close.focus;
+        close.focus = () => {};
+        await h.React.act(async () => view.current.setExpanded(true));
+        const other = h.document.createElement('button');
+        other.textContent = '播放器外的按钮';
+        h.document.body.append(other);
+        other.focus();
+        close.focus = focus;
+        await h.wait(60);
+        assert.equal(h.document.activeElement, other, '焦点重试不能覆盖用户新选择');
+        await h.React.act(async () => view.current.setExpanded(false));
+        await h.wait(40);
+        assert.equal(h.document.activeElement, other);
+      } finally {
+        player.destroy();
+      }
+    });
+  });
+
   it('按时间解析多时间戳歌词，忽略元信息与空行', async () => {
     const { parseLyrics, currentLyricIndex } = await load('player-lyrics.ts');
     const lines = parseLyrics(
