@@ -1,5 +1,6 @@
 # Node.js / pnpm
 node_modules/
+.husky/_/
 .pnpm-store/
 coverage/
 dist/

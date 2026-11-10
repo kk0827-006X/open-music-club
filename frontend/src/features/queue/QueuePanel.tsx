@@ -358,8 +358,8 @@ export const QueuePanel = memo(
 
     useEffect(() => {
       const panel = localRef.current;
-      const active = panel?.querySelector<HTMLElement>('li.is-active');
-      if (open && panel && active) revealQueueItem(panel, active, reduced);
+      const li = panel?.querySelector<HTMLElement>(`[data-queue-key=${JSON.stringify(activeKey)}]`);
+      if (open && panel && li) revealQueueItem(panel, li, reduced);
     }, [open, activeKey, reduced]);
 
     const updateDraft = useCallback((next: SearchItem[]) => {

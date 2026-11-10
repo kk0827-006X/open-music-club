@@ -3,6 +3,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { it } = require('node:test');
 const { pathToFileURL } = require('node:url');
+const importExceptions = require('./fixtures/frontend-import-exceptions.json');
+const { trackedFrontendFiles } = require('../scripts/frontend-ratchet.cjs');
 const source = (name) => fs.readFileSync(path.resolve('frontend/src', name), 'utf8');
 const load = (name) => import(pathToFileURL(path.resolve('frontend/src', name)).href);
 
@@ -15,6 +17,7 @@ it('队列和持久化的共享模型属于中立层，不再引用搜索或个�
 it('实际导入图无死文件或运行时循环；Shared、Services 和 Graphics 不反向依赖页面', () => {
   const ts = require('../frontend/node_modules/typescript');
   const root = path.resolve('frontend/src');
+  const tracked = trackedFrontendFiles();
   const walkFiles = (folder) =>
     fs
       .readdirSync(folder, { withFileTypes: true })
@@ -39,7 +42,10 @@ it('实际导入图无死文件或运行时循环；Shared、Services 和 Graphi
   const graph = new Map();
   const productionGraph = new Map();
   const audioOwners = new Set();
-  const files = walkFiles(root).filter((file) => /\.tsx?$/.test(file) && !file.endsWith('.d.ts'));
+  const usedExceptions = new Set();
+  const files = walkFiles(root).filter(
+    (file) => /\.tsx?$/.test(file) && !file.endsWith('.d.ts') && (!tracked || tracked.has(file)),
+  );
   for (const file of files) {
     const ast = ts.createSourceFile(
       file,
@@ -55,9 +61,23 @@ it('实际导入图无死文件或运行时循环；Shared、Services 和 Graphi
       const resolved = ts.resolveModuleName(specifier, file, options, ts.sys).resolvedModule;
       assert.ok(resolved, `${path.relative(root, file)} 无法解析 ${specifier}`);
       const target = path.resolve(resolved.resolvedFileName);
+      if (tracked) assert.ok(tracked.has(target), `${specifier} 的目标尚未暂存，请一并提交`);
       dependencies.push(target);
       const relative = path.relative(root, target);
       const own = path.relative(root, file);
+      if (
+        own.startsWith('features/') &&
+        relative.startsWith('features/') &&
+        own.split('/')[1] !== relative.split('/')[1]
+      ) {
+        assert.ok(
+          importExceptions[own]?.includes(specifier),
+          `${own} 不能新增对 ${relative} 的引用`,
+        );
+        usedExceptions.add(`${own}:${specifier}`);
+      }
+      if (own.startsWith('features/'))
+        assert.ok(!relative.startsWith('app/'), `${own} 不能反向依赖 ${relative}`);
       if (own.startsWith('shared/'))
         assert.ok(relative.startsWith('shared/'), `${own} 不能依赖 ${relative}`);
       if (own.startsWith('services/'))
@@ -137,6 +157,13 @@ it('实际导入图无死文件或运行时循环；Shared、Services 和 Graphi
     '前端业务文件必须由生产入口可达',
   );
   assert.deepEqual([...audioOwners].sort(), ['features/player/player-core.ts']);
+  assert.deepEqual(
+    Object.entries(importExceptions)
+      .flatMap(([file, imports]) => imports.map((specifier) => `${file}:${specifier}`))
+      .filter((entry) => !usedExceptions.has(entry)),
+    [],
+    '移除已消失的跨 feature 引用例外',
+  );
 });
 
 it('轻量状态按实例隔离，支持查询、通知和取消订阅', async () => {

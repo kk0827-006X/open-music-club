@@ -158,6 +158,7 @@ export function GooeySearch({ onSearch }: { onSearch?: (query: string) => void }
         </button>
         {open && (
           <input
+            data-music-search-input
             autoFocus
             id={`${id}-input`}
             ref={input}

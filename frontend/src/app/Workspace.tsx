@@ -205,7 +205,7 @@ export default function Workspace({
       }
       if (event.key === '/') {
         event.preventDefault();
-        const input = archive.current?.querySelector<HTMLInputElement>('.gooey-search input');
+        const input = archive.current?.querySelector<HTMLInputElement>('[data-music-search-input]');
         if (input && !input.disabled) input.focus({ preventScroll: true });
         else archive.current?.querySelector<HTMLButtonElement>('[data-nav="search"]')?.click();
         return;
@@ -370,7 +370,9 @@ export default function Workspace({
             query={songQuery}
             onClose={() => setSongQuery(null)}
             onFocusToggle={() => {
-              const input = archive.current?.querySelector<HTMLInputElement>('.gooey-search input');
+              const input = archive.current?.querySelector<HTMLInputElement>(
+                '[data-music-search-input]',
+              );
               if (input && !input.disabled) input.focus({ preventScroll: true });
               else
                 archive.current

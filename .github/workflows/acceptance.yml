@@ -16,10 +16,13 @@ jobs:
   acceptance:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
       - name: 确认网易云子模块已检出
         run: test -f vendor/api-enhanced/module/search.js
       - uses: actions/setup-node@v4
@@ -32,6 +35,8 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps --only-shell chromium
+      - name: 前端分层与文件行数门禁
+        run: pnpm lint
       - name: 安装、构建、测试、覆盖率与浏览器验收
         run: pnpm verify:baseline
       - name: 保存隔离验收结果

@@ -25,7 +25,7 @@ function arc(radius: number, start: number, sweep: number, x = 960, y = 540) {
 
 // 特殊入场序列继续逐帧采样原版轨迹；React 拥有 SVG 节点及生命周期。
 function renderScan(stage: HTMLElement, state: ReturnType<typeof sampleAuthorizedSequence>) {
-  const paths = [...stage.querySelectorAll<SVGPathElement>('.sequence-scan path')];
+  const paths = [...stage.querySelectorAll<SVGPathElement>('[data-sequence-scan] path')];
   const group = stage.querySelector<SVGGElement>('[data-scan-group]');
   const { scan } = state;
   if (!group || paths.length < 6) return;
@@ -45,23 +45,23 @@ function renderScan(stage: HTMLElement, state: ReturnType<typeof sampleAuthorize
     paths[index + 4].setAttribute('d', arc(side.radius, side.start, side.sweep, side.x, side.y));
     paths[index + 4].style.opacity = state.scanOrbit.sideVisible ? '1' : '0';
   });
-  const satellites = [...stage.querySelectorAll<SVGCircleElement>('.sequence-satellite')];
+  const satellites = [...stage.querySelectorAll<SVGCircleElement>('[data-sequence-satellite]')];
   state.scanOrbit.satellites.forEach((point, index) => {
     satellites[index].setAttribute('cx', String(point.x));
     satellites[index].setAttribute('cy', String(point.y));
     satellites[index].setAttribute('r', String(point.radius));
   });
-  const core = stage.querySelector<SVGCircleElement>('.sequence-core');
+  const core = stage.querySelector<SVGCircleElement>('[data-sequence-core]');
   if (core) {
     core.style.opacity = state.ornament ? '1' : '0';
     core.setAttribute('r', String(state.coreRadius));
   }
-  stage.querySelectorAll<SVGCircleElement>('.sequence-orbit-dot').forEach((dot, index) => {
+  stage.querySelectorAll<SVGCircleElement>('[data-sequence-orbit-dot]').forEach((dot, index) => {
     dot.setAttribute('cx', String(960 + Math.cos(scan.orbit + index * Math.PI) * scan.orbitRadius));
     dot.setAttribute('cy', String(540 + Math.sin(scan.orbit + index * Math.PI) * scan.orbitRadius));
     dot.setAttribute('r', String(scan.dotRadius));
   });
-  const caps = [...stage.querySelectorAll<SVGCircleElement>('.sequence-cap')];
+  const caps = [...stage.querySelectorAll<SVGCircleElement>('[data-sequence-cap]')];
   const capPoints = [
     { angle: scan.outerStart + scan.outerSweep, radius: scan.radius, size: scan.blackCap },
     { angle: scan.whiteStart, radius: scan.whiteRadius, size: scan.whiteCap },
@@ -72,7 +72,7 @@ function renderScan(stage: HTMLElement, state: ReturnType<typeof sampleAuthorize
     cap.setAttribute('cy', String(540 + Math.sin(point.angle) * point.radius));
     cap.setAttribute('r', String(point.size));
   });
-  const permission = stage.querySelector<HTMLElement>('.sequence-scan > span');
+  const permission = stage.querySelector<HTMLElement>('[data-sequence-permission]');
   if (permission) {
     permission.style.opacity = String(state.permissionOpacity);
     permission.style.letterSpacing = `${state.scanTracking}px`;
@@ -82,24 +82,24 @@ function renderScan(stage: HTMLElement, state: ReturnType<typeof sampleAuthorize
 
 function renderFrame(stage: HTMLElement, elapsedMs: number) {
   const state = sampleAuthorizedSequence(Math.min(elapsedMs, FINAL_WELCOME_FRAME_MS));
-  const scan = stage.querySelector<HTMLElement>('.sequence-scan');
+  const scan = stage.querySelector<HTMLElement>('[data-sequence-scan]');
   if (scan) scan.style.opacity = String(Number(state.scanVisible));
   if (state.scanVisible) renderScan(stage, state);
-  const welcome = stage.querySelector<HTMLElement>('.sequence-welcome');
+  const welcome = stage.querySelector<HTMLElement>('[data-sequence-welcome]');
   if (welcome) {
     welcome.style.opacity = String(state.welcomeVisible ? state.welcomeOpacity : 0);
     welcome.style.transform = `scale(${state.welcomeScale})`;
     welcome.style.filter = `blur(${state.exitBlur}px)`;
   }
-  const panel = stage.querySelector<HTMLElement>('.sequence-welcome-panel');
+  const panel = stage.querySelector<HTMLElement>('[data-sequence-welcome-panel]');
   if (panel) panel.style.opacity = String(state.welcomePanel);
-  const company = stage.querySelector<HTMLElement>('.sequence-company');
+  const company = stage.querySelector<HTMLElement>('[data-sequence-company]');
   if (company) company.style.opacity = String(state.companyVisible ? 1 : 0);
-  const highlight = stage.querySelector<HTMLElement>('.sequence-highlight');
+  const highlight = stage.querySelector<HTMLElement>('[data-sequence-highlight]');
   if (highlight) highlight.style.clipPath = `inset(0 ${100 * (1 - state.highlight)}% 0 0)`;
-  const database = stage.querySelector<HTMLElement>('.sequence-database');
+  const database = stage.querySelector<HTMLElement>('[data-sequence-database]');
   if (database) database.style.opacity = String(state.databaseOpacity);
-  const logo = stage.querySelector<HTMLElement>('.sequence-logo');
+  const logo = stage.querySelector<HTMLElement>('[data-sequence-logo]');
   if (logo) logo.style.opacity = String(state.welcomeLogo);
   return sampleAuthorizedSequence(elapsedMs);
 }
@@ -183,7 +183,7 @@ export function AuthorizedSequence({
         >
           ENTER SYSTEM&nbsp;&nbsp;↗
         </button>
-        <section className="sequence-scan">
+        <section className="sequence-scan" data-sequence-scan>
           <svg viewBox="0 0 1920 1080" aria-hidden="true">
             <g
               fill="none"
@@ -200,21 +200,24 @@ export function AuthorizedSequence({
               <path />
               <circle
                 className="sequence-orbit-dot"
+                data-sequence-orbit-dot
                 r="8"
                 fill="var(--sequence-accent)"
                 stroke="none"
               />
               <circle
                 className="sequence-orbit-dot"
+                data-sequence-orbit-dot
                 r="8"
                 fill="var(--sequence-accent)"
                 stroke="none"
               />
               {Array.from({ length: 6 }, (_, index) => (
-                <circle key={index} className="sequence-satellite" />
+                <circle key={index} className="sequence-satellite" data-sequence-satellite />
               ))}
               <circle
                 className="sequence-core"
+                data-sequence-core
                 cx="959.5"
                 cy="539.5"
                 r="5"
@@ -223,29 +226,33 @@ export function AuthorizedSequence({
               />
               <circle
                 className="sequence-cap sequence-cap-dark"
+                data-sequence-cap
                 fill="var(--sequence-ink)"
                 stroke="none"
               />
               <circle
                 className="sequence-cap sequence-cap-light"
+                data-sequence-cap
                 fill="var(--sequence-light)"
                 stroke="none"
               />
             </g>
           </svg>
-          <span>PERMISSION AUTHORIZED</span>
+          <span data-sequence-permission>PERMISSION AUTHORIZED</span>
         </section>
-        <section className="sequence-welcome">
-          <div className="sequence-welcome-panel" />
+        <section className="sequence-welcome" data-sequence-welcome>
+          <div className="sequence-welcome-panel" data-sequence-welcome-panel />
           <div className="sequence-welcome-heading">WELCOME TO</div>
-          <div className="sequence-company">
+          <div className="sequence-company" data-sequence-company>
             <strong>OPEN MUSIC CLUB</strong>
-            <strong className="sequence-highlight" aria-hidden="true">
+            <strong className="sequence-highlight" data-sequence-highlight aria-hidden="true">
               OPEN MUSIC CLUB
             </strong>
           </div>
-          <div className="sequence-database">COMMUNITY MUSIC ARCHIVE</div>
-          <div className="sequence-logo">
+          <div className="sequence-database" data-sequence-database>
+            COMMUNITY MUSIC ARCHIVE
+          </div>
+          <div className="sequence-logo" data-sequence-logo>
             <OpenMusicMark />
           </div>
         </section>

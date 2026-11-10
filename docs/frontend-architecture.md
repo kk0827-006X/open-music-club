@@ -67,7 +67,17 @@ frontend/src/
 └─ style.css                  分段样式入口
 ```
 
-不规定单文件行数。简单组件和页面内部状态不机械拆层；图形、请求和音频不放进 JSX 业务闭包。
+`features/**` 与 `app/**` 的组件超过 400 行会产生 ESLint 警告；两处目录下全部 TS/TSX 文件还受递减白名单约束。简单组件和页面内部状态不机械拆层；图形、请求和音频不放进 JSX 业务闭包。
+
+## 工程门禁与格式化
+
+- ESLint 使用根目录 `eslint.config.mjs`，首轮只启用行数警告、分层导入限制和 DOM class 查询限制，不启用 recommended、类型检查或 Hooks 规则。`app` 负责装配各 feature；feature 不反向依赖 app，feature 之间的既有精确引用列在 `tests/fixtures/frontend-import-exceptions.json`，白名单只能缩小。Shared、Services、Graphics 的既有依赖方向也由规则与生产解析图检查。
+- `features/**` 与 `app/**` 的 `querySelector`、`querySelectorAll`、`closest`、`matches` 直接字符串或模板查询禁止使用 class 选择器，改用 ref、语义属性或专用 `data-*` 标记。CSS class 仍可用于视觉样式与状态切换。
+- `tests/frontendFileSize.test.js` 检查两处目录的全部 `.ts/.tsx`，计入注释与空行，仅排除末尾换行产生的空项。超限白名单在全量格式化后生成；修改超限文件时，实际行数必须等于白名单上限，并同步降低缩小后的上限。文件降到 400 行以内或被删除就移出白名单；新超限文件不能加入，旧上限不能提高。
+- 本地递减检查比较 HEAD；CI 在 `pnpm verify:baseline` 前运行 `pnpm lint`，按 PR 基线或推送前提交检查白名单变化，并完整检出历史。首次引入时旧提交没有白名单，之后不得重新生成更宽的白名单。
+- 开发使用项目 `.node-version` 指定的 Node 与 pnpm。首次安装后执行 `pnpm hooks:install` 初始化 Husky 提交钩子，后续安装由 prepare 维护；pre-commit 调用 `lint-staged --hide-unstaged`，先格式化允许范围内的暂存文件，再检查前端 lint、文件行数及实际依赖图。未暂存的跟踪文件内容由 lint-staged 隔离，未跟踪文件不进入提交检查；若已暂存代码引用尚未暂存的新模块则失败。文件名经 Git 的 NUL 分隔输出读取，再以 argv 传给工具，不拼接进命令字符串。
+- `pnpm format` / `pnpm format:check` 共用 `scripts/format.cjs` 的固定路径清单，只读取 Git 跟踪文件：`src/scripts/tests` 下 JS/CJS/MJS、测试 HTML、`frontend/src` 下 TS/TSX/CSS，以及脚本明确列出的根配置、前端入口/配置、主题文件和两份门禁 JSON。vendor、文档/许可证、资源、锁文件、生成物、环境及运行数据不进入格式化命令。
+- 两个例外固定保留：`frontend/src/rhine/motion.ts` 由原 SHA-256 断言锁定，不格式化；格式敏感的源码断言只适配等价空白、引号与数值写法，并在纯格式化前独立提交，不删除断言或更新原算法哈希。格式化 `.pnpmfile.cjs` 时，锁文件中的 `pnpmfileChecksum` 会机械更新，须同时保存以保证冻结安装一致，不改变依赖版本。
 
 ## 生命周期与稳定接口
 

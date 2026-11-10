@@ -144,7 +144,6 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
       mvs: Array.from({ length }, (_, i) => motionValue(slotsRef.current[i] ? 1 : 0)),
       drops: Array.from({ length }, () => motionValue(statusRef.current === 'success' ? 1 : 0)),
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [length],
   );
   const { mvs, drops } = springs;
@@ -328,7 +327,6 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
       emitted.current = code;
       onChange?.(code);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [length]);
 
   useEffect(() => {
@@ -358,7 +356,6 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
     setSlots(next);
     moveActive(firstEmptyOf(next), [...landing, ...leaving]);
     if (!isFull(prev) && isFull(next)) onComplete?.(clean);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, length]);
 
   useEffect(() => {
@@ -397,7 +394,6 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
       if (openMv.get() === 0) setVeiled(false);
     });
     drops.forEach((d) => animate(d, 0, { type: 'spring', duration: 0.3, bounce: 0, delay: 0.1 }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   useEffect(() => {
@@ -421,7 +417,6 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
       },
       L.reduce ? 300 : (filled.length - 1) * step + L.settle * 1000,
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
   useEffect(() => {
     statusRef.current = status;

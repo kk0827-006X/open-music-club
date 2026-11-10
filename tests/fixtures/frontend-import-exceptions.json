@@ -1,0 +1,15 @@
+{
+  "features/player/PlayerView.tsx": [
+    "../queue/model.ts",
+    "../queue/persistence.ts",
+    "../queue/QueueAddFlights.tsx",
+    "../queue/QueuePanel.tsx"
+  ],
+  "features/player/player-core.ts": ["../queue/model.ts"],
+  "features/search/SongSearchPanel.tsx": ["../queue/QueuePanel"],
+  "features/settings/SettingsDialog.tsx": [
+    "../auth/PasswordForm.tsx",
+    "../auth/TwoFactorPanel.tsx"
+  ],
+  "features/user/UserPage.tsx": ["../auth/AdminApplicationsPage.tsx"]
+}

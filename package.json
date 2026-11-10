@@ -17,7 +17,10 @@
     "verify:baseline": "node scripts/acceptance-baseline.js",
     "test:coverage": "c8 --include='src/**' --exclude='vendor/**' --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 tsx --tsconfig frontend/tsconfig.json --test --test-concurrency=1 tests/*.test.js",
     "format": "node scripts/format.cjs --write",
-    "format:check": "node scripts/format.cjs --check"
+    "format:check": "node scripts/format.cjs --check",
+    "lint": "eslint frontend/src && node --test tests/frontendFileSize.test.js tests/frontendLint.test.js",
+    "prepare": "husky",
+    "hooks:install": "husky"
   },
   "engines": {
     "node": ">=26.13.0 <27"

@@ -18,6 +18,8 @@ const exactFiles = new Set([
   'frontend/package.json',
   'frontend/public/theme-init.js',
   'frontend/public/theme.css',
+  'tests/fixtures/frontend-file-size.json',
+  'tests/fixtures/frontend-import-exceptions.json',
 ]);
 
 // 格式化入口和 lint-staged 共用固定范围，不遍历整个仓库。
