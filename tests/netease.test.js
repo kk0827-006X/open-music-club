@@ -5,6 +5,7 @@ const os = require('node:os')
 const path = require('node:path')
 const bcrypt = require('bcrypt')
 const request = require('supertest')
+const { once } = require('node:events')
 
 const { createApp } = require('../src/app')
 const { createUser } = require('../src/db/users')
@@ -19,8 +20,10 @@ describe('网易云 API 白名单', () => {
   let adminAgent
   let calls
   let neteaseService
+  let server
 
   beforeEach(async () => {
+    app = undefined; database = undefined; server = undefined
     directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-'))
     calls = []
     neteaseService = {
@@ -55,18 +58,27 @@ describe('网易云 API 白名单', () => {
       mustChangePassword: false,
     })
 
-    memberAgent = request.agent(app)
-    adminAgent = request.agent(app)
+    // 固定使用回环测试服务，避免每个请求隐式创建和关闭监听器。
+    server = app.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    memberAgent = request.agent(server).timeout({ deadline: 15_000 })
+    adminAgent = request.agent(server).timeout({ deadline: 15_000 })
     await login(memberAgent, 'member@example.com')
     await login(adminAgent, 'admin@example.com')
   })
 
   afterEach(async () => {
-    if (database?.open) database.close()
-    if (app?.locals.sessionStore?.db?.open) {
-      await new Promise((resolve) => app.locals.sessionStore.db.close(resolve))
+    try {
+      await app?.locals.accessLifecycle.stop()
+      if (server?.listening) await new Promise((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve())
+        server.closeAllConnections()
+      })
+    } finally {
+      app?.locals.sessionStore.stopInterval?.()
+      if (database?.open) database.close()
+      fs.rmSync(directory, { recursive: true, force: true })
     }
-    fs.rmSync(directory, { recursive: true, force: true })
   })
 
   function login(agent, email) {
@@ -84,7 +96,7 @@ describe('网易云 API 白名单', () => {
     ]
 
     for (const routePath of paths) {
-      const response = await request(app).get(routePath)
+      const response = await request(server).get(routePath).timeout({ deadline: 15_000 })
       assert.equal(response.status, 401)
     }
     assert.equal(calls.length, 0)
@@ -245,7 +257,7 @@ describe('网易云 API 白名单', () => {
   })
 
   it('专辑详情只接受合法 id，登录后原样返回完整曲目', async () => {
-    assert.equal((await request(app).get('/api/netease/album?id=6590')).status, 401)
+    assert.equal((await request(server).get('/api/netease/album?id=6590').timeout({ deadline: 15_000 })).status, 401)
     assert.equal((await memberAgent.get('/api/netease/album')).status, 400)
     assert.equal((await memberAgent.get('/api/netease/album?id=invalid')).status, 400)
     neteaseService.call = async (name, parameters) => {
@@ -258,7 +270,7 @@ describe('网易云 API 白名单', () => {
     assert.deepEqual(calls, [{ moduleName: 'album', parameters: { id: '6590' } }])
   })
   it('歌手曲目仅登录可读，校验分页并剔除凭据和任意上游参数', async () => {
-    assert.equal((await request(app).get('/api/netease/artist/songs?id=1')).status,401)
+    assert.equal((await request(server).get('/api/netease/artist/songs?id=1').timeout({ deadline: 15_000 })).status,401)
     for (const query of ['id=x','id=1&limit=101','id=1&offset=-1','id=1&id=2']) {
       assert.equal((await memberAgent.get('/api/netease/artist/songs?'+query)).status,400)
     }

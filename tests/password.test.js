@@ -18,10 +18,13 @@ async function fixture(run, options = {}) {
   const user = createUser(db, { email: 'password@example.com', nickname: '隔离用户', passwordHash: await bcrypt.hash(oldPassword, 4), mustChangePassword: false })
   createUser(db, { email: 'disabled@example.com', nickname: '禁用用户', passwordHash: user.password_hash, status: 'disabled' })
   const server = await new Promise(resolve => { const server = app.listen(0, '127.0.0.1', () => resolve(server)) })
-  const agent = () => request.agent(server)
-  const post = async (client, path, body) => {
-    const csrf = await client.get('/api/security/csrf-token')
-    return client.post(path).set('Origin', 'http://localhost').set('X-CSRF-Token', csrf.body.csrfToken).send(body)
+  const agent = () => request.agent(server).timeout({ deadline: 15_000 })
+  const post = async (client, path, body, csrfToken) => {
+    if (csrfToken === undefined) {
+      const csrf = await client.get('/api/security/csrf-token').expect(200)
+      csrfToken = csrf.body.csrfToken
+    }
+    return client.post(path).set('Origin', 'http://localhost').set('X-CSRF-Token', csrfToken).send(body)
   }
   const login = async client => { assert.equal((await post(client, '/api/auth/login', { email: user.email, password: oldPassword })).status, 200) }
   const token = async client => {
@@ -32,7 +35,15 @@ async function fixture(run, options = {}) {
     assert.ok(url); return url[1]
   }
   try { await run({ app, db, user, messages, logs, agent, post, login, token }) }
-  finally { await app.locals.password.drain(); await new Promise(resolve => server.close(resolve)); app.locals.sessionStore.stopInterval?.(); db.close() }
+  finally {
+    try {
+      await app.locals.password.drain()
+      await new Promise((resolve, reject) => {
+        server.close(error => error ? reject(error) : resolve())
+        server.closeAllConnections()
+      })
+    } finally { app.locals.sessionStore.stopInterval?.(); db.close() }
+  }
 }
 
 it('改密验证原密码，撤销全部旧会话及链接，新密码生效且不自动登录', async () => fixture(async f => {
@@ -168,21 +179,31 @@ it('登录轮换Session期间发生改密，旧密码的迟到登录不能取得
   assert.equal((await client.get('/api/protected')).status,401)
 }))
 
-it('已撤销的2FA关闭请求不能修改新安全状态，旧改密失败不能锁住新密码',async()=>fixture(async f=>{
+it('已撤销的2FA关闭请求不能修改新安全状态，旧改密失败不能锁住新密码',async()=>{
+  let timestamp=Date.now()
+  await fixture(async f=>{
   const client=f.agent(), factor=f.app.locals.twoFactor
   const setup=factor.setup(f.user,'race-2fa')
-  const codes=factor.confirm(f.user.id,'race-2fa',generateSync({secret:setup.secret}))
+  const codes=factor.confirm(f.user.id,'race-2fa',generateSync({secret:setup.secret,epoch:timestamp/1000}))
+  timestamp+=30000
+  // 关闭操作本身携带有效且未使用的验证码，必须由安全版本检查阻止迟到请求。
+  const disableCode=generateSync({secret:setup.secret,epoch:timestamp/1000})
   await f.login(client)
   assert.equal((await f.post(client,'/api/auth/2fa/recovery',{code:codes[0]})).status,200)
+  // 2FA 会轮换 Session；先为新会话创建一次 CSRF，再同时发送六个安全操作。
+  // 否则并发 GET 可能各自生成 token，测试会先在 CSRF 层被拒绝，未进入密码比较。
+  const csrf=await client.get('/api/security/csrf-token').expect(200)
+  assert.equal(typeof csrf.body.csrfToken,'string')
   const original=bcrypt.compare
   const waiting=[]
+  let disable, failures=[]
   bcrypt.compare=async(value,hash)=>{
     if(value===oldPassword || value==='wrong-race') await new Promise(resolve=>waiting.push(resolve))
     return original(value,hash)
   }
   try {
-    const disable=f.post(client,'/api/auth/2fa/disable',{password:oldPassword,code:'000000'})
-    const failures=Array.from({length:5},()=>f.post(client,'/api/auth/password/change',{oldPassword:'wrong-race',newPassword}))
+    disable=f.post(client,'/api/auth/2fa/disable',{password:oldPassword,code:disableCode},csrf.body.csrfToken)
+    failures=Array.from({length:5},()=>f.post(client,'/api/auth/password/change',{oldPassword:'wrong-race',newPassword},csrf.body.csrfToken))
     for(let i=0;waiting.length<6 && i<200;i++) await new Promise(resolve=>setTimeout(resolve,10))
     assert.equal(waiting.length,6)
     f.db.prepare('DELETE FROM password_reset_requests').run()
@@ -194,8 +215,12 @@ it('已撤销的2FA关闭请求不能修改新安全状态，旧改密失败不�
     assert.equal(factor.state(f.user.id).enabled,1)
     assert.equal(factor.state(f.user.id).failed_attempts,0)
     assert.equal(factor.checkUnlocked(f.user.id),true)
-  } finally { waiting.forEach(resolve=>resolve()); bcrypt.compare=original }
-}))
+  } finally {
+    waiting.forEach(resolve=>resolve()); bcrypt.compare=original
+    await Promise.allSettled([disable,...failures])
+  }
+  },{twoFactor:{now:()=>timestamp}})
+})
 
 
 it('既有超过72字节的管理员密码仍可验证原密码、绑定2FA并更换为新规则密码',async()=>fixture(async f=>{
