@@ -10,32 +10,25 @@ const frontend = (name) => path.resolve(__dirname, '../frontend/src', name)
 
 describe('用户页面真实数据界面', () => {
   it('提供四个个人音乐入口及持久化状态，不再显示静态预览提示', async () => {
-    const { createUserPageMarkup } = await import(pathToFileURL(frontend('user-page.ts')).href)
-    const markup = createUserPageMarkup()
-    for (const section of ['playlists', 'favorites', 'recent', 'uploads']) {
-      assert.match(markup, new RegExp(`data-user-tab="${section}"`))
-    }
-    assert.match(markup, /data-user-create/)
-    assert.match(markup, /data-user-content/)
-    assert.match(markup, /class="sr-only" data-user-heading/)
-    assert.doesNotMatch(markup, /PERSONAL COLLECTION|data-user-subtitle|MY PLAYLISTS/)
-    assert.match(markup, /data-user-feedback/)
-    assert.doesNotMatch(markup, /仅供界面预览|刷新后不会保留/)
-    assert.doesNotMatch(markup, /UI PREVIEW|user-preview-tag/)
-    assert.doesNotMatch(markup, /音乐成员/)
-    assert.doesNotMatch(markup.match(/<nav class="user-section-nav"[\s\S]*?<\/nav>/)?.[0] ?? '', /<span>0[1-4]<\/span>/)
-    assert.match(markup, /data-user-avatar-choose/)
-    assert.match(markup, /type="file"[^>]*data-user-avatar-file/)
-    assert.doesNotMatch(markup, /<audio|data-global-player/)
+    await withReactHarness(async h => {
+      const { UserPage } = await import('../frontend/src/features/user/UserPage.tsx')
+      await h.render(h.React.createElement(UserPage, { active: false }))
+      const page = h.require('[data-user-page]')
+      for (const section of ['playlists', 'favorites', 'recent', 'uploads']) h.require(`[data-user-tab="${section}"]`)
+      for (const selector of ['[data-user-create]', '[data-user-content]', '.sr-only[data-user-heading]', '[data-user-feedback]', '[data-user-avatar-choose]']) h.require(selector)
+      assert.equal(h.require('[data-user-avatar-file]').type, 'file')
+      assert.doesNotMatch(page.textContent, /PERSONAL COLLECTION|MY PLAYLISTS|仅供界面预览|刷新后不会保留|UI PREVIEW|音乐成员/)
+      assert.equal(h.query('[data-user-subtitle], .user-preview-tag'), null)
+      assert.equal(h.query('.user-section-nav span'), null)
+      assert.equal(h.query('audio, [data-global-player]'), null)
+    })
   })
 
-  it('兼容挂载把真实用户页渲染到宿主，不创建第二套播放器', async () => {
+  it('真实用户页通过 ref 暴露弹窗状态，卸载不留下第二套播放器', async () => {
     const css = readFrontendSource(frontend('style.css'))
     assert.match(css, /\.user-page\s*\{[^}]*grid-template-columns/)
     assert.match(css, /\.album-archive\[data-view="user"\] \.user-page/)
     await withReactHarness(async (h) => {
-      const host = h.document.createElement('div')
-      h.document.body.appendChild(host)
       const client = {
         profile: async () => ({ id: 1, nickname: '测试成员', avatarUrl: null }),
         playlists: async () => [],
@@ -43,30 +36,28 @@ describe('用户页面真实数据界面', () => {
         likes: async () => [],
         uploads: async () => [],
       }
-      const { mountUserPage } = await import(pathToFileURL(frontend('user-page.ts')).href)
-      let view
-      await h.React.act(async () => { view = mountUserPage(host, { client }) })
+      const { UserPage } = await import('../frontend/src/features/user/UserPage.tsx')
+      const view = h.React.createRef()
+      await h.render(h.React.createElement(UserPage, { ref: view, active: true, client }))
       await h.flush()
-      assert.equal(view.element, h.require('[data-user-page]'))
-      assert.equal(view.hasOpenDialog, false)
+      h.require('[data-user-page]')
+      assert.equal(view.current.hasOpenDialog, false)
       assert.equal(h.query('[data-global-player]'), null)
       assert.equal(h.query('audio'), null)
-      await h.React.act(async () => { view.destroy() })
-      assert.equal(host.childElementCount, 0)
-      host.remove()
+      await h.unmount()
+      assert.equal(h.require('#app').childElementCount, 0)
+      assert.equal(view.current, null)
     })
   })
 
   it('用户页通过个人音乐库适配层接入，不重新创建播放器', () => {
-    const compat = fs.readFileSync(frontend('features/user/user-page.ts'), 'utf8')
     const component = fs.readFileSync(frontend('features/user/UserPage.tsx'), 'utf8')
-    assert.doesNotMatch(compat, /fetch\s*\(|XMLHttpRequest|\/api\//)
     assert.doesNotMatch(component, /fetch\s*\(|XMLHttpRequest|new Audio\s*\(/)
     assert.match(component, /services\/music\/personal-library/)
   })
 
   it('头像仅接受不超过 5 MB 的 JPG、PNG 和 WebP 图片', async () => {
-    const { validateAvatarFile } = await import(pathToFileURL(frontend('user-page.ts')).href)
+    const { validateAvatarFile } = await import(pathToFileURL(frontend('features/user/UserPage.tsx')).href)
     for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
       assert.equal(validateAvatarFile({ type, size: 5 * 1024 * 1024 }), null)
     }
@@ -76,38 +67,41 @@ describe('用户页面真实数据界面', () => {
   })
 
   it('歌单名称原位编辑，标题右侧只有播放和 × 删除', async () => {
-    const { createPlaylistHeaderMarkup } = await import(pathToFileURL(frontend('user-page.ts')).href)
-    const { uiIcons } = await import(pathToFileURL(frontend('ui-icons.ts')).href)
-    const markup = createPlaylistHeaderMarkup({ id: 1, name: '夜晚 <歌单>' }, true)
-    assert.match(markup, /data-user-rename="1"/)
-    assert.match(markup, /data-user-rename-form/)
-    assert.match(markup, /aria-label="歌单名称"/)
-    assert.match(markup, /夜晚 &lt;歌单&gt;/)
-    assert.match(markup, /data-user-playlist-play/)
-    assert.ok(markup.includes(`${uiIcons.play}</button>`))
-    assert.ok(markup.includes(`${uiIcons.close}</button>`))
-    assert.doesNotMatch(markup, />重命名<|>删除歌单</)
-    assert.ok(markup.indexOf('data-user-playlist-play') < markup.indexOf('data-user-delete'))
-    const disabled = createPlaylistHeaderMarkup({ id: 2, name: '空歌单' }, false)
-    assert.match(disabled, /data-user-playlist-play[^>]*disabled/)
+    await withReactHarness(async h => {
+      const { PlaylistHeader } = await import('../frontend/src/features/user/UserPage.tsx')
+      await h.render(h.React.createElement(PlaylistHeader, { list: { id: 1, name: '夜晚 <歌单>' }, playable: true }))
+      h.require('[data-user-rename="1"]'); h.require('[data-user-rename-form]'); h.require('[aria-label="歌单名称"]')
+      assert.equal(h.require('[data-user-rename="1"]').textContent, '夜晚 <歌单>')
+      assert.equal(h.require('[data-user-rename="1"]').childElementCount, 0, '歌单名称只能作为文本渲染')
+      h.require('[data-user-playlist-play] [data-ui-icon="play"]'); h.require('[data-user-delete] [data-ui-icon="close"]')
+      const actions = h.require('.user-list-detail-actions')
+      assert.deepEqual([...actions.querySelectorAll('button')].map(button => button.getAttribute('aria-label')), ['播放歌单', '删除歌单'])
+      assert.equal(actions.textContent, '▶×')
+      await h.render(h.React.createElement(PlaylistHeader, { list: { id: 2, name: '空歌单' }, playable: false }))
+      assert.equal(h.require('[data-user-playlist-play]').disabled, true)
+    })
   })
 
   it('歌曲行仅保留统一播放图标、＋、爱心和 ×，不显示时长或加歌单', async () => {
-    const { createUserTrackMarkup } = await import(pathToFileURL(frontend('user-page.ts')).href)
-    const { uiIcons } = await import(pathToFileURL(frontend('ui-icons.ts')).href)
-    const track = { source: 'local', sourceId: '3', trackKey: 'local:3', title: '歌曲 <3>', artists: [{ name: '歌手' }], album: { name: '专辑' }, durationMs: 123000, coverUrl: null, playable: true, liked: false }
-    const markup = createUserTrackMarkup(track, false, true)
-    for (const name of ['play', 'plus', 'close']) assert.ok(markup.includes(`${uiIcons[name]}</button>`))
-    assert.match(markup, /data-user-like="local:3"[^>]*aria-pressed="false"/)
-    assert.match(markup, /歌曲 &lt;3&gt;/)
-    assert.doesNotMatch(markup, /<time|2:03|data-user-save|>移除<|>取消喜爱</)
-    const liked = createUserTrackMarkup(track, true, false)
-    assert.match(liked, /data-user-like="local:3"[^>]*aria-pressed="true"/)
-    assert.match(liked, /fill="currentColor"/)
-    assert.doesNotMatch(liked, /data-user-remove/)
-    const unavailable = createUserTrackMarkup({ ...track, playable: false }, false, true)
-    assert.match(unavailable, /data-user-play="local:3"[^>]*disabled/)
-    assert.match(unavailable, /data-user-enqueue="local:3"[^>]*disabled/)
+    await withReactHarness(async h => {
+      const { UserTrackRow } = await import('../frontend/src/features/user/UserPage.tsx')
+      const track = { source: 'local', sourceId: '3', trackKey: 'local:3', title: '歌曲 <3>', artists: [{ name: '歌手' }], album: { name: '专辑' }, durationMs: 123000, coverUrl: null, playable: true, liked: false }
+      const render = (track, liked, removable) => h.render(h.React.createElement(UserTrackRow, { track, liked, removable }))
+      await render(track, false, true)
+      for (const name of ['play', 'plus', 'close']) h.require(`.user-track-actions button [data-ui-icon="${name}"]`)
+      assert.equal(h.require('[data-user-like="local:3"]').getAttribute('aria-pressed'), 'false')
+      assert.equal(h.require('.user-track-row strong').textContent, '歌曲 <3>')
+      assert.equal(h.require('.user-track-row strong').childElementCount, 0, '歌曲名称只能作为文本渲染')
+      assert.equal(h.query('time, [data-user-save]'), null)
+      assert.doesNotMatch(h.require('.user-track-row').textContent, /2:03|移除|取消喜爱/)
+      await render(track, true, false)
+      assert.equal(h.require('[data-user-like="local:3"]').getAttribute('aria-pressed'), 'true')
+      assert.equal(h.require('[data-user-like] svg').getAttribute('fill'), 'currentColor')
+      assert.equal(h.query('[data-user-remove]'), null)
+      await render({ ...track, playable: false }, false, true)
+      assert.equal(h.require('[data-user-play="local:3"]').disabled, true)
+      assert.equal(h.require('[data-user-enqueue="local:3"]').disabled, true)
+    })
   })
 
   it('歌单图标无圆圈及悬停背景，普通按钮轻晃一次，× 旋转 90 度并支持减少动态效果', () => {
@@ -130,8 +124,6 @@ describe('用户页面真实数据界面', () => {
 
   it('删除歌单使用真实确认弹窗且明确不会删除音乐文件', async () => {
     await withReactHarness(async (h) => {
-      const host = h.document.createElement('div')
-      h.document.body.appendChild(host)
       const list = { id: 1, name: '夜晚歌单', description: null, trackCount: 0, createdAt: '', updatedAt: '' }
       const client = {
         profile: async () => ({ id: 1, nickname: '测试成员', avatarUrl: null }),
@@ -141,9 +133,9 @@ describe('用户页面真实数据界面', () => {
         uploads: async () => [],
         deletePlaylist: async () => undefined,
       }
-      const { mountUserPage } = await import(pathToFileURL(frontend('user-page.ts')).href)
-      let view
-      await h.React.act(async () => { view = mountUserPage(host, { client }) })
+      const { UserPage } = await import('../frontend/src/features/user/UserPage.tsx')
+      const view = h.React.createRef()
+      await h.render(h.React.createElement(UserPage, { ref: view, active: true, client }))
       await h.until(() => {
         const card = h.query('[data-user-list="1"]')
         return Boolean(card && !card.disabled)
@@ -154,19 +146,19 @@ describe('用户页面真实数据界面', () => {
         return Boolean(remove && !remove.disabled)
       }, '歌单详情应完成加载并渲染删除入口')
       await h.click('[data-user-delete="1"]')
-      await h.until(() => view.hasOpenDialog === true, '删除确认弹窗应打开')
+      await h.until(() => view.current.hasOpenDialog === true, '删除确认弹窗应打开')
       const dialog = h.require('[data-user-delete-dialog]')
       assert.match(dialog.textContent, /不会删除音乐文件/)
       assert.match(h.require('[data-user-delete-name]').textContent, /夜晚歌单/)
       await h.click('[data-user-delete-cancel]')
-      await h.until(() => view.hasOpenDialog === false, '取消后删除确认弹窗应关闭')
-      await h.React.act(async () => { view.destroy() })
-      host.remove()
+      await h.until(() => view.current.hasOpenDialog === false, '取消后删除确认弹窗应关闭')
+      await h.unmount()
+      assert.equal(view.current, null)
     })
   })
 
   it('播放歌单包含全部页的可用曲目，按顺序加入原队列并播放第一首', async () => {
-    const { playPlaylistTracks } = await import(pathToFileURL(frontend('user-page.ts')).href)
+    const { playPlaylistTracks } = await import(pathToFileURL(frontend('features/user/UserPage.tsx')).href)
     const tracks = Array.from({ length: 7 }, (_, index) => ({ source: 'local', sourceId: String(index + 1), trackKey: `local:${index + 1}`, title: `歌曲${index + 1}`, artists: [], album: { name: null }, durationMs: 0, coverUrl: null, playable: index !== 1 }))
     const calls = []
     const count = await playPlaylistTracks(tracks, {

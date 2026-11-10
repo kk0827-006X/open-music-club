@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { it } = require('node:test')
 const { pathToFileURL } = require('node:url')
 const path = require('node:path')
-const load = () => import(pathToFileURL(path.resolve(__dirname, '../frontend/src/personal-library-client.ts')).href)
+const load = () => import(pathToFileURL(path.resolve(__dirname, '../frontend/src/services/music/personal-library.ts')).href)
 
 it('个人音乐客户端写操作携带 Session、最新 CSRF，并保存具体来源引用而非播放地址', async () => {
   const { createPersonalLibraryClient } = await load()

@@ -4,6 +4,7 @@ const crypto = require('node:crypto')
 const path = require('node:path')
 const { describe, it } = require('node:test')
 const { pathToFileURL } = require('node:url')
+const { withReactHarness } = require('./helpers/reactHarness')
 
 const projectRoot = path.resolve(__dirname, '..')
 
@@ -12,9 +13,29 @@ function frontendModule(relativePath) {
   return `${pathToFileURL(modulePath).href}?test=${Date.now()}-${Math.random()}`
 }
 
+// 工作区直接使用生产队列和播放器，只隔离音频与三维硬件，不保留旧 SSR 预览器。
+async function withArchive(run, initialIndex = 0) {
+  return withReactHarness(async h => {
+    const [{ default: Workspace }, { MusicQueue }, { createPlayerController }] = await Promise.all([
+      import('../frontend/src/app/Workspace.tsx'), import('../frontend/src/features/queue/model.ts'),
+      import('../frontend/src/features/player/player-core.ts'),
+    ])
+    const queue = new MusicQueue()
+    const audio = new h.window.EventTarget()
+    Object.assign(audio, { paused: true, volume: .62, currentTime: 0, pause() {}, removeAttribute() {}, load() {} })
+    const player = createPlayerController({ queue, resolveUrl: async () => { throw new Error('结构验收不应请求播放地址') }, createAudio: () => audio })
+    const personalLibrary = { queue: async () => [], saveQueue: async () => {}, isLiked: async () => false }
+    const loadScene = async () => ({ load: async () => {}, dispose() {}, setReduced() {}, setMode() {}, select() {}, resize() {}, update() {}, detailVisibility: 0 })
+    try {
+      await h.render(h.React.createElement(Workspace, { player, queue, personalLibrary, loadScene, initialIndex }))
+      await run(h)
+    } finally { await h.unmount(); player.destroy() }
+  })
+}
+
 describe('三维专辑档案 UI', () => {
   it('提供 24 张真实网易云专辑，分三排且每排 8 张', async () => {
-    const { demoAlbums } = await import(frontendModule('album-data.ts'))
+    const { demoAlbums } = await import(frontendModule('features/music-library/album-data.ts'))
     const { archiveColumns, records, columnFiles } = await import(frontendModule('rhine/data.ts'))
 
     assert.equal(demoAlbums.length, 24)
@@ -33,21 +54,19 @@ describe('三维专辑档案 UI', () => {
   })
 
   it('档案页为原 Three.js 场景提供画布容器，不再生成 CSS 卡片墙', async () => {
-    const { createAlbumArchiveMarkup } = await import(
-      frontendModule('album-archive.ts')
-    )
-    const markup = createAlbumArchiveMarkup()
-
-    assert.match(markup, /data-three-scene/)
-    assert.doesNotMatch(markup, /archive-case-field/)
-    assert.match(markup, /ALBUM \/ SELECT/)
-    assert.match(markup, /data-wave-field/)
-    assert.match(markup, /data-album-information/)
-    assert.equal((markup.match(/data-album-tick=/g) || []).length, 8)
-    const secondRow = createAlbumArchiveMarkup(9)
-    assert.match(secondRow, /data-album-tick="1" aria-label="当前排第 2 张专辑" aria-current="true"/)
-    assert.doesNotMatch(markup, /\/api\//)
-    assert.doesNotMatch(markup, /<audio/i)
+    await withArchive(async h => {
+      h.require('[data-three-scene]')
+      assert.equal(h.query('.archive-case-field'), null)
+      assert.match(h.require('.archive-callout').textContent, /ALBUM \/ SELECT/)
+      h.require('[data-wave-field]'); h.require('[data-album-information]')
+      assert.equal(h.document.querySelectorAll('[data-album-tick]').length, 8)
+      assert.equal(h.query('audio'), null)
+    })
+    await withArchive(async h => {
+      const tick = h.require('[data-album-tick="1"]')
+      assert.equal(tick.getAttribute('aria-label'), '当前排第 2 张专辑')
+      assert.equal(tick.getAttribute('aria-current'), 'true')
+    }, 9)
   })
 
   it('档案墙保留原波动算法和模型，允许已审查的音频阻尼扩展，不载入拆解模型', () => {
@@ -130,8 +149,7 @@ describe('三维专辑档案 UI', () => {
   })
 
   it('专辑详情加载完整曲目并逐首渲染可播放操作', async () => {
-    const { demoAlbums, fetchAlbumTracks } = await import(frontendModule('album-data.ts'))
-    const { createAlbumDetailMarkup } = await import(frontendModule('album-archive.ts'))
+    const { demoAlbums, fetchAlbumTracks } = await import(frontendModule('features/music-library/album-data.ts'))
     const album = demoAlbums[3]
     const tracks = await fetchAlbumTracks(album.id, async (url, options) => {
       assert.equal(url, `/api/netease/album?id=${album.id}`)
@@ -141,15 +159,21 @@ describe('三维专辑档案 UI', () => {
         { id: 67403, name: '第二首', dt: 241000 },
       ] }) }
     })
-    const markup = createAlbumDetailMarkup({ ...album, tracks, totalTracks: tracks.length })
     assert.equal(tracks.length, 2)
-    assert.match(markup, /02.*第二首/s)
-    assert.match(markup, /data-album-play="67403"/)
-    assert.match(markup, /2 首/)
+    await withReactHarness(async h => {
+      const { AlbumDetail } = await import('../frontend/src/features/music-library/LibraryView.tsx')
+      const played = [], enqueued = []
+      await h.render(h.React.createElement(AlbumDetail, { album: { ...album, tracks, totalTracks: tracks.length },
+        onPlay: id => played.push(id), onEnqueue: id => enqueued.push(id) }))
+      assert.match(h.require('.detail-track-preview ol').textContent, /02.*第二首/s)
+      assert.match(h.require('.detail-album-actions').textContent, /2 首/)
+      await h.click('[data-album-play="67403"]'); await h.click('[data-album-queue="67402"]')
+      assert.deepEqual(played, ['67403']); assert.deepEqual(enqueued, ['67402'])
+    })
   })
 
   it('将来的收藏与最近播放可决定档案墙排序，缺少偏好时仍使用静态目录', async () => {
-    const { demoAlbums } = await import(frontendModule('album-data.ts'))
+    const { demoAlbums } = await import(frontendModule('features/music-library/album-data.ts'))
     const { rankArchiveAlbums } = await import(frontendModule('rhine/data.ts'))
     const ordered = rankArchiveAlbums(demoAlbums, {
       favoriteAlbumIds: [demoAlbums[4].id, demoAlbums[2].id],
@@ -162,46 +186,28 @@ describe('三维专辑档案 UI', () => {
   })
 
   it('顶部导航严格遵循设计文档的顺序、图标和激活状态', async () => {
-    const { createAlbumArchiveMarkup } = await import(
-      frontendModule('album-archive.ts')
-    )
-    const markup = createAlbumArchiveMarkup()
-
-    assert.match(markup, /data-archive-navigation/)
-    assert.match(markup, /data-nav="library"[^>]*aria-current="page"/)
-    assert.ok(markup.indexOf('音乐库') < markup.indexOf('搜索'))
-    assert.ok(markup.indexOf('搜索') < markup.indexOf('上传音乐'))
-    const navigation = markup.match(/<nav class="archive-nav"[\s\S]*?<\/nav>/)?.[0]
-    assert.ok(navigation)
-    assert.ok(navigation.indexOf('上传音乐') < navigation.indexOf('用户'))
-    assert.ok(navigation.indexOf('用户') < navigation.indexOf('设置'))
-    assert.match(navigation, /data-nav="user"[^>]*>[^<]*<svg[\s\S]*?<span>用户<\/span>/)
-    assert.doesNotMatch(navigation.match(/data-nav="user"[^>]*>/)?.[0] ?? '', /disabled/)
-    assert.doesNotMatch(navigation, /data-nav="queue"/)
-    assert.ok((markup.match(/<svg/g) || []).length >= 5)
+    await withArchive(async h => {
+      const nav = h.require('[data-archive-navigation]')
+      assert.equal(h.require('[data-nav="library"]').getAttribute('aria-current'), 'page')
+      assert.deepEqual([...nav.querySelectorAll('button[data-nav]')].map(button => button.dataset.nav),
+        ['library', 'search', 'upload', 'footprint', 'user', 'settings'])
+      assert.match(h.require('[data-nav="user"] span').textContent, /用户/)
+      h.require('[data-nav="user"] svg')
+      assert.equal(h.require('[data-nav="user"]').disabled, false)
+      assert.equal(h.query('[data-nav="queue"]'), null)
+      assert.ok(h.document.querySelectorAll('svg').length >= 5)
+    })
   })
 
   it('底部只渲染一套与设计图一致的全站播放器结构', async () => {
-    const { createAlbumArchiveMarkup } = await import(
-      frontendModule('album-archive.ts')
-    )
-    const markup = createAlbumArchiveMarkup()
-
-    assert.equal((markup.match(/data-global-player/g) || []).length, 1)
-    assert.match(markup, /data-player-track/)
-    assert.match(markup, /data-player-progress/)
-    assert.match(markup, /data-player-controls/)
-    assert.match(markup, /data-player-volume/)
-    assert.match(markup, /data-player-toggle/)
-    assert.match(markup, /data-player-progress-bar/)
-    assert.match(markup, /data-player-volume-input/)
-    assert.match(markup, /data-player-queue-panel/)
-    assert.match(markup, /data-queue-count(?:="(?:true)?")?>00/)
-    assert.match(markup, /data-player-previous/)
-    assert.match(markup, /data-player-next/)
-    assert.match(markup, /NETEASE/)
-    assert.match(markup, /GOOD MUSIC/)
-    assert.doesNotMatch(markup, /PLAYER \/ STANDBY/)
+    await withArchive(async h => {
+      assert.equal(h.document.querySelectorAll('[data-global-player]').length, 1)
+      for (const selector of ['track', 'progress', 'controls', 'volume', 'toggle', 'progress-bar', 'volume-input', 'queue-panel', 'previous', 'next']) h.require(`[data-player-${selector}]`)
+      assert.equal(h.require('[data-queue-count]').textContent, '00')
+      assert.match(h.require('[data-global-player]').textContent, /NETEASE/)
+      assert.match(h.require('[data-global-player]').textContent, /GOOD MUSIC/)
+      assert.doesNotMatch(h.require('[data-global-player]').textContent, /PLAYER \/ STANDBY/)
+    })
   })
 
   it('原版海浪波包从所选档案向外传播并随时间衰减', async () => {
@@ -219,37 +225,48 @@ describe('三维专辑档案 UI', () => {
     assert.equal(settled, 0)
   })
 
-  it('专辑选择沿用循环索引，首尾切换不会反向跳跃', async () => {
-    const { wrapAlbumIndex } = await import(frontendModule('album-archive.ts'))
-
-    assert.equal(wrapAlbumIndex(-1), 23)
-    assert.equal(wrapAlbumIndex(24), 0)
-    assert.equal(wrapAlbumIndex(27), 3)
+  it('专辑选择通过真实 LibraryView 循环导航，首尾保持原场景记录顺序', async () => {
+    await withReactHarness(async h => {
+      const { LibraryView } = await import('../frontend/src/features/music-library/LibraryView.tsx')
+      const { records, columnFiles } = await import('../frontend/src/rhine/data.ts')
+      const { demoAlbums } = await import('../frontend/src/features/music-library/album-data.ts')
+      const view = h.React.createRef(), selected = []
+      const scene = { ready: true, select: index => selected.push(index) }
+      const files = columnFiles(0)
+      await h.render(h.React.createElement(LibraryView, { ref: view, scene, actions: {}, active: true,
+        initialIndex: records[files[0]].albumIndex, onSelected() {}, onModeChanged() {} }))
+      await h.click('[data-album-previous]')
+      assert.equal(selected.at(-1), files.at(-1))
+      assert.equal(view.current.selectedAlbum, demoAlbums[records[files.at(-1)].albumIndex])
+      await h.click('[data-album-next]')
+      assert.equal(selected.at(-1), files[0])
+      for (let n = 0; n < files.length + 3; n++) await h.click('[data-album-next]')
+      assert.equal(selected.at(-1), files[3])
+    })
   })
 
-  it('专辑详情包含封面、元数据、静态曲目列表和返回入口', async () => {
-    const { createAlbumDetailMarkup } = await import(
-      frontendModule('album-archive.ts')
-    )
-    const { demoAlbums } = await import(frontendModule('album-data.ts'))
-    const markup = createAlbumDetailMarkup(demoAlbums[0])
-
-    assert.match(markup, /data-back-to-archive/)
-    assert.match(markup, /ALBUM DETAIL/)
-    assert.match(markup, /代表曲目/)
-    assert.match(markup, /data-album-play/)
-    assert.match(markup, /data-album-queue/)
-    assert.match(markup, new RegExp(demoAlbums[0].title))
-    assert.doesNotMatch(markup, /<audio/i)
+  it('专辑详情包含封面、元数据、曲目列表和真实返回入口', async () => {
+    await withReactHarness(async h => {
+      const { AlbumDetail } = await import('../frontend/src/features/music-library/LibraryView.tsx')
+      const { demoAlbums } = await import('../frontend/src/features/music-library/album-data.ts')
+      let closed = 0
+      await h.render(h.React.createElement(AlbumDetail, { album: demoAlbums[0], onClose: () => { closed++ } }))
+      h.require('.detail-cover img'); h.require('[data-album-play]'); h.require('[data-album-queue]')
+      assert.match(h.require('[data-detail-information]').textContent, /ALBUM DETAIL/)
+      assert.equal(h.require('[data-detail-information] h2').textContent, demoAlbums[0].title)
+      assert.equal(h.query('audio'), null)
+      await h.click('[data-back-to-archive]')
+      assert.equal(closed, 1)
+    })
   })
 
   it('旧搜索页及兼容入口已移除，档案仍只持有一个播放器', async () => {
     const fs = require('node:fs')
-    const { createAlbumArchiveMarkup } = await import(frontendModule('album-archive.ts'))
-    const markup = createAlbumArchiveMarkup()
-    assert.doesNotMatch(markup, /data-search-host|data-search-page/)
-    assert.equal((markup.match(/data-global-player/g) || []).length, 1)
-    assert.match(markup, /data-nav="search"/)
+    await withArchive(async h => {
+      assert.equal(h.query('[data-search-host], [data-search-page]'), null)
+      assert.equal(h.document.querySelectorAll('[data-global-player]').length, 1)
+      h.require('[data-nav="search"]')
+    })
     for (const name of ['search-page.ts', 'features/search/SearchPage.tsx', 'features/search/search-page.ts', 'styles/search.css']) {
       assert.equal(fs.existsSync(path.join(projectRoot, 'frontend/src', name)), false)
     }
@@ -258,7 +275,6 @@ describe('三维专辑档案 UI', () => {
 })
 
 it('播放全部仅在完整曲目就绪后可用，按专辑顺序传递所有歌曲并阻止重复点击', async () => {
-  const { withReactHarness } = require('./helpers/reactHarness')
   await withReactHarness(async h => {
     const { AlbumDetail } = await import(frontendModule('features/music-library/LibraryView.tsx'))
     const { demoAlbums } = await import(frontendModule('features/music-library/album-data.ts'))

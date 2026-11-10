@@ -8,7 +8,7 @@
 - Three.js 档案墙、模型、波浪/选择/入场授权轨迹保留原实现，不迁移 WebGPU。
 - 普通交互使用 Motion，音量滑杆使用 Radix Slider；登录折射使用 Liquid Glass React，保留原背景和表单。
 - API、Cookie、CSRF、Session、TOTP、恢复码、权限、来源分离和数据库协议不变。
-- React JSX 拥有页面和按钮的 DOM，状态驱动更新；旧入口只挂载或 SSR 同一生产组件，不维护第二份业务模板。
+- React JSX 拥有页面和按钮的 DOM，状态驱动更新；应用、测试与预览夹具直接挂载生产组件，已移除根目录 shim 和旧挂载/SSR 入口。
 - 产品边界：受控成员、公网 HTTPS；只使用一个播放器；网易云音乐与本地音乐在存储、API 和来源标识层保持独立；不接入网易云评论、排行榜、推荐、FM、直播等功能。
 
 ## 目录与依赖方向
@@ -37,7 +37,7 @@ frontend/src/
 ├─ app/
 │  ├─ App.tsx                 身份驱动阶段；退出、统一清理、足迹上报装配
 │  ├─ Workspace.tsx           页面切换、懒加载/visited、公开动作注入、全局快捷键
-│  └─ *.ts                    旧预览/挂载兼容边界
+│  └─ routes.ts               URL 路由和登录返回路径白名单
 ├─ shared/
 │  ├─ music.ts / state.ts     中立 Track/MusicActions 契约、轻量实例状态
 │  ├─ theme.ts / ui/icons.ts  主题窄接口、唯一图标几何
@@ -48,12 +48,11 @@ frontend/src/
 │     ├─ page-transitions.ts  页面退场/重进状态
 │     ├─ LoginGlassEffect.tsx 库折射、Motion 呼吸与输入保护
 │     ├─ ErrorBoundary.tsx    装饰降级、页面错误恢复
-│     ├─ LineSidebar.tsx / CollapsibleSidebarLayout.tsx  成员侧栏
-│     └─ mount.ts             唯一旧入口 React 挂载/SSR 适配
+│     └─ LineSidebar.tsx / CollapsibleSidebarLayout.tsx  成员侧栏
 ├─ features/
 │  ├─ auth/*.tsx              登录、2FA、申请、激活、管理员审核
 │  ├─ music-library/          专辑选择、详情、曲目转换与共享视图
-│  ├─ player/                 唯一 Audio 控制器、底栏/展开播放器、歌词、预览快照
+│  ├─ player/                 唯一 Audio 控制器、底栏/展开播放器、默认曲目预览
 │  ├─ queue/                  队列模型、持久化、拖拽/键盘排序、加号飞行动画
 │  ├─ search/ user/ upload/   搜索、个人音乐库、上传与元数据解析
 │  ├─ settings/               设置与 2FA 面板
@@ -64,7 +63,8 @@ frontend/src/
 ├─ graphics/archive/scene-host.ts
 ├─ rhine/                     原图形、模型、材质、交互、资源算法
 ├─ styles/                    原分段 CSS + React 控件/申请/足迹适配
-└─ 根目录薄兼容导出
+├─ player-lyrics.ts           歌词解析和按来源读取
+└─ style.css                  分段样式入口
 ```
 
 不规定单文件行数。简单组件和页面内部状态不机械拆层；图形、请求和音频不放进 JSX 业务闭包。
@@ -190,7 +190,9 @@ frontend/src/
 
 ## 验证边界
 
-- `pnpm test` 覆盖 React 挂载、组件行为和既有业务；`pnpm test:e2e` 在隔离服务上验证真实认证、媒体、指针和队列流程；架构测试检查 TS/TSX 依赖方向与唯一 Audio 创建点。
+- `pnpm test` 覆盖真实 React 组件挂载、组件行为和既有业务；`pnpm test:e2e` 在隔离服务上验证真实认证、媒体、指针和队列流程；架构测试检查 TS/TSX 依赖方向、唯一 Audio 创建点，以及包含类型引用和懒加载的生产入口可达性。
+- 前端 DOM 测试使用 frontend 的直接开发依赖 `jsdom@24.1.3`，与 React 一样通过 `frontend/package.json` 的解析上下文加载。测试所需依赖由 frontend 明确声明，不再借用 vendor 的安装结构；jsdom 不参与生产前端打包。
+- 样式测试保留 CSS 文件及入口导入的解析、关键交互规则检查；构建使用 `pnpm build:web`，不再按 SHA-256 或声明数锁定样式内容。
 - 浏览器验收使用低设备像素比、减少动态效果和测试专用低画质配置，不代表默认画质性能、持续动画、拖拽转场或逐像素视觉基准。
 - 真实网易云/VIP、真实邮件、真实 HTTPS/反向代理/Redis、Safari/Firefox 音频策略和公网部署仍需单独验收；后端覆盖率不能当作前端覆盖率。
 

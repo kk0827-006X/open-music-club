@@ -3,7 +3,7 @@ const path = require('node:path')
 const { describe, it } = require('node:test')
 const { pathToFileURL } = require('node:url')
 
-const moduleUrl = pathToFileURL(path.resolve(__dirname, '../frontend/src/music-queue.ts')).href
+const moduleUrl = pathToFileURL(path.resolve(__dirname, '../frontend/src/features/queue/model.ts')).href
 const song = (key) => ({ key, kind: 'song', title: key, source: key.split(':')[0] })
 
 describe('全站播放器队列', () => {

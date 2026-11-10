@@ -2,7 +2,9 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const { it } = require('node:test')
 const { withReactHarness } = require('./helpers/reactHarness')
-const { JSDOM } = require(require.resolve('jsdom', { paths: [require('node:path').resolve('vendor/api-enhanced')] }))
+const { createRequire } = require('node:module')
+const frontendRequire = createRequire(require('node:path').resolve(__dirname, '../frontend/package.json'))
+const { JSDOM } = frontendRequire('jsdom')
 
 function setup(saved, dark = false, blocked = false) {
   const dom = new JSDOM('<meta name="theme-color"><div id="app"></div>', { url: 'http://localhost', runScripts: 'outside-only' })

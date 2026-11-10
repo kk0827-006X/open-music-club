@@ -2,6 +2,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { describe, it } = require('node:test')
 const { pathToFileURL } = require('node:url')
+const { withReactHarness } = require('./helpers/reactHarness')
 
 const projectRoot = path.resolve(__dirname, '..')
 
@@ -22,7 +23,7 @@ function jsonResponse(status, body) {
 
 describe('前端真实登录与启动流程', () => {
   it('按 CSRF、登录、me 的顺序确认服务端管理员身份', async () => {
-    const { loginAndVerify } = await import(frontendModule('auth-client.ts'))
+    const { loginAndVerify } = await import(frontendModule('services/auth/session.ts'))
     const calls = []
     const fetcher = async (url, options = {}) => {
       calls.push({ url, options })
@@ -63,7 +64,7 @@ describe('前端真实登录与启动流程', () => {
 
   it('不接受登录响应与 me 响应不一致的会话', async () => {
     const { loginAndVerify, AuthFlowError } = await import(
-      frontendModule('auth-client.ts')
+      frontendModule('services/auth/session.ts')
     )
     const responses = [
       jsonResponse(200, { csrfToken: 'token' }),
@@ -85,7 +86,7 @@ describe('前端真实登录与启动流程', () => {
 
   it('把后端错误转换为安全的用户提示', async () => {
     const { loginAndVerify, AuthFlowError } = await import(
-      frontendModule('auth-client.ts')
+      frontendModule('services/auth/session.ts')
     )
     const responses = [
       jsonResponse(200, { csrfToken: 'token' }),
@@ -104,19 +105,19 @@ describe('前端真实登录与启动流程', () => {
   })
 
   it('入口页在登录页之前，且不包含业务导航', async () => {
-    const { createEntryMarkup } = await import(frontendModule('entry-page.ts'))
-    const markup = createEntryMarkup()
-
-    assert.match(markup, /data-entry-start/)
-    assert.match(markup, /点击进入/)
-    assert.match(markup, /OPEN MUSIC CLUB/)
-    assert.doesNotMatch(markup, /data-login-form/)
-    assert.doesNotMatch(markup, /data-business-navigation/)
+    await withReactHarness(async h => {
+      const { EntryPage } = await import('../frontend/src/features/auth/EntryPage.tsx')
+      await h.render(h.React.createElement(EntryPage))
+      assert.match(h.require('[data-entry-start]').textContent, /点击进入/)
+      assert.match(h.document.body.textContent, /OPEN MUSIC CLUB/)
+      assert.equal(h.query('[data-login-form]'), null)
+      assert.equal(h.query('[data-business-navigation]'), null)
+    })
   })
 
   it('登录成功后使用原项目时间轨依次进入授权与欢迎阶段', async () => {
     const { sampleAuthorizedSequence } = await import(
-      frontendModule('authorized-sequence.ts')
+      frontendModule('features/auth/AuthorizedSequence.tsx')
     )
 
     assert.equal(sampleAuthorizedSequence(0).step, 'scan')
@@ -125,7 +126,7 @@ describe('前端真实登录与启动流程', () => {
   })
 
   it('前端将保持登录选项发送给现有登录接口', async () => {
-    const { loginAndVerify } = await import(frontendModule('auth-client.ts'))
+    const { loginAndVerify } = await import(frontendModule('services/auth/session.ts'))
     let loginBody
     await loginAndVerify({ email: 'member@example.com', password: 'test', rememberMe: true }, async (url, options) => {
       if (url.includes('csrf-token')) return jsonResponse(200, { csrfToken: 'token' })
@@ -139,7 +140,7 @@ describe('前端真实登录与启动流程', () => {
   })
 
   it('再次进入网站仅请求 me 确认身份，不重发密码', async () => {
-    const { restoreSession } = await import(frontendModule('auth-client.ts'))
+    const { restoreSession } = await import(frontendModule('services/auth/session.ts'))
     const calls = []
     const user = { id: 1, email: 'admin@example.com', role: 'admin' }
     const restored = await restoreSession(async (url, options) => {
@@ -155,7 +156,7 @@ describe('前端真实登录与启动流程', () => {
   })
 
   it('会话未登录、非法身份或网络异常不自动放行', async () => {
-    const { restoreSession } = await import(frontendModule('auth-client.ts'))
+    const { restoreSession } = await import(frontendModule('services/auth/session.ts'))
     for (const body of [
       { authenticated: false, user: null },
       { authenticated: true, user: { id: 1, email: 'a', role: 'invalid' } },

@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { createRequire } = require('node:module')
 const frontendRequire = createRequire(path.resolve(__dirname, '../../frontend/package.json'))
-const { JSDOM } = require(require.resolve('jsdom', { paths: [path.resolve(__dirname, '../../vendor/api-enhanced')] }))
+const { JSDOM } = frontendRequire('jsdom')
 
 // React 必须和生产 TSX 从同一 frontend 安装位置解析，避免两份运行时产生无效 Hook。
 const React = frontendRequire('react')

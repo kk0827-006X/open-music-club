@@ -9,7 +9,7 @@ function frontendModule(relativePath) {
 
 describe('真实音乐搜索数据转换', () => {
   it('本地歌曲按专辑和歌手归组，仍保留来源与歌曲身份', async () => {
-    const { toLocalSearchItems, filterSearchItems } = await import(frontendModule('music-search.ts'))
+    const { toLocalSearchItems, filterSearchItems } = await import(frontendModule('services/music/search.ts'))
     const tracks = [
       { trackKey: 'local:1', sourceId: '1', source: 'local', title: '第一首', artists: [{ id: null, name: '测试歌手' }], album: { id: null, name: '夜航' }, durationMs: 63000, coverUrl: '/api/local/music/1/cover', uploadedBy: { nickname: '成员甲' } },
       { trackKey: 'local:2', sourceId: '2', source: 'local', title: '第二首', artists: [{ id: null, name: '测试歌手' }], album: { id: null, name: '夜航' }, durationMs: 120000, coverUrl: null, uploadedBy: { nickname: '成员乙' } },
@@ -27,7 +27,7 @@ describe('真实音乐搜索数据转换', () => {
   })
 
   it('网易云歌曲、专辑、歌手结果分别转换，非法封面不会进入页面', async () => {
-    const { toNeteaseSearchItems } = await import(frontendModule('music-search.ts'))
+    const { toNeteaseSearchItems } = await import(frontendModule('services/music/search.ts'))
     const song = toNeteaseSearchItems({ code: 200, result: { songs: [{ id: 11, name: '十年', artists: [{ id: 7, name: '陈奕迅' }], album: { id: 9, name: '黑·白·灰', picUrl: 'http://p1.music.126.net/cover.jpg' }, duration: 205000 }] } }, 'song')
     const album = toNeteaseSearchItems({ code: 200, result: { albums: [{ id: 9, name: '黑·白·灰', artist: { id: 7, name: '陈奕迅' }, picUrl: 'https://p1.music.126.net/album.jpg' }] } }, 'album')
     const artist = toNeteaseSearchItems({ code: 200, result: { artists: [{ id: 7, name: '陈奕迅', picUrl: 'javascript:alert(1)' }] } }, 'artist')
@@ -43,7 +43,7 @@ describe('真实音乐搜索数据转换', () => {
   })
 
   it('网易云搜索仅传必要参数、携带同源会话，且类型映射正确', async () => {
-    const { fetchNeteaseSearchItems } = await import(frontendModule('music-search.ts'))
+    const { fetchNeteaseSearchItems } = await import(frontendModule('services/music/search.ts'))
     const requests = []
     const fetcher = async (url, options) => {
       requests.push({ url, options })
@@ -57,7 +57,7 @@ describe('真实音乐搜索数据转换', () => {
   })
 
   it('歌曲搜索通过现有详情接口批量补齐真实封面，详情失败时保留结果', async () => {
-    const { fetchNeteaseSearchItems } = await import(frontendModule('music-search.ts'))
+    const { fetchNeteaseSearchItems } = await import(frontendModule('services/music/search.ts'))
     const requests = []
     const fetcher = async (url) => {
       requests.push(url)
@@ -79,7 +79,7 @@ describe('真实音乐搜索数据转换', () => {
   })
 
   it('歌曲播放地址按来源取得，并拒绝空 URL 与不可信域名', async () => {
-    const { resolvePlaybackUrl } = await import(frontendModule('music-search.ts'))
+    const { resolvePlaybackUrl } = await import(frontendModule('services/music/search.ts'))
     const local = { kind: 'song', source: 'local', sourceId: '12' }
     assert.equal(await resolvePlaybackUrl(local), '/api/local/music/12/stream')
     const fetcher = async () => ({ ok: true, status: 200, async json() { return { code: 200, data: [{ url: 'http://m801.music.126.net/song.mp3' }] } } })
@@ -91,7 +91,7 @@ describe('真实音乐搜索数据转换', () => {
   })
 
   it('本地列表使用现有接口，服务失败只给安全错误', async () => {
-    const { fetchLocalSearchItems, fetchNeteaseSearchItems } = await import(frontendModule('music-search.ts'))
+    const { fetchLocalSearchItems, fetchNeteaseSearchItems } = await import(frontendModule('services/music/search.ts'))
     const requests = []
     const fetcher = async (url, options) => {
       requests.push({ url, options })

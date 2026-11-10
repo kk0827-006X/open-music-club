@@ -12,7 +12,7 @@ class FakeAudio extends EventTarget {
 }
 async function setup(resolveUrl = async track => `/${track.source}/${track.sourceId}`, onPlayed) {
   const { createPlayerController } = await import('../frontend/src/features/player/player-core.ts')
-  const { MusicQueue } = await import('../frontend/src/music-queue.ts')
+  const { MusicQueue } = await import('../frontend/src/features/queue/model.ts')
   const audio = new FakeAudio(), queue = new MusicQueue()
   let created = 0
   const player = createPlayerController({ queue, resolveUrl, onPlayed, createAudio: () => { created++; return audio } })

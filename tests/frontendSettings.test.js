@@ -27,21 +27,28 @@ it('设置仅展示左右分栏 UI，复用关闭图标，不保存或应用播�
   assert.doesNotMatch(source, /localStorage|audio\.volume|setQuality|playerAutoHide|playerPinned/)
 })
 
-it('设置兼容挂载保留工作区 DOM，关闭动画和退出错误均可恢复', async () => {
+it('真实设置弹窗保留工作区 DOM，关闭和退出错误均可恢复', async () => {
   await withReactHarness(async h => {
-    const { mountSettingsDialog } = await import('../frontend/src/settings-dialog.ts')
-    const root = h.require('#app'), sentinel = h.document.createElement('p')
-    sentinel.textContent = '工作区'; root.append(sentinel)
-    let dialog, opens = 0, closes = 0
-    try {
-      await h.React.act(async () => { dialog = mountSettingsDialog(root, { onOpen() { opens++ }, onClose() { closes++ }, logout: async () => { throw new Error('服务离线') } }); dialog.show() })
-      await h.flush(); assert.equal(sentinel.isConnected, true); assert.equal(dialog.open, true); assert.equal(opens, 1)
-      await h.click('[data-settings-category="account"]'); await h.click('[data-settings-logout]')
-      assert.match(h.require('[data-settings-status]').textContent, /退出失败/); assert.equal(h.require('[data-settings-logout]').disabled, false)
-      await h.click('[data-settings-close]'); await h.wait(10)
-      assert.equal(dialog.open, false); assert.equal(closes, 1)
-    } finally { if (dialog) await h.React.act(async () => dialog.destroy()) }
-    assert.equal(sentinel.isConnected, true); assert.equal(h.query('[data-settings-dialog]'), null)
+    const { SettingsDialog } = await import('../frontend/src/features/settings/SettingsDialog.tsx')
+    const dialog = h.React.createRef()
+    let opens = 0, closes = 0
+    await h.render(h.React.createElement(h.React.Fragment, null,
+      h.React.createElement('p', { 'data-workspace-sentinel': true }, '工作区'),
+      h.React.createElement(SettingsDialog, { ref: dialog, onOpen() { opens++ }, onClose() { closes++ },
+        logout: async () => { throw new Error('服务离线') } })))
+    const sentinel = h.require('[data-workspace-sentinel]')
+    await h.React.act(async () => dialog.current.show())
+    await h.flush()
+    assert.equal(sentinel.isConnected, true); assert.equal(dialog.current.open, true); assert.equal(opens, 1)
+    await h.click('[data-settings-category="account"]'); await h.click('[data-settings-logout]')
+    assert.match(h.require('[data-settings-status]').textContent, /退出失败/)
+    assert.equal(h.require('[data-settings-logout]').disabled, false)
+    await h.click('[data-settings-close]'); await h.wait(10)
+    assert.equal(dialog.current.open, false); assert.equal(closes, 1)
+    await h.render(h.React.createElement('p', { 'data-workspace-sentinel': true }, '工作区'))
+    assert.equal(sentinel.isConnected, true)
+    assert.equal(h.query('[data-settings-dialog]'), null)
+    assert.equal(dialog.current, null)
   })
 })
 
@@ -68,7 +75,7 @@ it('管理员 2FA 管理遵守服务器禁止关闭策略，恢复码重新生�
 })
 
 it('退出登录通过已有接口和 CSRF 校验，接口失败不伪装成功', async () => {
-  const { logoutSession } = await import('../frontend/src/auth-client.ts')
+  const { logoutSession } = await import('../frontend/src/services/auth/session.ts')
   const calls = []
   await logoutSession(async (url, init) => {
     calls.push({ url, init })

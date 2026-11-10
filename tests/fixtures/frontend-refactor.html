@@ -5,7 +5,9 @@
 <aside style="position:fixed;z-index:300;right:8px;top:4px;font:10px monospace"><button data-fixture-remount>重挂载工作区</button><button data-fixture-stats>读取资源计数</button><output data-fixture-result>Mock 音乐/API，仅供本地验收</output></aside>
 <script type="module">
 import '/src/style.css'
-import { mountMusicWorkspace } from '/src/app/music-workspace.ts'
+import { createElement } from 'react'
+import { createRoot } from 'react-dom/client'
+import Workspace from '/src/app/Workspace.tsx'
 import { createPlayerController } from '/src/features/player/player-core.ts'
 import { MusicQueue } from '/src/features/queue/model.ts'
 import { toPersonalSong } from '/src/services/music/personal-library.ts'
@@ -46,7 +48,9 @@ const queue = new MusicQueue(), player = createPlayerController({ queue, resolve
 let destroy = () => {}
 function mount() {
   destroy()
-  destroy = mountMusicWorkspace(root, { player, queue, personalLibrary: api, loadScene: async () => {
+  const application = createRoot(root)
+  destroy = () => application.unmount()
+  application.render(createElement(Workspace, { player, queue, personalLibrary: api, loadScene: async () => {
     const { ArchiveScene } = await import('/src/rhine/scene.ts')
     const next = new ArchiveScene(root.querySelector('[data-three-scene]'), undefined, undefined, undefined, demoAlbums.map(album => album.coverUrl))
     const dispose = next.dispose.bind(next)
@@ -54,7 +58,7 @@ function mount() {
     next.dispose = () => { if (!disposed) { disposed = true; destroyedScenes++; dispose() } }
     scene = next
     return next
-  } })
+  } }))
 }
 document.querySelector('[data-fixture-remount]').onclick = mount
 document.querySelector('[data-fixture-stats]').onclick = () => {

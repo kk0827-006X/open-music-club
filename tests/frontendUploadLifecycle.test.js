@@ -11,13 +11,9 @@ for (const outcome of ['abort', 'late-success']) it(`上传页面销毁后不更
     return response
   }
   await withReactHarness(async (h) => {
-    // 组件默认使用 window.fetch；显式写在当前 JSDOM 上，避免测试助手版本差异。
-    h.window.fetch = fetch
-    const root = h.document.createElement('div')
-    h.document.body.appendChild(root)
-    const { mountUploadPage } = await import('../frontend/src/features/upload/upload-page.ts')
-    let view
-    await h.React.act(async () => { view = mountUploadPage(root) })
+    const root = h.require('#app')
+    const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx')
+    await h.render(h.React.createElement(UploadPage, { active: true }))
     let destroyed = false
     try {
       const fileInput = h.require('[data-upload-file]')
@@ -32,8 +28,8 @@ for (const outcome of ['abort', 'late-success']) it(`上传页面销毁后不更
       await h.input('[data-upload-artist]', '测试歌手')
       await h.submit('[data-upload-form]')
       await h.until(() => Boolean(requestSignal), '提交后应发出上传请求')
-      assert.ok(view.element)
-      await h.React.act(async () => { view.destroy() })
+      h.require('[data-upload-page]')
+      await h.unmount()
       destroyed = true
       assert.equal(requestSignal.aborted, true, '销毁页面必须中止上传请求')
       assert.equal(root.childElementCount, 0, '销毁后 React 根节点应被卸载')
@@ -55,8 +51,7 @@ for (const outcome of ['abort', 'late-success']) it(`上传页面销毁后不更
       assert.equal(root.childElementCount, 0, '请求完成/取消后不能重新挂载已销毁的上传视图')
       assert.equal(root.innerHTML, destroyedMarkup, '请求完成/取消后不能更新已经销毁的上传视图')
     } finally {
-      if (!destroyed) await h.React.act(async () => { view.destroy() })
-      root.remove()
+      if (!destroyed) await h.unmount()
     }
   }, { fetch })
 })
