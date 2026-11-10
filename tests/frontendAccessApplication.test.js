@@ -6,7 +6,7 @@ function response(status, body) { return { ok: status >= 200 && status < 300, st
 it('申请样式独立加载并沿用主题，不覆盖旧登录表单或2FA样式', () => {
   const fs = require('node:fs')
   const css = fs.readFileSync('frontend/src/styles/access-application.css', 'utf8')
-  assert.match(fs.readFileSync('frontend/src/style.css', 'utf8'), /@import '.\/styles\/access-application.css'/)
+  assert.match(fs.readFileSync('frontend/src/style.css', 'utf8'), /@import ['"]\.\/styles\/access-application.css['"];/)
   assert.doesNotMatch(css, /#[0-9a-f]{3,8}\b|rgba?\(|\.factor-|\.login-shell\s*\{/i)
   assert.match(css, /\.login-application-dialog textarea:focus-visible/)
 })

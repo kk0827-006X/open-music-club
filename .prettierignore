@@ -1,0 +1,12 @@
+# 原算法与文件内容由 SHA-256 锁定，保留已有保护。
+frontend/src/rhine/motion.ts
+vendor/
+node_modules/
+frontend/node_modules/
+docs/
+*.md
+pnpm-lock.yaml
+storage/
+artifacts/
+coverage/
+frontend/dist/

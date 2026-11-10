@@ -48,5 +48,5 @@ it('用户页与足迹引用同一过渡实现及主题背景，不保留第二�
     assert.doesNotMatch(text, /tabTimerRef/)
   }
   const css = fs.readFileSync('frontend/src/styles/member-sidebar.css', 'utf8')
-  assert.match(css, /\.user-page, \.footprint-page \{[^}]*background: radial-gradient[^}]*var\(--color-surface-40\)[^}]*var\(--color-surface-22\)[^}]*var\(--color-surface-23\)/)
+  assert.match(css, /\.user-page,\s*\.footprint-page\s*\{[^}]*background: radial-gradient[^}]*var\(--color-surface-40\)[^}]*var\(--color-surface-22\)[^}]*var\(--color-surface-23\)/)
 })
