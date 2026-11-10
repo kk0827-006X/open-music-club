@@ -1,4 +1,5 @@
 import { safeCoverUrl, FALLBACK_COVER } from '../../shared/music.ts';
+import { formatDurationMs } from '../../shared/format.ts';
 import type { SearchItem, SearchKind, SourceFilter } from '../../shared/music.ts';
 export { safeCoverUrl } from '../../shared/music.ts';
 export type { SearchItem, SearchKind, SearchSource, SourceFilter } from '../../shared/music.ts';
@@ -35,8 +36,7 @@ function artistNames(value: unknown): string[] {
 
 function durationText(value: unknown): string {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return '—';
-  const seconds = Math.floor(value / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return formatDurationMs(value);
 }
 
 function releaseYear(value: unknown): string {

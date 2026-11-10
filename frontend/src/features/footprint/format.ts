@@ -1,4 +1,6 @@
 import { safeCoverUrl, type SearchItem } from '../../shared/music.ts';
+import { formatTrackDuration } from '../../shared/format.ts';
+export { formatTrackDuration } from '../../shared/format.ts';
 import type { FootprintEvent } from '../../services/music/footprint.ts';
 
 export const siteOffset = (value?: number) =>
@@ -31,8 +33,6 @@ export const formatDuration = (value: number) =>
   value >= 3600000
     ? `${(value / 3600000).toFixed(1)} 小时`
     : `${Math.floor(Math.max(0, value) / 60000)} 分钟`;
-export const formatTrackDuration = (value: number) =>
-  `${Math.floor(Math.max(0, value) / 60000)}:${String(Math.floor(Math.max(0, value) / 1000) % 60).padStart(2, '0')}`;
 export function toFootprintSong(
   track: Pick<
     FootprintEvent,

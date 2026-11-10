@@ -39,10 +39,12 @@ frontend/src/
 │  ├─ Workspace.tsx           页面切换、懒加载/visited、公开动作注入、全局快捷键
 │  └─ routes.ts               URL 路由和登录返回路径白名单
 ├─ shared/
-│  ├─ music.ts / state.ts     中立 Track/MusicActions 契约、轻量实例状态
+│  ├─ music.ts / state.ts     中立 Track/MusicActions 契约、统一回退封面、轻量实例状态
+│  ├─ format.ts              秒/毫秒时长展示，各入口保留原边界策略
 │  ├─ theme.ts / ui/icons.ts  主题窄接口、唯一图标几何
 │  └─ react/
 │     ├─ ui.tsx               Icon、IconButton、Brand、原生 Modal
+│     ├─ image.ts             图片加载失败回退，避免占位图错误循环
 │     ├─ controls.tsx         Radix 音量滑杆
 │     ├─ hooks.ts             减少动态效果、延迟隐藏
 │     ├─ page-transitions.ts  页面退场/重进状态

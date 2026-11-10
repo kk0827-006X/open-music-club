@@ -8,13 +8,15 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject, SyntheticEvent } from 'react';
+import type { FormEvent, MouseEvent as ReactMouseEvent, RefObject } from 'react';
 import {
   createPersonalLibraryClient,
   toPersonalSong,
 } from '../../services/music/personal-library.ts';
 import type { UserPlaylist } from '../../services/music/personal-library.ts';
-import type { SearchItem } from '../../shared/music.ts';
+import { FALLBACK_COVER, type SearchItem } from '../../shared/music.ts';
+import { formatPlaybackTime as clock } from '../../shared/format.ts';
+import { replaceBrokenCover } from '../../shared/react/image.ts';
 import { AmbientAlbumBackground } from '../../shared/react/ambient/AmbientAlbumBackground.tsx';
 import { Icon, Modal } from '../../shared/react/ui.tsx';
 import { VolumeSlider } from '../../shared/react/controls.tsx';
@@ -28,20 +30,8 @@ import { QueueAddFlights, type QueueAddFlightsHandle } from '../queue/QueueAddFl
 import { QueuePanel } from '../queue/QueuePanel.tsx';
 import { ExpandedPlayerControls } from './ExpandedPlayerControls.tsx';
 
-const FALLBACK_COVER = '/images/album-placeholder-01.svg';
 const AUTO_HIDE_DELAY = 320;
 const COLLECTION_NOTICE_DURATION = 5000;
-
-function clock(seconds: number) {
-  return Number.isFinite(seconds)
-    ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
-    : '0:00';
-}
-
-function replaceBrokenCover(event: SyntheticEvent<HTMLImageElement>) {
-  const image = event.currentTarget;
-  if (!image.src.endsWith('album-placeholder-01.svg')) image.src = FALLBACK_COVER;
-}
 
 // 只有上层应用会话创建 Audio；本视图只通过 PlayerController 读取与修改播放状态。
 export interface PlayerViewProps {

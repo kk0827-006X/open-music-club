@@ -3,13 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
 import { motion, Reorder, useDragControls } from 'motion/react';
 import type { SearchItem } from '../../shared/music.ts';
 import { Icon } from '../../shared/react/ui.tsx';
-
-const FALLBACK_COVER = '/images/album-placeholder-01.svg';
-
-function replaceBrokenCover(event: { currentTarget: HTMLImageElement }) {
-  const image = event.currentTarget;
-  if (!image.src.endsWith('album-placeholder-01.svg')) image.src = FALLBACK_COVER;
-}
+import { replaceBrokenCover } from '../../shared/react/image.ts';
 
 // cancel() 不派发迟到的 onDragEnd，防止取消后马上重拖同一曲目时误提交。
 type DragControlsLike = { cancel(): void };

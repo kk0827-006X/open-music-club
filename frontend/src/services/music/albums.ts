@@ -1,4 +1,5 @@
 import type { AlbumTrack } from '../../shared/music.ts';
+import { formatDurationSeconds } from '../../shared/format.ts';
 
 type AlbumResponse = { ok: boolean; json(): Promise<unknown> };
 type AlbumFetcher = (
@@ -33,7 +34,7 @@ export async function fetchAlbumTracks(
       {
         id,
         title: song.name.trim(),
-        duration: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`,
+        duration: formatDurationSeconds(seconds),
       },
     ];
   });

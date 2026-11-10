@@ -7,8 +7,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { SyntheticEvent } from 'react';
 import type { MusicActions, SearchItem } from '../../shared/music.ts';
+import { formatDurationSeconds } from '../../shared/format.ts';
+import { replaceBrokenCover } from '../../shared/react/image.ts';
 import type { ArchiveNavigation } from '../../rhine/archive-loop.ts';
 import { archiveColumns, columnFiles, fileLocation, records } from '../../rhine/data.ts';
 import type { mountArchiveScene } from '../../graphics/archive/scene-host.ts';
@@ -16,13 +17,7 @@ import { Icon } from '../../shared/react/ui.tsx';
 import { albumTrack } from './tracks.ts';
 import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts';
 
-const FALLBACK_COVER = '/images/album-placeholder-01.svg';
 const TICKS_PER_SHELF = 8;
-
-function replaceBrokenCover(event: SyntheticEvent<HTMLImageElement>) {
-  const image = event.currentTarget;
-  if (!image.src.endsWith('album-placeholder-01.svg')) image.src = FALLBACK_COVER;
-}
 
 function durationOf(album: DemoAlbum) {
   const seconds = album.tracks.reduce((total, track) => {
@@ -33,7 +28,7 @@ function durationOf(album: DemoAlbum) {
       (Number.isFinite(remainder) ? remainder : 0)
     );
   }, 0);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return formatDurationSeconds(seconds);
 }
 
 export interface LibraryViewProps {

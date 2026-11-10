@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import type { ChangeEvent, DragEvent, FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { Icon } from '../../shared/react/ui.tsx';
+import { FALLBACK_COVER } from '../../shared/music.ts';
 import { usePageMotion } from '../../shared/react/page-transitions.ts';
 import { usePageVisibility, useReducedMotion } from '../../shared/react/hooks.ts';
 import { uploadMusicFile, UploadError } from '../../services/music/upload.ts';
@@ -9,7 +10,6 @@ import { readUploadMetadata } from './metadata.ts';
 
 const MAX_PREVIEW_BYTES = 100 * 1024 * 1024;
 const AUDIO_EXTENSIONS = new Set(['mp3', 'flac', 'wav', 'm4a', 'ogg']);
-const FALLBACK_COVER = '/images/album-placeholder-01.svg';
 type StatusState = 'neutral' | 'error' | 'ready';
 
 export interface UploadPageProps {

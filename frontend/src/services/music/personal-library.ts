@@ -1,4 +1,5 @@
 import { safeCoverUrl, type SearchItem } from '../../shared/music.ts';
+import { formatDurationMs } from '../../shared/format.ts';
 
 import type { TrackReference } from '../../shared/music.ts';
 export type { TrackReference } from '../../shared/music.ts';
@@ -37,7 +38,6 @@ export class PersonalLibraryError extends Error {
 }
 
 export function toPersonalSong(track: PersonalTrack): SearchItem {
-  const seconds = Math.floor(track.durationMs / 1000);
   return {
     key: `${track.source}:${track.sourceId}`,
     kind: 'song',
@@ -47,7 +47,7 @@ export function toPersonalSong(track: PersonalTrack): SearchItem {
     artist: track.artists.map((artist) => artist.name).join('、') || '未知艺术家',
     album: track.album.name || '未归档',
     coverUrl: safeCoverUrl(track.coverUrl),
-    duration: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`,
+    duration: formatDurationMs(track.durationMs),
     year: '—',
     description: '',
   };
