@@ -163,6 +163,6 @@ describe('入队飞行动画（真实 React 组件）', () => {
     const css = readFrontendSource('frontend/src/style.css')
     assert.match(css, /\.queue-add-flight\s*\{[^}]*pointer-events: none/s)
     // 禁用按钮不进入 hover 反馈，和上面“禁用加号不产生飞行”的行为一致。
-    assert.match(css, /button:not\(:disabled\):not\(\[aria-disabled="true"\]\):is\(:hover, :focus-visible\)/)
+    assert.match(css, /button:not\(:disabled\):not\(\[aria-disabled=['"]true['"]\]\):is\(:hover, :focus-visible\)/)
   })
 })

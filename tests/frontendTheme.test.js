@@ -82,7 +82,7 @@ it('配置先于模块和界面载入，颜色只在统一表定义，主题模�
   assert.match(html, /<script src="\/theme-init.js"><\/script>/)
   assert.ok(html.indexOf('/theme.css') < html.indexOf('/theme-init.js'))
   const css = fs.readFileSync('frontend/public/theme.css', 'utf8')
-  assert.match(css, /data-theme="dark"/)
+  assert.match(css, /data-theme=['"]dark['"]/)
   for (const file of fs.readdirSync('frontend/src/styles')) assert.doesNotMatch(fs.readFileSync(`frontend/src/styles/${file}`, 'utf8'), /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i, file)
   for (const file of ['frontend/public/theme-init.js', 'frontend/src/shared/theme.ts']) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /new Audio|\.pause\(|\.play\(|currentTime|music-workspace|player-core/)
 })
@@ -135,7 +135,7 @@ it('两套 token 一一对应，新增深色关键文字和操作颜色符合 AA
     assert.ok(colors.has('--player-ambient-base'))
     assert.ok(colors.has('--player-ambient-ink'))
   }
-  assert.equal(palettes[1].get('--backdrop'), 'rgba(0,0,0,.6)', '深色遮罩应压暗背景，不能变成浅灰发亮的分隔线')
+  assert.match(palettes[1].get('--backdrop'), /^rgba\(0,\s*0,\s*0,\s*0?\.6\)$/, '深色遮罩应压暗背景，不能变成浅灰发亮的分隔线')
   const luminance = hex => {
     const rgb = [1,3,5].map(i => parseInt(hex.slice(i,i+2),16) / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4)
     return rgb[0] * .2126 + rgb[1] * .7152 + rgb[2] * .0722
@@ -180,7 +180,7 @@ it('Three.js 复用主题接口，环境和深色材质从同一张 CSS 配置�
   global.window = env.win; global.document = env.win.document
   const postcss = require(require.resolve('postcss', { paths: [require.resolve('../frontend/node_modules/vite/package.json')] })), colors = {}
   postcss.parse(fs.readFileSync('frontend/public/theme.css', 'utf8')).walkRules(rule => {
-    const theme = rule.selector.includes('data-theme="light"') ? 'light' : rule.selector.includes('data-theme="dark"') ? 'dark' : null
+    const theme = /data-theme=['"]light['"]/.test(rule.selector) ? 'light' : /data-theme=['"]dark['"]/.test(rule.selector) ? 'dark' : null
     if (!theme) return
     colors[theme] = new Map(); rule.walkDecls(d => colors[theme].set(d.prop, d.value))
   })

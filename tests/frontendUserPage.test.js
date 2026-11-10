@@ -27,7 +27,7 @@ describe('用户页面真实数据界面', () => {
   it('真实用户页通过 ref 暴露弹窗状态，卸载不留下第二套播放器', async () => {
     const css = readFrontendSource(frontend('style.css'))
     assert.match(css, /\.user-page\s*\{[^}]*grid-template-columns/)
-    assert.match(css, /\.album-archive\[data-view="user"\] \.user-page/)
+    assert.match(css, /\.album-archive\[data-view=['"]user['"]\] \.user-page/)
     await withReactHarness(async (h) => {
       const client = {
         profile: async () => ({ id: 1, nickname: '测试成员', avatarUrl: null }),
@@ -106,16 +106,16 @@ describe('用户页面真实数据界面', () => {
 
   it('歌单图标无圆圈及悬停背景，普通按钮轻晃一次，× 旋转 90 度并支持减少动态效果', () => {
     const css = readFrontendSource(frontend('style.css'))
-    const base = css.match(/\.user-track-actions \.user-icon-button, \.user-list-detail-actions \.user-icon-button\s*\{([^}]+)\}/)?.[1] || ''
+    const base = css.match(/\.user-track-actions \.user-icon-button,\s*\.user-list-detail-actions \.user-icon-button\s*\{([^}]+)\}/)?.[1] || ''
     assert.match(base, /border: 0/)
     assert.match(base, /border-radius: 0/)
     assert.match(base, /background: transparent/)
     assert.doesNotMatch(css, /\.user-play-button\s*\{[^}]*border-color/)
-    const hover = css.match(/\.user-track-actions \.user-icon-button:hover:not\(:disabled\), \.user-list-detail-actions \.user-icon-button:hover:not\(:disabled\)\s*\{([^}]+)\}/)?.[1] || ''
+    const hover = css.match(/\.user-track-actions \.user-icon-button:hover:not\(:disabled\),\s*\.user-list-detail-actions \.user-icon-button:hover:not\(:disabled\)\s*\{([^}]+)\}/)?.[1] || ''
     assert.match(hover, /background: transparent/)
     assert.match(hover, /transform: translateY\(0\)/)
     assert.doesNotMatch(hover, /border-color:|infinite/)
-    assert.match(css, /data-ui-icon="close"[^}]*transform: rotate\(90deg\)/)
+    assert.match(css, /data-ui-icon=['"]close['"][^}]*transform: rotate\(90deg\)/)
     assert.match(css, /@keyframes ui-icon-bob/)
     const reducedMotion = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)].map((match) => match[1]).join('\n')
     assert.match(reducedMotion, /\.ui-icon[^}]*animation: none/)

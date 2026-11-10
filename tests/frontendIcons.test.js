@@ -61,8 +61,8 @@ describe('全站共享图标与动画', () => {
 
   it('共享动画只变换图标：普通图标轻晃一次，× 平滑旋转，禁用及减少动态效果时不动', () => {
     const css = readFrontendSource(frontend('style.css'))
-    assert.match(css, /button:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\) \.ui-icon\s*\{[^}]*animation: ui-icon-bob 420ms ease-in-out/)
-    assert.match(css, /button:hover:not\(:disabled\):not\(\[aria-disabled="true"\]\) \.ui-icon\[data-ui-icon="close"\]\s*\{[^}]*animation: none;[^}]*transform: rotate\(90deg\)/)
+    assert.match(css, /button:hover:not\(:disabled\):not\(\[aria-disabled=['"]true['"]\]\) \.ui-icon\s*\{[^}]*animation: ui-icon-bob 420ms ease-in-out/)
+    assert.match(css, /button:hover:not\(:disabled\):not\(\[aria-disabled=['"]true['"]\]\) \.ui-icon\[data-ui-icon=['"]close['"]\]\s*\{[^}]*animation: none;[^}]*transform: rotate\(90deg\)/)
     assert.match(css, /\.ui-icon\s*\{[^}]*transition: transform 240ms ease/)
     const reduced = [...css.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g)].map((match) => match[1]).join('\n')
     assert.match(reduced, /\.ui-icon[^}]*animation: none/)

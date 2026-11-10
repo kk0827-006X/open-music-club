@@ -372,7 +372,7 @@ describe('底部播放器与歌词画面（真实 React 组件）', () => {
     assert.match(css, /\.player-volume-slider-track\s*\{[^}]*height: 2px/)
     assert.match(css, /\.player-volume-slider-range\s*\{[^}]*background: var\(--amber\)/)
     assert.match(css, /\.player-expanded\s*\{[^}]*inset: 0;/)
-    assert.match(css, /\.player-expanded::before\s*\{[^}]*transform-origin: (?:center bottom|bottom center)[^}]*transform: scaleY\(0\)[^}]*transition: transform (?:7|8|9)\d\dms/)
+    assert.match(css, /\.player-expanded::before\s*\{[^}]*transform-origin: (?:center bottom|bottom center)[^}]*transform: scaleY\(0\)[^}]*transition:\s*transform (?:7|8|9)\d\dms/)
     assert.match(css, /\.player-expanded\.is-open::before\s*\{[^}]*transform: scaleY\(1\)/)
     assert.match(css, /\.player-expanded-header,\s*\.player-expanded-content\s*\{[^}]*opacity: 0[^}]*transform: translateY\(/)
     assert.match(css, /\.player-expanded\.is-open \.player-expanded-header,\s*\.player-expanded\.is-open \.player-expanded-content\s*\{[^}]*opacity: 1/)

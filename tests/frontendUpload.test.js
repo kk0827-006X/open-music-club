@@ -86,9 +86,9 @@ describe('本地音乐上传页 UI', () => {
 
   it('真实上传页挂载和卸载保持独立于全站播放器', async () => {
     const css = readFrontendSource(frontendFile('style.css'))
-    assert.match(css, /\.upload-page\s*\{[^}]*opacity: 0[^}]*transition: opacity/)
-    assert.match(css, /\.album-archive\[data-view="upload"\] \.upload-page\s*\{[^}]*opacity: 1/)
-    assert.match(css, /\.album-archive\[data-view="upload"\] \.archive-brand/)
+    assert.match(css, /\.upload-page\s*\{[^}]*opacity: 0[^}]*transition:\s*opacity/)
+    assert.match(css, /\.album-archive\[data-view=['"]upload['"]\] \.upload-page\s*\{[^}]*opacity: 1/)
+    assert.match(css, /\.album-archive\[data-view=['"]upload['"]\] \.archive-brand/)
     await withReactHarness(async (h) => {
       const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx')
       await h.render(h.React.createElement(UploadPage, { active: true }))
