@@ -3,7 +3,9 @@ export class RenderState {
   private values: (number | string | undefined)[] = [];
   private cursor = 0;
   private changed = true;
-  begin() { this.cursor = 0; }
+  begin() {
+    this.cursor = 0;
+  }
   add(...values: (number | string | undefined)[]) {
     for (const value of values) {
       if (this.values[this.cursor] !== value) this.changed = true;
@@ -13,7 +15,7 @@ export class RenderState {
   floats(...values: (number | undefined)[]) {
     // Match GPU float uniforms. IDs and monotonically increasing versions use
     // add() so long-running wallpapers never lose counter precision.
-    this.add(...values.map(value => value === undefined ? undefined : Math.fround(value)));
+    this.add(...values.map((value) => (value === undefined ? undefined : Math.fround(value))));
   }
   end() {
     const changed = this.changed || this.values.length !== this.cursor;
@@ -21,5 +23,7 @@ export class RenderState {
     this.changed = false;
     return changed;
   }
-  invalidate() { this.changed = true; }
+  invalidate() {
+    this.changed = true;
+  }
 }

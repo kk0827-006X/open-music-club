@@ -5,11 +5,14 @@ export class InstanceUpdates {
   private first = Infinity;
   private last = -1;
   readonly attribute: InstancedBufferAttribute;
-  constructor(attribute: InstancedBufferAttribute) { this.attribute = attribute; }
+  constructor(attribute: InstancedBufferAttribute) {
+    this.attribute = attribute;
+  }
   set(offset: number, values: ArrayLike<number>) {
     const array = this.attribute.array;
     for (let j = 0; j < values.length; j++) {
-      const i = offset + j, value = Math.fround(values[j]);
+      const i = offset + j,
+        value = Math.fround(values[j]);
       if (array[i] === value) continue;
       array[i] = value;
       this.first = Math.min(this.first, i);

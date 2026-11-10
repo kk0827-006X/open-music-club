@@ -1,14 +1,14 @@
-const assert = require('node:assert/strict')
-const path = require('node:path')
-const { describe, it } = require('node:test')
-const { pathToFileURL } = require('node:url')
-const { withReactHarness } = require('./helpers/reactHarness')
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const { describe, it } = require('node:test');
+const { pathToFileURL } = require('node:url');
+const { withReactHarness } = require('./helpers/reactHarness');
 
-const projectRoot = path.resolve(__dirname, '..')
+const projectRoot = path.resolve(__dirname, '..');
 
 function frontendModule(relativePath) {
-  const modulePath = path.join(projectRoot, 'frontend/src', relativePath)
-  return `${pathToFileURL(modulePath).href}?test=${Date.now()}-${Math.random()}`
+  const modulePath = path.join(projectRoot, 'frontend/src', relativePath);
+  return `${pathToFileURL(modulePath).href}?test=${Date.now()}-${Math.random()}`;
 }
 
 function jsonResponse(status, body) {
@@ -16,56 +16,55 @@ function jsonResponse(status, body) {
     ok: status >= 200 && status < 300,
     status,
     async json() {
-      return body
+      return body;
     },
-  }
+  };
 }
 
 describe('前端真实登录与启动流程', () => {
   it('按 CSRF、登录、me 的顺序确认服务端管理员身份', async () => {
-    const { loginAndVerify } = await import(frontendModule('services/auth/session.ts'))
-    const calls = []
+    const { loginAndVerify } = await import(frontendModule('services/auth/session.ts'));
+    const calls = [];
     const fetcher = async (url, options = {}) => {
-      calls.push({ url, options })
+      calls.push({ url, options });
       if (url === '/api/security/csrf-token') {
-        return jsonResponse(200, { csrfToken: 'csrf-test-token' })
+        return jsonResponse(200, { csrfToken: 'csrf-test-token' });
       }
       if (url === '/api/auth/login') {
         return jsonResponse(200, {
           success: true,
           user: { id: 1, email: 'admin@example.com', role: 'admin' },
-        })
+        });
       }
       return jsonResponse(200, {
         authenticated: true,
         user: { id: 1, email: 'admin@example.com', role: 'admin' },
-      })
-    }
+      });
+    };
 
     const result = await loginAndVerify(
       { email: ' admin@example.com ', password: 'secret-password' },
       fetcher,
-    )
+    );
 
-    assert.equal(result.user.role, 'admin')
-    assert.deepEqual(calls.map((call) => call.url), [
-      '/api/security/csrf-token',
-      '/api/auth/login',
-      '/api/auth/me',
-    ])
-    assert.equal(calls[1].options.headers['X-CSRF-Token'], 'csrf-test-token')
-    assert.equal(calls[1].options.credentials, 'same-origin')
+    assert.equal(result.user.role, 'admin');
+    assert.deepEqual(
+      calls.map((call) => call.url),
+      ['/api/security/csrf-token', '/api/auth/login', '/api/auth/me'],
+    );
+    assert.equal(calls[1].options.headers['X-CSRF-Token'], 'csrf-test-token');
+    assert.equal(calls[1].options.credentials, 'same-origin');
     assert.deepEqual(JSON.parse(calls[1].options.body), {
       email: 'admin@example.com',
       password: 'secret-password',
       rememberMe: false,
-    })
-  })
+    });
+  });
 
   it('不接受登录响应与 me 响应不一致的会话', async () => {
     const { loginAndVerify, AuthFlowError } = await import(
       frontendModule('services/auth/session.ts')
-    )
+    );
     const responses = [
       jsonResponse(200, { csrfToken: 'token' }),
       jsonResponse(200, {
@@ -73,98 +72,110 @@ describe('前端真实登录与启动流程', () => {
         user: { id: 1, role: 'admin' },
       }),
       jsonResponse(200, { authenticated: false, user: null }),
-    ]
+    ];
 
     await assert.rejects(
-      () => loginAndVerify(
-        { email: 'admin@example.com', password: 'secret-password' },
-        async () => responses.shift(),
-      ),
+      () =>
+        loginAndVerify({ email: 'admin@example.com', password: 'secret-password' }, async () =>
+          responses.shift(),
+        ),
       (error) => error instanceof AuthFlowError && error.code === 'SESSION_UNVERIFIED',
-    )
-  })
+    );
+  });
 
   it('把后端错误转换为安全的用户提示', async () => {
     const { loginAndVerify, AuthFlowError } = await import(
       frontendModule('services/auth/session.ts')
-    )
+    );
     const responses = [
       jsonResponse(200, { csrfToken: 'token' }),
       jsonResponse(401, { success: false, message: '邮箱或密码错误' }),
-    ]
+    ];
 
     await assert.rejects(
-      () => loginAndVerify(
-        { email: 'admin@example.com', password: 'wrong-password' },
-        async () => responses.shift(),
-      ),
-      (error) => error instanceof AuthFlowError
-        && error.code === 'LOGIN_REJECTED'
-        && error.message === '邮箱或密码错误',
-    )
-  })
+      () =>
+        loginAndVerify({ email: 'admin@example.com', password: 'wrong-password' }, async () =>
+          responses.shift(),
+        ),
+      (error) =>
+        error instanceof AuthFlowError &&
+        error.code === 'LOGIN_REJECTED' &&
+        error.message === '邮箱或密码错误',
+    );
+  });
 
   it('入口页在登录页之前，且不包含业务导航', async () => {
-    await withReactHarness(async h => {
-      const { EntryPage } = await import('../frontend/src/features/auth/EntryPage.tsx')
-      await h.render(h.React.createElement(EntryPage))
-      assert.match(h.require('[data-entry-start]').textContent, /点击进入/)
-      assert.match(h.document.body.textContent, /OPEN MUSIC CLUB/)
-      assert.equal(h.query('[data-login-form]'), null)
-      assert.equal(h.query('[data-business-navigation]'), null)
-    })
-  })
+    await withReactHarness(async (h) => {
+      const { EntryPage } = await import('../frontend/src/features/auth/EntryPage.tsx');
+      await h.render(h.React.createElement(EntryPage));
+      assert.match(h.require('[data-entry-start]').textContent, /点击进入/);
+      assert.match(h.document.body.textContent, /OPEN MUSIC CLUB/);
+      assert.equal(h.query('[data-login-form]'), null);
+      assert.equal(h.query('[data-business-navigation]'), null);
+    });
+  });
 
   it('登录成功后使用原项目时间轨依次进入授权与欢迎阶段', async () => {
     const { sampleAuthorizedSequence } = await import(
       frontendModule('features/auth/AuthorizedSequence.tsx')
-    )
+    );
 
-    assert.equal(sampleAuthorizedSequence(0).step, 'scan')
-    assert.equal(sampleAuthorizedSequence(3300).step, 'welcome')
-    assert.equal(sampleAuthorizedSequence(7600).complete, true)
-  })
+    assert.equal(sampleAuthorizedSequence(0).step, 'scan');
+    assert.equal(sampleAuthorizedSequence(3300).step, 'welcome');
+    assert.equal(sampleAuthorizedSequence(7600).complete, true);
+  });
 
   it('前端将保持登录选项发送给现有登录接口', async () => {
-    const { loginAndVerify } = await import(frontendModule('services/auth/session.ts'))
-    let loginBody
-    await loginAndVerify({ email: 'member@example.com', password: 'test', rememberMe: true }, async (url, options) => {
-      if (url.includes('csrf-token')) return jsonResponse(200, { csrfToken: 'token' })
-      if (url.endsWith('/login')) {
-        loginBody = JSON.parse(options.body)
-        return jsonResponse(200, { success: true })
-      }
-      return jsonResponse(200, { authenticated: true, user: { id: 2, email: 'member@example.com', role: 'user' } })
-    })
-    assert.equal(loginBody.rememberMe, true)
-  })
+    const { loginAndVerify } = await import(frontendModule('services/auth/session.ts'));
+    let loginBody;
+    await loginAndVerify(
+      { email: 'member@example.com', password: 'test', rememberMe: true },
+      async (url, options) => {
+        if (url.includes('csrf-token')) return jsonResponse(200, { csrfToken: 'token' });
+        if (url.endsWith('/login')) {
+          loginBody = JSON.parse(options.body);
+          return jsonResponse(200, { success: true });
+        }
+        return jsonResponse(200, {
+          authenticated: true,
+          user: { id: 2, email: 'member@example.com', role: 'user' },
+        });
+      },
+    );
+    assert.equal(loginBody.rememberMe, true);
+  });
 
   it('再次进入网站仅请求 me 确认身份，不重发密码', async () => {
-    const { restoreSession } = await import(frontendModule('services/auth/session.ts'))
-    const calls = []
-    const user = { id: 1, email: 'admin@example.com', role: 'admin' }
+    const { restoreSession } = await import(frontendModule('services/auth/session.ts'));
+    const calls = [];
+    const user = { id: 1, email: 'admin@example.com', role: 'admin' };
     const restored = await restoreSession(async (url, options) => {
-      calls.push({ url, options })
-      return jsonResponse(200, { authenticated: true, user })
-    })
-    assert.deepEqual(restored, user)
-    assert.equal(calls.length, 1)
-    assert.equal(calls[0].url, '/api/auth/me')
-    assert.equal(calls[0].options.credentials, 'same-origin')
-    assert.equal(calls[0].options.cache, 'no-store')
-    assert.equal(calls[0].options.body, undefined)
-  })
+      calls.push({ url, options });
+      return jsonResponse(200, { authenticated: true, user });
+    });
+    assert.deepEqual(restored, user);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, '/api/auth/me');
+    assert.equal(calls[0].options.credentials, 'same-origin');
+    assert.equal(calls[0].options.cache, 'no-store');
+    assert.equal(calls[0].options.body, undefined);
+  });
 
   it('会话未登录、非法身份或网络异常不自动放行', async () => {
-    const { restoreSession } = await import(frontendModule('services/auth/session.ts'))
+    const { restoreSession } = await import(frontendModule('services/auth/session.ts'));
     for (const body of [
       { authenticated: false, user: null },
       { authenticated: true, user: { id: 1, email: 'a', role: 'invalid' } },
       { authenticated: true, user: { id: '1', email: 'a', role: 'admin' } },
     ]) {
-      assert.equal(await restoreSession(async () => jsonResponse(200, body)), null)
+      assert.equal(await restoreSession(async () => jsonResponse(200, body)), null);
     }
-    assert.equal(await restoreSession(async () => jsonResponse(500, {})), null)
-    assert.equal(await restoreSession(async () => { throw new Error('内部信息') }), null)
-  })
-})
+    assert.equal(await restoreSession(async () => jsonResponse(500, {})), null);
+    assert.equal(
+      await restoreSession(async () => {
+        throw new Error('内部信息');
+      }),
+      null,
+    );
+  });
+});

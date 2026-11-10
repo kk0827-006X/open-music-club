@@ -1,28 +1,22 @@
-import * as THREE from "three";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
-import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { renderDimensions, type RenderQuality } from "./render-quality";
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { renderDimensions, type RenderQuality } from './render-quality';
 
 export function applyTextureQuality(
   root: THREE.Object3D,
   renderer: THREE.WebGLRenderer,
   quality: RenderQuality,
 ) {
-  const maximum = Math.min(
-    quality.anisotropy,
-    renderer.capabilities.getMaxAnisotropy(),
-  );
+  const maximum = Math.min(quality.anisotropy, renderer.capabilities.getMaxAnisotropy());
   const textures = new Set<THREE.Texture>();
   root.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
-    for (const material of Array.isArray(object.material)
-      ? object.material
-      : [object.material]) {
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
       for (const value of Object.values(material)) {
-        if (value instanceof THREE.Texture && !value.isRenderTargetTexture)
-          textures.add(value);
+        if (value instanceof THREE.Texture && !value.isRenderTargetTexture) textures.add(value);
       }
     }
   });
@@ -60,10 +54,7 @@ export function resizeQuality(
     ...dimensions,
     antialias: quality.antialias,
     transmission: quality.transmission,
-    anisotropy: Math.min(
-      quality.anisotropy,
-      renderer.capabilities.getMaxAnisotropy(),
-    ),
+    anisotropy: Math.min(quality.anisotropy, renderer.capabilities.getMaxAnisotropy()),
     superPerformance,
   });
   return dimensions;

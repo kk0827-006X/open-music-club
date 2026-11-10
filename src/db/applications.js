@@ -1,16 +1,12 @@
-const {
-  createUser,
-  findUserByEmail,
-  normalizeEmail,
-} = require('./users')
+const { createUser, findUserByEmail, normalizeEmail } = require('./users');
 
-const APPLICATION_STATUSES = new Set(['pending', 'approved', 'rejected'])
+const APPLICATION_STATUSES = new Set(['pending', 'approved', 'rejected']);
 
 function toIsoTimestamp(value) {
-  if (!value) return null
+  if (!value) return null;
 
-  const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`
-  return new Date(normalized).toISOString()
+  const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}Z`;
+  return new Date(normalized).toISOString();
 }
 
 function toApplicationSummary(application) {
@@ -20,7 +16,7 @@ function toApplicationSummary(application) {
     nickname: application.nickname,
     status: application.status,
     createdAt: toIsoTimestamp(application.created_at),
-  }
+  };
 }
 
 function toApplicationDetails(application) {
@@ -33,11 +29,11 @@ function toApplicationDetails(application) {
     createdAt: toIsoTimestamp(application.created_at),
     reviewedAt: toIsoTimestamp(application.reviewed_at),
     reviewedBy: application.reviewed_by,
-  }
+  };
 }
 
 function findApplicationById(database, id) {
-  return database.prepare('SELECT * FROM access_requests WHERE id = ?').get(id)
+  return database.prepare('SELECT * FROM access_requests WHERE id = ?').get(id);
 }
 
 function findPendingApplicationByEmail(database, email) {
@@ -47,7 +43,7 @@ function findPendingApplicationByEmail(database, email) {
        FROM access_requests
        WHERE email = ? AND status = 'pending'`,
     )
-    .get(normalizeEmail(email))
+    .get(normalizeEmail(email));
 }
 
 function createApplication(database, { email, nickname, reason = null }) {
@@ -56,34 +52,34 @@ function createApplication(database, { email, nickname, reason = null }) {
       `INSERT INTO access_requests (email, nickname, reason)
        VALUES (?, ?, ?)`,
     )
-    .run(normalizeEmail(email), nickname, reason)
+    .run(normalizeEmail(email), nickname, reason);
 
-  return findApplicationById(database, result.lastInsertRowid)
+  return findApplicationById(database, result.lastInsertRowid);
 }
 
 function submitApplication(database, application) {
   const submit = database.transaction((candidate) => {
     if (findUserByEmail(database, candidate.email)) {
-      return { type: 'user_exists' }
+      return { type: 'user_exists' };
     }
     if (findPendingApplicationByEmail(database, candidate.email)) {
-      return { type: 'pending_exists' }
+      return { type: 'pending_exists' };
     }
 
     try {
       return {
         type: 'created',
         application: createApplication(database, candidate),
-      }
+      };
     } catch (error) {
       if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        return { type: 'pending_exists' }
+        return { type: 'pending_exists' };
       }
-      throw error
+      throw error;
     }
-  })
+  });
 
-  return submit.immediate(application)
+  return submit.immediate(application);
 }
 
 function listApplications(database, status) {
@@ -95,7 +91,7 @@ function listApplications(database, status) {
          WHERE status = ?
          ORDER BY created_at DESC, id DESC`,
       )
-      .all(status)
+      .all(status);
   }
 
   return database
@@ -104,19 +100,21 @@ function listApplications(database, status) {
        FROM access_requests
        ORDER BY created_at DESC, id DESC`,
     )
-    .all()
+    .all();
 }
 
 function approveApplication(database, { id, reviewerId, passwordHash }) {
   const approve = database.transaction(() => {
-    const application = findApplicationById(database, id)
-    if (!application) return { type: 'not_found' }
-    if (application.status !== 'pending') return { type: 'not_pending' }
+    const application = findApplicationById(database, id);
+    if (!application) return { type: 'not_found' };
+    if (application.status !== 'pending') return { type: 'not_pending' };
     // 老申请没有通知行，保留审批能力；新申请必须得到最终送达确认。
-    const notification = database.prepare('SELECT status FROM application_notifications WHERE application_id = ?').get(id)
-    if (notification && notification.status !== 'delivered') return { type: 'not_pending' }
+    const notification = database
+      .prepare('SELECT status FROM application_notifications WHERE application_id = ?')
+      .get(id);
+    if (notification && notification.status !== 'delivered') return { type: 'not_pending' };
     if (findUserByEmail(database, application.email)) {
-      return { type: 'user_exists' }
+      return { type: 'user_exists' };
     }
 
     const user = createUser(database, {
@@ -126,7 +124,7 @@ function approveApplication(database, { id, reviewerId, passwordHash }) {
       role: 'user',
       status: 'active',
       mustChangePassword: true,
-    })
+    });
 
     const result = database
       .prepare(
@@ -136,23 +134,23 @@ function approveApplication(database, { id, reviewerId, passwordHash }) {
              reviewed_at = CURRENT_TIMESTAMP
          WHERE id = ? AND status = 'pending'`,
       )
-      .run(reviewerId, id)
+      .run(reviewerId, id);
 
     if (result.changes !== 1) {
-      throw new Error('申请状态更新失败')
+      throw new Error('申请状态更新失败');
     }
 
-    return { type: 'approved', user }
-  })
+    return { type: 'approved', user };
+  });
 
-  return approve.immediate()
+  return approve.immediate();
 }
 
 function rejectApplication(database, { id, reviewerId }) {
   const reject = database.transaction(() => {
-    const application = findApplicationById(database, id)
-    if (!application) return { type: 'not_found' }
-    if (application.status !== 'pending') return { type: 'not_pending' }
+    const application = findApplicationById(database, id);
+    if (!application) return { type: 'not_found' };
+    if (application.status !== 'pending') return { type: 'not_pending' };
 
     const result = database
       .prepare(
@@ -162,19 +160,19 @@ function rejectApplication(database, { id, reviewerId }) {
              reviewed_at = CURRENT_TIMESTAMP
          WHERE id = ? AND status = 'pending'`,
       )
-      .run(reviewerId, id)
+      .run(reviewerId, id);
 
     if (result.changes !== 1) {
-      throw new Error('申请状态更新失败')
+      throw new Error('申请状态更新失败');
     }
 
     return {
       type: 'rejected',
       application: findApplicationById(database, id),
-    }
-  })
+    };
+  });
 
-  return reject.immediate()
+  return reject.immediate();
 }
 
 module.exports = {
@@ -186,4 +184,4 @@ module.exports = {
   submitApplication,
   toApplicationDetails,
   toApplicationSummary,
-}
+};

@@ -87,7 +87,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .code-slots__row[data-status='idle']:not([data-disabled]):hover .code-slots__slot:not([data-active]) {
+  .code-slots__row[data-status='idle']:not([data-disabled]):hover
+    .code-slots__slot:not([data-active]) {
     background: color-mix(in srgb, var(--cs-ink) 4%, var(--cs-slot));
   }
 }

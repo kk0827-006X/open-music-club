@@ -99,4 +99,7 @@
   }
 }
 
-.wake-slider__handle:focus-visible { outline: 2px solid var(--player-ambient-accent, var(--amber)); outline-offset: 3px; }
+.wake-slider__handle:focus-visible {
+  outline: 2px solid var(--player-ambient-accent, var(--amber));
+  outline-offset: 3px;
+}

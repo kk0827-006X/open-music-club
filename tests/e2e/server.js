@@ -1,85 +1,176 @@
-const fs = require('node:fs')
-const os = require('node:os')
-const path = require('node:path')
-const express = require('express')
-const bcrypt = require('bcrypt')
-const { createNeteaseService } = require('../../src/services/netease.service')
-const { createApp } = require('../../src/app')
-const { createUser } = require('../../src/db/users')
-const { ADMIN, REVIEWER, PASSWORD, QRADMIN, CLOUD } = require('./fixtures')
-const mailbox = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json')
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const express = require('express');
+const bcrypt = require('bcrypt');
+const { createNeteaseService } = require('../../src/services/netease.service');
+const { createApp } = require('../../src/app');
+const { createUser } = require('../../src/db/users');
+const { ADMIN, REVIEWER, PASSWORD, QRADMIN, CLOUD } = require('./fixtures');
+const mailbox = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json');
 
 async function start() {
-  if (process.env.NODE_ENV === 'production') throw new Error('隔离验收服务禁止在生产环境启动')
-  const dist = path.resolve(__dirname, '../../frontend/dist')
-  if (!fs.existsSync(path.join(dist, 'index.html'))) throw new Error('请先运行 pnpm build:web')
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'omc-e2e-'))
-  fs.mkdirSync(path.dirname(mailbox), { recursive: true })
-  fs.writeFileSync(mailbox, '[]')
-  const messages = []
-  const qrAuth = { mode: 'qrcode', storage: 'memory' }, qrChecks = new Map()
-  let qrId = 0
-  const qrBackend = createNeteaseService({ auth: qrAuth, requestClient: async () => {}, qrModules: {
-    key: async () => { const key = `acceptance-qr-${++qrId}`; qrChecks.set(key, 0); return { body: { data: { unikey: key } } } },
-    check: async parameters => { const count = (qrChecks.get(parameters.key) || 0) + 1; qrChecks.set(parameters.key, count); return { body: { code: count === 1 ? 801 : count === 2 ? 802 : 803 }, cookie: ['MUSIC_U=isolated-qr-acceptance-cookie; HttpOnly'] } },
-  } })
+  if (process.env.NODE_ENV === 'production') throw new Error('隔离验收服务禁止在生产环境启动');
+  const dist = path.resolve(__dirname, '../../frontend/dist');
+  if (!fs.existsSync(path.join(dist, 'index.html'))) throw new Error('请先运行 pnpm build:web');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'omc-e2e-'));
+  fs.mkdirSync(path.dirname(mailbox), { recursive: true });
+  fs.writeFileSync(mailbox, '[]');
+  const messages = [];
+  const qrAuth = { mode: 'qrcode', storage: 'memory' },
+    qrChecks = new Map();
+  let qrId = 0;
+  const qrBackend = createNeteaseService({
+    auth: qrAuth,
+    requestClient: async () => {},
+    qrModules: {
+      key: async () => {
+        const key = `acceptance-qr-${++qrId}`;
+        qrChecks.set(key, 0);
+        return { body: { data: { unikey: key } } };
+      },
+      check: async (parameters) => {
+        const count = (qrChecks.get(parameters.key) || 0) + 1;
+        qrChecks.set(parameters.key, count);
+        return {
+          body: { code: count === 1 ? 801 : count === 2 ? 802 : 803 },
+          cookie: ['MUSIC_U=isolated-qr-acceptance-cookie; HttpOnly'],
+        };
+      },
+    },
+  });
   const app = createApp({
     neteaseAuth: qrAuth,
-    databasePath: path.join(directory, 'database.sqlite'), sessionSecret: 'isolated-acceptance-session-only',
+    databasePath: path.join(directory, 'database.sqlite'),
+    sessionSecret: 'isolated-acceptance-session-only',
     twoFactor: { encryptionKey: Buffer.alloc(32, 11).toString('base64') },
     localMusic: { storageRoot: path.join(directory, 'storage'), maximumUploadMegabytes: 5 },
     mail: {
-      env: { MAIL_ENABLED: 'true', SMTP_HOST: 'smtp.example.com', MAIL_FROM: 'club@example.com', MAIL_ADMIN_TO: 'admin@example.com', APPLICATION_MAIL_ENCRYPTION_KEY: Buffer.alloc(32, 21).toString('base64') },
-      transport: { async sendMail(message) {
-        messages.push(message)
-        fs.writeFileSync(mailbox, JSON.stringify(messages))
-        return { accepted: [message.to] }
-      } },
-      deliveryClient: { configured: true, async check() { return 'delivered' } },
+      env: {
+        MAIL_ENABLED: 'true',
+        SMTP_HOST: 'smtp.example.com',
+        MAIL_FROM: 'club@example.com',
+        MAIL_ADMIN_TO: 'admin@example.com',
+        APPLICATION_MAIL_ENCRYPTION_KEY: Buffer.alloc(32, 21).toString('base64'),
+      },
+      transport: {
+        async sendMail(message) {
+          messages.push(message);
+          fs.writeFileSync(mailbox, JSON.stringify(messages));
+          return { accepted: [message.to] };
+        },
+      },
+      deliveryClient: {
+        configured: true,
+        async check() {
+          return 'delivered';
+        },
+      },
     },
-    security: { production: false, publicOrigin: 'http://127.0.0.1:4317', csrfEnabled: true, rateLimitEnabled: true,
-      logger: { info() {}, warn() {}, error(event) { console.error(JSON.stringify(event)) } } },
+    security: {
+      production: false,
+      publicOrigin: 'http://127.0.0.1:4317',
+      csrfEnabled: true,
+      rateLimitEnabled: true,
+      logger: {
+        info() {},
+        warn() {},
+        error(event) {
+          console.error(JSON.stringify(event));
+        },
+      },
+    },
     // 仅在独立测试进程中注入上游适配；不添加任何生产测试后门。
-    neteaseService: { ...qrBackend, async call(name) {
-      if (name === 'search') return { code: 200, result: { songs: [CLOUD] } }
-      if (name === 'songDetail') return { code: 200, songs: [CLOUD] }
-      if (name === 'songUrlV1') return { code: 200, data: [{ id: CLOUD.id, url: 'https://e2e.music.126.net/audio.wav' }] }
-      if (name === 'lyric') return { code: 200, lrc: { lyric: '[00:00.00]验收第一句歌词\n[00:01.00]验收第二句歌词' } }
-      if (name === 'album') return { code: 200, songs: [CLOUD] }
-      throw new Error('测试未支持的上游调用')
-    } },
-  })
-  createUser(app.locals.database, { ...ADMIN, nickname: '验收管理员', passwordHash: await bcrypt.hash(ADMIN.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
-  createUser(app.locals.database, { ...REVIEWER, nickname: '审核界面验收管理员', passwordHash: await bcrypt.hash(REVIEWER.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
-  createUser(app.locals.database, { ...PASSWORD, nickname: '密码流程验收成员', passwordHash: await bcrypt.hash(PASSWORD.password, 4), role: 'user', status: 'active', mustChangePassword: false })
-  createUser(app.locals.database, { ...QRADMIN, nickname: '扫码验收管理员', passwordHash: await bcrypt.hash(QRADMIN.password, 4), role: 'admin', status: 'active', mustChangePassword: false })
-  await qrBackend.initialize()
-  const web = express()
-  app.locals.accessLifecycle.start()
-  web.use((req, res, next) => req.path === '/api' || req.path.startsWith('/api/') || req.path === '/health' ? app(req, res, next) : next())
-  web.use((req,res,next) => { res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy':'no-referrer' }); next() })
-  web.use(express.static(dist))
+    neteaseService: {
+      ...qrBackend,
+      async call(name) {
+        if (name === 'search') return { code: 200, result: { songs: [CLOUD] } };
+        if (name === 'songDetail') return { code: 200, songs: [CLOUD] };
+        if (name === 'songUrlV1')
+          return {
+            code: 200,
+            data: [{ id: CLOUD.id, url: 'https://e2e.music.126.net/audio.wav' }],
+          };
+        if (name === 'lyric')
+          return {
+            code: 200,
+            lrc: { lyric: '[00:00.00]验收第一句歌词\n[00:01.00]验收第二句歌词' },
+          };
+        if (name === 'album') return { code: 200, songs: [CLOUD] };
+        throw new Error('测试未支持的上游调用');
+      },
+    },
+  });
+  createUser(app.locals.database, {
+    ...ADMIN,
+    nickname: '验收管理员',
+    passwordHash: await bcrypt.hash(ADMIN.password, 4),
+    role: 'admin',
+    status: 'active',
+    mustChangePassword: false,
+  });
+  createUser(app.locals.database, {
+    ...REVIEWER,
+    nickname: '审核界面验收管理员',
+    passwordHash: await bcrypt.hash(REVIEWER.password, 4),
+    role: 'admin',
+    status: 'active',
+    mustChangePassword: false,
+  });
+  createUser(app.locals.database, {
+    ...PASSWORD,
+    nickname: '密码流程验收成员',
+    passwordHash: await bcrypt.hash(PASSWORD.password, 4),
+    role: 'user',
+    status: 'active',
+    mustChangePassword: false,
+  });
+  createUser(app.locals.database, {
+    ...QRADMIN,
+    nickname: '扫码验收管理员',
+    passwordHash: await bcrypt.hash(QRADMIN.password, 4),
+    role: 'admin',
+    status: 'active',
+    mustChangePassword: false,
+  });
+  await qrBackend.initialize();
+  const web = express();
+  app.locals.accessLifecycle.start();
+  web.use((req, res, next) =>
+    req.path === '/api' || req.path.startsWith('/api/') || req.path === '/health'
+      ? app(req, res, next)
+      : next(),
+  );
+  web.use((req, res, next) => {
+    res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+    next();
+  });
+  web.use(express.static(dist));
   // 与生产入口一致：页面导航回退到应用，缺失静态资源保持 404。
   web.get('/{*path}', (req, res, next) => {
-    if (path.extname(req.path) || !req.accepts('html')) return next()
-    res.sendFile(path.join(dist, 'index.html'))
-  })
-  const server = web.listen(4317, '127.0.0.1')
-  let closing = false
+    if (path.extname(req.path) || !req.accepts('html')) return next();
+    res.sendFile(path.join(dist, 'index.html'));
+  });
+  const server = web.listen(4317, '127.0.0.1');
+  let closing = false;
   const close = () => {
-    if (closing) return
-    closing = true
+    if (closing) return;
+    closing = true;
     server.close(async () => {
-      app.locals.neteaseQr.close()
-      await qrBackend.close()
-      await app.locals.accessLifecycle.stop()
-      app.locals.sessionStore.stopInterval?.()
-      app.locals.database.close()
-      fs.rmSync(directory, { recursive: true, force: true })
-      process.exit(0)
-    })
-    server.closeAllConnections()
-  }
-  process.on('SIGTERM', close); process.on('SIGINT', close)
+      app.locals.neteaseQr.close();
+      await qrBackend.close();
+      await app.locals.accessLifecycle.stop();
+      app.locals.sessionStore.stopInterval?.();
+      app.locals.database.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+      process.exit(0);
+    });
+    server.closeAllConnections();
+  };
+  process.on('SIGTERM', close);
+  process.on('SIGINT', close);
 }
-start().catch(() => { console.error('隔离验收服务启动失败'); process.exitCode = 1 })
+start().catch(() => {
+  console.error('隔离验收服务启动失败');
+  process.exitCode = 1;
+});

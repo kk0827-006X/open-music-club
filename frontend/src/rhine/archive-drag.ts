@@ -1,4 +1,4 @@
-export type DragAxis = "lane" | "row";
+export type DragAxis = 'lane' | 'row';
 export type DragPosition = Record<DragAxis, number>;
 export type DragProjection = Record<DragAxis, { x: number; y: number }>;
 
@@ -54,35 +54,23 @@ export class ArchiveDrag {
       if (Math.hypot(delta.x, delta.y) > 1e-9) {
         this.lastMotion = time;
         // A reversal starts a fresh estimate, without locking either axis.
-        if (
-          delta.x * this.motionDirection.x + delta.y * this.motionDirection.y <
-          0
-        )
+        if (delta.x * this.motionDirection.x + delta.y * this.motionDirection.y < 0)
           this.samples = [previous];
         this.motionDirection = delta;
       }
     }
     this.pointer = { x, y };
     this.value = value;
-    if (previous?.time === time)
-      this.samples[this.samples.length - 1] = { value, time };
+    if (previous?.time === time) this.samples[this.samples.length - 1] = { value, time };
     else this.samples.push({ value, time });
-    this.samples = this.samples
-      .filter((sample) => time - sample.time <= 120)
-      .slice(-32);
+    this.samples = this.samples.filter((sample) => time - sample.time <= 120).slice(-32);
   }
 
   /** Actual release velocity in both tracks, in cells/second. */
   releaseVelocity(time: number, reduced: boolean): DragPosition {
     const first = this.samples[0],
       last = this.samples.at(-1);
-    if (
-      reduced ||
-      !first ||
-      !last ||
-      time - this.lastMotion > 80 ||
-      last.time - first.time < 8
-    )
+    if (reduced || !first || !last || time - this.lastMotion > 80 || last.time - first.time < 8)
       return { lane: 0, row: 0 };
     const scale = 1000 / (last.time - first.time);
     return {
@@ -96,40 +84,37 @@ export class ArchiveDrag {
 export class ArchiveMomentum {
   value: number;
   velocity: number;
-  phase: "coasting" | "snapping" | "idle";
+  phase: 'coasting' | 'snapping' | 'idle';
   target: number;
   private readonly friction = 2.4;
 
   constructor(value: number, velocity: number) {
     this.value = value;
     this.velocity = velocity;
-    this.phase = Math.abs(velocity) >= 0.75 ? "coasting" : "snapping";
+    this.phase = Math.abs(velocity) >= 0.75 ? 'coasting' : 'snapping';
     this.target = Math.round(value);
   }
 
-  step(dt: number, coasting = this.phase === "coasting") {
+  step(dt: number, coasting = this.phase === 'coasting') {
     if (coasting) {
       const decay = Math.exp(-this.friction * dt);
       this.value += (this.velocity * (1 - decay)) / this.friction;
       this.velocity *= decay;
       if (Math.abs(this.velocity) < 0.6) {
         this.target = Math.round(this.value + this.velocity / this.friction);
-        this.phase = "snapping";
+        this.phase = 'snapping';
       }
-    } else if (this.phase === "snapping") {
+    } else if (this.phase === 'snapping') {
       const rate = 10;
       const delta = this.value - this.target;
       const impulse = this.velocity + rate * delta;
       const decay = Math.exp(-rate * dt);
       this.value = this.target + (delta + impulse * dt) * decay;
       this.velocity = (this.velocity - rate * impulse * dt) * decay;
-      if (
-        Math.abs(this.value - this.target) < 0.0001 &&
-        Math.abs(this.velocity) < 0.005
-      ) {
+      if (Math.abs(this.value - this.target) < 0.0001 && Math.abs(this.velocity) < 0.005) {
         this.value = this.target;
         this.velocity = 0;
-        this.phase = "idle";
+        this.phase = 'idle';
       }
     }
   }
@@ -144,11 +129,11 @@ export class ArchivePlaneMomentum {
     this.row = new ArchiveMomentum(value.row, velocity.row);
   }
   get phase() {
-    return this.lane.phase === "coasting" || this.row.phase === "coasting"
-      ? "coasting"
-      : this.lane.phase === "idle" && this.row.phase === "idle"
-        ? "idle"
-        : "snapping";
+    return this.lane.phase === 'coasting' || this.row.phase === 'coasting'
+      ? 'coasting'
+      : this.lane.phase === 'idle' && this.row.phase === 'idle'
+        ? 'idle'
+        : 'snapping';
   }
   get value(): DragPosition {
     return { lane: this.lane.value, row: this.row.value };
@@ -157,7 +142,7 @@ export class ArchivePlaneMomentum {
     return { lane: this.lane.velocity, row: this.row.velocity };
   }
   step(dt: number) {
-    const coasting = this.phase === "coasting";
+    const coasting = this.phase === 'coasting';
     this.lane.step(dt, coasting);
     this.row.step(dt, coasting);
   }

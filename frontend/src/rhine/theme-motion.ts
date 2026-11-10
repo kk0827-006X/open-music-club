@@ -1,6 +1,9 @@
 export type ThemeCell = { row: number; lane: number };
 const key = (cell: ThemeCell) => `${cell.lane}:${cell.row}`;
-const ease = (t: number) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+const ease = (t: number) => {
+  t = Math.max(0, Math.min(1, t));
+  return t * t * (3 - 2 * t);
+};
 
 /** A material wave with a frozen origin and an interruptible per-card starting colour. */
 export class ThemeWave {
@@ -15,15 +18,25 @@ export class ThemeWave {
     if (target === this.target && !immediate) return;
     this.backgroundFrom = immediate ? target : this.background(time);
     this.from = immediate ? new Map() : new Map(this.latest);
-    this.target = target; this.start = immediate ? time - 10 : time;
+    this.target = target;
+    this.start = immediate ? time - 10 : time;
     this.origin = { ...origin };
   }
-  background(time: number) { return this.backgroundFrom + (this.target - this.backgroundFrom) * ease((time - this.start) / .85); }
-  beginFrame() { this.latest.clear(); }
+  background(time: number) {
+    return (
+      this.backgroundFrom + (this.target - this.backgroundFrom) * ease((time - this.start) / 0.85)
+    );
+  }
+  beginFrame() {
+    this.latest.clear();
+  }
   sample(cell: ThemeCell, time: number) {
-    const delay = Math.min(.6, Math.abs(cell.row - this.origin.row) * .034 + Math.abs(cell.lane - this.origin.lane) * .11);
+    const delay = Math.min(
+      0.6,
+      Math.abs(cell.row - this.origin.row) * 0.034 + Math.abs(cell.lane - this.origin.lane) * 0.11,
+    );
     const from = this.from.get(key(cell)) ?? this.backgroundFrom;
-    const value = from + (this.target - from) * ease((time - this.start - delay) / .58);
+    const value = from + (this.target - from) * ease((time - this.start - delay) / 0.58);
     this.latest.set(key(cell), value);
     return value;
   }

@@ -1,32 +1,27 @@
-const express = require('express')
-const helmet = require('helmet')
-const { createDatabase, initializeSchema } = require('./db/database')
-const {
-  createMemorySessionStore,
-  createSessionMiddleware,
-} = require('./config/session')
-const { createSecurityConfig } = require('./config/security')
-const { requireLogin } = require('./middleware/requireLogin')
-const { requireAdmin } = require('./middleware/requireAdmin')
-const { createPasswordRouter } = require('./routes/password.routes')
-const { createAuthRouter } = require('./routes/auth.routes')
-const { createTwoFactorRouter } = require('./routes/twoFactor.routes')
-const { createTwoFactorService } = require('./services/twoFactor.service')
-const { createApplicationsRouter } = require('./routes/applications.routes')
-const {
-  createAdminApplicationsRouter,
-} = require('./routes/adminApplications.routes')
-const { createNeteaseQrRouter } = require('./routes/neteaseQr.routes')
-const { createNeteaseRouter } = require('./routes/netease.routes')
-const { createNeteaseService } = require('./services/netease.service')
-const { createMailService } = require('./services/mail.service')
-const { createAliyunDeliveryClient } = require('./services/aliyunDelivery.service')
-const { createAccessLifecycleService } = require('./services/accessLifecycle.service')
-const { createLocalMusicConfig } = require('./config/localMusic')
-const { createLocalMusicRouter } = require('./routes/localMusic.routes')
-const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes')
-const { createUserProfileRouter } = require('./routes/userProfile.routes')
-const { createFootprintRouter } = require('./routes/footprint.routes')
+const express = require('express');
+const helmet = require('helmet');
+const { createDatabase, initializeSchema } = require('./db/database');
+const { createMemorySessionStore, createSessionMiddleware } = require('./config/session');
+const { createSecurityConfig } = require('./config/security');
+const { requireLogin } = require('./middleware/requireLogin');
+const { requireAdmin } = require('./middleware/requireAdmin');
+const { createPasswordRouter } = require('./routes/password.routes');
+const { createAuthRouter } = require('./routes/auth.routes');
+const { createTwoFactorRouter } = require('./routes/twoFactor.routes');
+const { createTwoFactorService } = require('./services/twoFactor.service');
+const { createApplicationsRouter } = require('./routes/applications.routes');
+const { createAdminApplicationsRouter } = require('./routes/adminApplications.routes');
+const { createNeteaseQrRouter } = require('./routes/neteaseQr.routes');
+const { createNeteaseRouter } = require('./routes/netease.routes');
+const { createNeteaseService } = require('./services/netease.service');
+const { createMailService } = require('./services/mail.service');
+const { createAliyunDeliveryClient } = require('./services/aliyunDelivery.service');
+const { createAccessLifecycleService } = require('./services/accessLifecycle.service');
+const { createLocalMusicConfig } = require('./config/localMusic');
+const { createLocalMusicRouter } = require('./routes/localMusic.routes');
+const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes');
+const { createUserProfileRouter } = require('./routes/userProfile.routes');
+const { createFootprintRouter } = require('./routes/footprint.routes');
 const {
   createCsrfProtection,
   createHttpsEnforcement,
@@ -34,7 +29,7 @@ const {
   createSameOriginCors,
   csrfTokenHandler,
   requestIdMiddleware,
-} = require('./middleware/security')
+} = require('./middleware/security');
 
 function createApp({
   databasePath,
@@ -47,34 +42,37 @@ function createApp({
   twoFactor = {},
   mail = {},
 }) {
-  neteaseService ||= createNeteaseService({ auth: neteaseAuth })
+  neteaseService ||= createNeteaseService({ auth: neteaseAuth });
   if (!sessionSecret) {
-    throw new Error('SESSION_SECRET 不能为空')
+    throw new Error('SESSION_SECRET 不能为空');
   }
 
-  const securityConfig = createSecurityConfig(security)
-  const mailService = createMailService({ ...mail, logger: securityConfig.logger })
+  const securityConfig = createSecurityConfig(security);
+  const mailService = createMailService({ ...mail, logger: securityConfig.logger });
   const sessionStore =
-    infrastructure.sessionStore ||
-    (securityConfig.production ? null : createMemorySessionStore())
+    infrastructure.sessionStore || (securityConfig.production ? null : createMemorySessionStore());
   if (!sessionStore) {
-    throw new Error('生产环境必须配置 Redis Session Store')
+    throw new Error('生产环境必须配置 Redis Session Store');
   }
   if (
     securityConfig.rateLimitEnabled &&
     securityConfig.production &&
     typeof infrastructure.createRateLimitStore !== 'function'
   ) {
-    throw new Error('生产环境必须配置 Redis 限流 Store')
+    throw new Error('生产环境必须配置 Redis 限流 Store');
   }
-  const localMusicConfig = createLocalMusicConfig(localMusic)
-  const database = createDatabase(databasePath)
-  initializeSchema(database)
-  let twoFactorService
-  try { twoFactorService = createTwoFactorService(database, twoFactor) }
-  catch (error) { database.close(); throw error }
+  const localMusicConfig = createLocalMusicConfig(localMusic);
+  const database = createDatabase(databasePath);
+  initializeSchema(database);
+  let twoFactorService;
+  try {
+    twoFactorService = createTwoFactorService(database, twoFactor);
+  } catch (error) {
+    database.close();
+    throw error;
+  }
 
-  let sessionConfiguration
+  let sessionConfiguration;
   try {
     sessionConfiguration = createSessionMiddleware({
       sessionSecret,
@@ -82,37 +80,49 @@ function createApp({
       cookieName: securityConfig.cookieName,
       secureCookies: securityConfig.secureCookies,
       sessionIdleTimeoutMinutes: securityConfig.sessionIdleTimeoutMinutes,
-    })
+    });
   } catch (error) {
-    database.close()
-    throw error
+    database.close();
+    throw error;
   }
 
-  const app = express()
-  app.disable('x-powered-by')
+  const app = express();
+  app.disable('x-powered-by');
   if (securityConfig.production) {
-    app.set('trust proxy', securityConfig.trustProxyHops)
+    app.set('trust proxy', securityConfig.trustProxyHops);
   }
-  app.locals.database = database
-  app.locals.sessionStore = sessionConfiguration.store
-  app.locals.sessionCookieName = sessionConfiguration.cookieName
-  app.locals.sessionCookieOptions = sessionConfiguration.cookieOptions
-  app.locals.security = securityConfig
-  app.locals.twoFactor = twoFactorService
-  app.locals.mail = mailService
-  try { app.locals.accessLifecycle = createAccessLifecycleService({
-    database,
-    mail: mailService,
-    deliveryClient: mail.deliveryClient || createAliyunDeliveryClient({ env: mail.env, logger: securityConfig.logger }),
-    encryptionKey: mail.encryptionKey ?? (mail.env || process.env).APPLICATION_MAIL_ENCRYPTION_KEY,
-    publicOrigin: securityConfig.publicOrigin,
-    now: mail.now,
-    logger: securityConfig.logger,
-  }) } catch (error) { database.close(); throw error }
-  if (!twoFactorService.available) securityConfig.logger.warn?.({ event: 'two_factor_key_missing', message: '未配置 TOTP_ENCRYPTION_KEY，无法绑定认证器；公网管理员不能获得正式登录权限' })
+  app.locals.database = database;
+  app.locals.sessionStore = sessionConfiguration.store;
+  app.locals.sessionCookieName = sessionConfiguration.cookieName;
+  app.locals.sessionCookieOptions = sessionConfiguration.cookieOptions;
+  app.locals.security = securityConfig;
+  app.locals.twoFactor = twoFactorService;
+  app.locals.mail = mailService;
+  try {
+    app.locals.accessLifecycle = createAccessLifecycleService({
+      database,
+      mail: mailService,
+      deliveryClient:
+        mail.deliveryClient ||
+        createAliyunDeliveryClient({ env: mail.env, logger: securityConfig.logger }),
+      encryptionKey:
+        mail.encryptionKey ?? (mail.env || process.env).APPLICATION_MAIL_ENCRYPTION_KEY,
+      publicOrigin: securityConfig.publicOrigin,
+      now: mail.now,
+      logger: securityConfig.logger,
+    });
+  } catch (error) {
+    database.close();
+    throw error;
+  }
+  if (!twoFactorService.available)
+    securityConfig.logger.warn?.({
+      event: 'two_factor_key_missing',
+      message: '未配置 TOTP_ENCRYPTION_KEY，无法绑定认证器；公网管理员不能获得正式登录权限',
+    });
 
-  app.use(requestIdMiddleware)
-  app.use(createHttpsEnforcement(securityConfig))
+  app.use(requestIdMiddleware);
+  app.use(createHttpsEnforcement(securityConfig));
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -125,66 +135,68 @@ function createApp({
           objectSrc: ["'none'"],
         },
       },
-      hsts: securityConfig.production
-        ? { maxAge: 31_536_000, includeSubDomains: true }
-        : false,
+      hsts: securityConfig.production ? { maxAge: 31_536_000, includeSubDomains: true } : false,
       referrerPolicy: { policy: 'no-referrer' },
       frameguard: { action: 'deny' },
     }),
-  )
-  app.use(createSameOriginCors(securityConfig))
-  app.use(express.json({ limit: securityConfig.jsonBodyLimit }))
-  app.use(sessionConfiguration.middleware)
+  );
+  app.use(createSameOriginCors(securityConfig));
+  app.use(express.json({ limit: securityConfig.jsonBodyLimit }));
+  app.use(sessionConfiguration.middleware);
 
-  const rateLimiters = createRateLimiters(
-    securityConfig,
-    infrastructure.createRateLimitStore,
-  )
-  if (rateLimiters) app.use(rateLimiters.global)
+  const rateLimiters = createRateLimiters(securityConfig, infrastructure.createRateLimitStore);
+  if (rateLimiters) app.use(rateLimiters.global);
 
-  app.get('/api/security/csrf-token', csrfTokenHandler)
-  app.use(createCsrfProtection(securityConfig))
-  app.use('/api/auth/2fa', createTwoFactorRouter(infrastructure.createRateLimitStore))
+  app.get('/api/security/csrf-token', csrfTokenHandler);
+  app.use(createCsrfProtection(securityConfig));
+  app.use('/api/auth/2fa', createTwoFactorRouter(infrastructure.createRateLimitStore));
 
-  app.get('/health', (req, res) => res.json({ status: 'ok' }))
-  if (rateLimiters) app.use('/api/auth/login', rateLimiters.login)
-  if (rateLimiters) app.use('/api/auth/activate', rateLimiters.applicationActivation)
-  app.use('/api/auth/password', createPasswordRouter(app, infrastructure.createRateLimitStore))
-  app.use('/api/auth', createAuthRouter())
-  if (rateLimiters) app.post('/api/applications', rateLimiters.applications)
+  app.get('/health', (req, res) => res.json({ status: 'ok' }));
+  if (rateLimiters) app.use('/api/auth/login', rateLimiters.login);
+  if (rateLimiters) app.use('/api/auth/activate', rateLimiters.applicationActivation);
+  app.use('/api/auth/password', createPasswordRouter(app, infrastructure.createRateLimitStore));
+  app.use('/api/auth', createAuthRouter());
+  if (rateLimiters) app.post('/api/applications', rateLimiters.applications);
   if (rateLimiters) {
-    app.use('/api/applications/verify-email', rateLimiters.applicationTokens)
-    app.use('/api/applications/resend', rateLimiters.applicationResend)
-    app.use('/api/admin/applications', rateLimiters.applicationReview)
+    app.use('/api/applications/verify-email', rateLimiters.applicationTokens);
+    app.use('/api/applications/resend', rateLimiters.applicationResend);
+    app.use('/api/admin/applications', rateLimiters.applicationReview);
   }
-  app.use('/api/applications', createApplicationsRouter())
-  app.use(
-    '/api/admin/applications',
-    requireLogin,
-    requireAdmin,
-    createAdminApplicationsRouter(),
-  )
-  try { app.use('/api/admin/netease-session', createNeteaseQrRouter({ app, neteaseService, auth: neteaseAuth, createStore: infrastructure.createRateLimitStore })) }
-  catch (error) { database.close(); throw error }
-  if (rateLimiters) app.use('/api/netease', rateLimiters.netease)
-  app.use('/api/netease', requireLogin, createNeteaseRouter(neteaseService))
+  app.use('/api/applications', createApplicationsRouter());
+  app.use('/api/admin/applications', requireLogin, requireAdmin, createAdminApplicationsRouter());
+  try {
+    app.use(
+      '/api/admin/netease-session',
+      createNeteaseQrRouter({
+        app,
+        neteaseService,
+        auth: neteaseAuth,
+        createStore: infrastructure.createRateLimitStore,
+      }),
+    );
+  } catch (error) {
+    database.close();
+    throw error;
+  }
+  if (rateLimiters) app.use('/api/netease', rateLimiters.netease);
+  app.use('/api/netease', requireLogin, createNeteaseRouter(neteaseService));
   app.use(
     '/api/footprint',
     requireLogin,
     ...(rateLimiters ? [rateLimiters.footprint] : []),
     createFootprintRouter({ database }),
-  )
-  if (rateLimiters) app.put('/api/me/avatar', requireLogin, rateLimiters.upload)
+  );
+  if (rateLimiters) app.put('/api/me/avatar', requireLogin, rateLimiters.upload);
   app.use(
     '/api/me',
     requireLogin,
     ...(rateLimiters ? [rateLimiters.personalLibrary] : []),
     createUserProfileRouter(database),
     createPersonalLibraryRouter({ database, neteaseService }),
-  )
+  );
   if (rateLimiters) {
-    app.post('/api/local/music', rateLimiters.upload)
-    app.get('/api/local/music/:id/download', rateLimiters.download)
+    app.post('/api/local/music', rateLimiters.upload);
+    app.get('/api/local/music/:id/download', rateLimiters.download);
   }
   app.use(
     '/api/local/music',
@@ -194,31 +206,31 @@ function createApp({
       config: localMusicConfig,
       metadataReader: localMusic.metadataReader,
     }),
-  )
+  );
 
   app.get('/api/protected', requireLogin, (req, res) => {
-    res.json({ success: true, user: req.safeUser })
-  })
+    res.json({ success: true, user: req.safeUser });
+  });
 
   app.get('/api/admin/test', requireLogin, requireAdmin, (req, res) => {
-    res.json({ success: true, user: req.safeUser })
-  })
+    res.json({ success: true, user: req.safeUser });
+  });
 
   app.use((req, res) => {
     res.status(404).json({
       success: false,
       message: '接口不存在',
       requestId: req.requestId,
-    })
-  })
+    });
+  });
 
   app.use((error, req, res, next) => {
-    if (res.headersSent) return next(error)
-    const payloadTooLarge =
-      error?.type === 'entity.too.large' || error?.status === 413
-    const invalidFootprintJson = error?.type === 'entity.parse.failed' &&
-      (req.path === '/api/footprint' || req.path.startsWith('/api/footprint/'))
-    const status = payloadTooLarge ? 413 : invalidFootprintJson ? 400 : 500
+    if (res.headersSent) return next(error);
+    const payloadTooLarge = error?.type === 'entity.too.large' || error?.status === 413;
+    const invalidFootprintJson =
+      error?.type === 'entity.parse.failed' &&
+      (req.path === '/api/footprint' || req.path.startsWith('/api/footprint/'));
+    const status = payloadTooLarge ? 413 : invalidFootprintJson ? 400 : 500;
     securityConfig.logger.error({
       event: 'request_failed',
       requestId: req.requestId,
@@ -226,17 +238,21 @@ function createApp({
       path: req.path,
       status,
       errorName: error?.name,
-    })
+    });
     return res.status(status).json({
       success: false,
-      message: payloadTooLarge ? '请求内容过大' : invalidFootprintJson ? '请求内容格式无效' : '服务器内部错误',
+      message: payloadTooLarge
+        ? '请求内容过大'
+        : invalidFootprintJson
+          ? '请求内容格式无效'
+          : '服务器内部错误',
       requestId: req.requestId,
-    })
-  })
+    });
+  });
 
-  return app
+  return app;
 }
 
 module.exports = {
   createApp,
-}
+};

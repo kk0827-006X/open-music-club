@@ -29,6 +29,6 @@ function graphicsProfile(url) {
         this.acceptanceContainer.dataset.acceptanceFrames = String(stats.renderedFrames);
         this.acceptanceContainer.dataset.acceptanceSelection = JSON.stringify(stats.selectedCell);
       }
-    }`
+    }`;
 }
-module.exports = { graphicsProfile }
+module.exports = { graphicsProfile };

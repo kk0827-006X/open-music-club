@@ -12,19 +12,34 @@ export class SharedDepthAO extends SSAOPass {
   private sharing = true;
   private savedColor = new THREE.Color();
   private depthClear = new Float32Array([1, 1, 1, 1]);
-  constructor(scene: THREE.Scene, camera: THREE.Camera, width: number, height: number, kernel = 32) {
+  constructor(
+    scene: THREE.Scene,
+    camera: THREE.Camera,
+    width: number,
+    height: number,
+    kernel = 32,
+  ) {
     super(scene, camera, width, height, kernel);
     this.packed = this.normalRenderTarget.texture.clone();
     this.packed.name = 'Archive.packedDepth';
     this.normalRenderTarget.textures.push(this.packed);
-    this.normalMaterial.onBeforeCompile = shader => {
+    this.normalMaterial.onBeforeCompile = (shader) => {
       if (!this.sharing) return;
       shader.vertexShader = 'varying vec2 vArchiveZW;\n' + shader.vertexShader;
-      shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\nvArchiveZW = gl_Position.zw;');
-      shader.fragmentShader = 'varying vec2 vArchiveZW;\nlayout(location = 1) out vec4 archivePackedDepth;\n#include <packing>\n' + shader.fragmentShader;
-      shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'void main() {\narchivePackedDepth = packDepthToRGBA(0.5 * vArchiveZW.x / vArchiveZW.y + 0.5);');
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <project_vertex>',
+        '#include <project_vertex>\nvArchiveZW = gl_Position.zw;',
+      );
+      shader.fragmentShader =
+        'varying vec2 vArchiveZW;\nlayout(location = 1) out vec4 archivePackedDepth;\n#include <packing>\n' +
+        shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        'void main() {\narchivePackedDepth = packDepthToRGBA(0.5 * vArchiveZW.x / vArchiveZW.y + 0.5);',
+      );
     };
-    this.normalMaterial.customProgramCacheKey = () => `archive-normal-packed-depth-v1-${this.sharing}`;
+    this.normalMaterial.customProgramCacheKey = () =>
+      `archive-normal-packed-depth-v1-${this.sharing}`;
   }
   setSharing(enabled: boolean) {
     if (enabled === this.sharing) return;
@@ -34,9 +49,16 @@ export class SharedDepthAO extends SSAOPass {
     if (enabled) this.normalRenderTarget.textures.push(this.packed);
     this.normalMaterial.needsUpdate = true;
   }
-  _renderOverride(renderer: THREE.WebGLRenderer, material: THREE.Material, target: THREE.WebGLRenderTarget, color: THREE.ColorRepresentation, alpha: number) {
+  _renderOverride(
+    renderer: THREE.WebGLRenderer,
+    material: THREE.Material,
+    target: THREE.WebGLRenderTarget,
+    color: THREE.ColorRepresentation,
+    alpha: number,
+  ) {
     renderer.getClearColor(this.savedColor);
-    const savedAlpha = renderer.getClearAlpha(), autoClear = renderer.autoClear;
+    const savedAlpha = renderer.getClearAlpha(),
+      autoClear = renderer.autoClear;
     const override = this.scene.overrideMaterial;
     renderer.setRenderTarget(target);
     renderer.autoClear = false;
@@ -46,8 +68,9 @@ export class SharedDepthAO extends SSAOPass {
     const gl = renderer.getContext() as WebGL2RenderingContext;
     if (this.sharing) gl.clearBufferfv(gl.COLOR, 1, this.depthClear);
     this.scene.overrideMaterial = material;
-    try { renderer.render(this.scene, this.camera); }
-    finally {
+    try {
+      renderer.render(this.scene, this.camera);
+    } finally {
       this.scene.overrideMaterial = override;
       renderer.autoClear = autoClear;
       renderer.setClearColor(this.savedColor, savedAlpha);
@@ -59,13 +82,29 @@ export class SharedDepthBokeh extends BokehPass {
   private width = 1;
   private height = 1;
   private quad: FullScreenQuad;
-  constructor(scene: THREE.Scene, camera: THREE.Camera, params: BokehPassParameters, private source: () => SharedDepthAO) {
+  constructor(
+    scene: THREE.Scene,
+    camera: THREE.Camera,
+    params: BokehPassParameters,
+    private source: () => SharedDepthAO,
+  ) {
     super(scene, camera, params);
     this.quad = new FullScreenQuad(this.materialBokeh);
   }
-  setSize(width: number, height: number) { super.setSize(width, height); this.width = width; this.height = height; }
-  render(renderer: THREE.WebGLRenderer, write: THREE.WebGLRenderTarget, read: THREE.WebGLRenderTarget, delta: number, mask: boolean) {
-    const ao = this.source(), uniforms = this.uniforms as Record<string, {value: any}>;
+  setSize(width: number, height: number) {
+    super.setSize(width, height);
+    this.width = width;
+    this.height = height;
+  }
+  render(
+    renderer: THREE.WebGLRenderer,
+    write: THREE.WebGLRenderTarget,
+    read: THREE.WebGLRenderTarget,
+    delta: number,
+    mask: boolean,
+  ) {
+    const ao = this.source(),
+      uniforms = this.uniforms as Record<string, { value: any }>;
     // Lower resolution AO must retain the original full resolution depth pass.
     if (!ao.enabled || ao.width !== this.width || ao.height !== this.height) {
       return super.render(renderer, write, read, delta, mask);
@@ -79,8 +118,15 @@ export class SharedDepthBokeh extends BokehPass {
     renderer.autoClear = false;
     renderer.setRenderTarget(this.renderToScreen ? null : write);
     if (!this.renderToScreen) renderer.clear();
-    try { this.quad.render(renderer); }
-    finally { uniforms.tDepth.value = originalDepth; renderer.autoClear = autoClear; }
+    try {
+      this.quad.render(renderer);
+    } finally {
+      uniforms.tDepth.value = originalDepth;
+      renderer.autoClear = autoClear;
+    }
   }
-  dispose() { super.dispose(); this.quad.dispose(); }
+  dispose() {
+    super.dispose();
+    this.quad.dispose();
+  }
 }

@@ -6,8 +6,7 @@ export function track(keys: readonly Key[], frame: number): number {
   if (frame <= keys[0][0]) return keys[0][1];
   const last = keys.length - 1;
   if (frame >= keys[last][0]) return keys[last][1];
-  const slope = (i: number) =>
-    (keys[i + 1][1] - keys[i][1]) / (keys[i + 1][0] - keys[i][0]);
+  const slope = (i: number) => (keys[i + 1][1] - keys[i][1]) / (keys[i + 1][0] - keys[i][0]);
   const tangent = (i: number) => {
     if (i === 0) return slope(0);
     if (i === last) return slope(last - 1);
@@ -35,8 +34,7 @@ export function track(keys: readonly Key[], frame: number): number {
 // All three lines repeat this trajectory with a two-frame offset. Ink starts
 // arriving before the fastest movement, then the translation has a long tail.
 const brandX = [
-  234, 216, 181, 143, 115, 94, 78, 65, 54, 45, 38, 31, 26, 21, 17, 13, 10, 8, 6,
-  4, 3, 2, 1, 0,
+  234, 216, 181, 143, 115, 94, 78, 65, 54, 45, 38, 31, 26, 21, 17, 13, 10, 8, 6, 4, 3, 2, 1, 0,
 ];
 const brandKeys = brandX.map((x, i) => [i, x] as const);
 export const brandTrack = (frame: number, line: number) => {
@@ -81,8 +79,7 @@ const highlightKeys: readonly Key[] = [
   [610, 410],
   [611, 410],
 ];
-export const companyTrack = (frame: number) =>
-  track(highlightKeys, frame) / 410;
+export const companyTrack = (frame: number) => track(highlightKeys, frame) / 410;
 
 export function scanTrack(frame: number) {
   const value = (keys: readonly Key[]) => track(keys, frame);

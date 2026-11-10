@@ -2,7 +2,15 @@
 // 本地适配：主题变量、中文读屏提示、输入名称和无依赖成功标记。
 'use client';
 
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import {
   animate,
   motion,
@@ -10,7 +18,7 @@ import {
   useMotionValue,
   useReducedMotion,
   useTransform,
-  type MotionValue
+  type MotionValue,
 } from 'motion/react';
 
 // CSS 由全站样式入口统一加载。
@@ -107,7 +115,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
   rise = 8,
   cascade = 20,
   ariaLabel = 'One-time code',
-  className = ''
+  className = '',
 }) => {
   const uid = useId();
   const reduce = useReducedMotion();
@@ -134,10 +142,10 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
   const springs = useMemo(
     () => ({
       mvs: Array.from({ length }, (_, i) => motionValue(slotsRef.current[i] ? 1 : 0)),
-      drops: Array.from({ length }, () => motionValue(statusRef.current === 'success' ? 1 : 0))
+      drops: Array.from({ length }, () => motionValue(statusRef.current === 'success' ? 1 : 0)),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [length]
+    [length],
   );
   const { mvs, drops } = springs;
   const pitch = slotSize + gap;
@@ -154,24 +162,29 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
         mv.jump(to);
         return;
       }
-      animate(mv, to, { type: 'spring', duration: L.settle, bounce: L.bounce, delay: delayMs / 1000 });
+      animate(mv, to, {
+        type: 'spring',
+        duration: L.settle,
+        bounce: L.bounce,
+        delay: delayMs / 1000,
+      });
     },
-    [mvs]
+    [mvs],
   );
   const land = useCallback(
     (i: number, delayMs = 0) => {
       if (mvs[i].get() > 0) mvs[i].jump(0);
       drive(i, 1, delayMs);
     },
-    [mvs, drive]
+    [mvs, drive],
   );
   const moveActive = useCallback(
     (next: number, crossed: number[]) => {
-      crossed.forEach(j => glide.current.add(j));
+      crossed.forEach((j) => glide.current.add(j));
       activeMv.jump(next);
       setActive(next);
     },
-    [activeMv]
+    [activeMv],
   );
   const jumpActive = useCallback(
     (next: number) => {
@@ -179,7 +192,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
       activeMv.jump(next);
       setActive(next);
     },
-    [activeMv]
+    [activeMv],
   );
 
   const caretX = useTransform(() => {
@@ -198,10 +211,13 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
     return Math.min(Math.max(x, 0), (mvs.length - 1) * pitch);
   });
   const caretTransform = useTransform(caretX, (x: number) => `translateX(${x}px)`);
-  const washClip = useTransform(openMv, (o: number) => `inset(0 ${(1 - clamp01(o)) * 50}% round ${washRadius}px)`);
+  const washClip = useTransform(
+    openMv,
+    (o: number) => `inset(0 ${(1 - clamp01(o)) * 50}% round ${washRadius}px)`,
+  );
   const checkTransform = useTransform(
     checkMv,
-    (c: number) => `translateY(${(1 - c) * CHECK_RISE}px) scale(${0.85 + 0.15 * Math.max(c, 0)})`
+    (c: number) => `translateY(${(1 - c) * CHECK_RISE}px) scale(${0.85 + 0.15 * Math.max(c, 0)})`,
   );
   const checkOpacity = useTransform(checkMv, clamp01);
 
@@ -215,7 +231,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
       onChange?.(code);
       if (!isFull(prev) && isFull(next)) onComplete?.(code);
     },
-    [onChange, onComplete]
+    [onChange, onComplete],
   );
 
   const insert = (raw: string, from = active) => {
@@ -352,13 +368,18 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
       setVeiled(true);
       if (L.reduce) {
         openMv.jump(1);
-        drops.forEach(d => d.jump(1));
+        drops.forEach((d) => d.jump(1));
         checkMv.jump(1);
         return;
       }
       animate(openMv, 1, { duration: WASH_IN, ease: EASE_OUT });
       drops.forEach((d, k) =>
-        animate(d, 1, { type: 'spring', duration: 0.3, bounce: 0, delay: SINK_DELAY + k * SINK_STEP })
+        animate(d, 1, {
+          type: 'spring',
+          duration: 0.3,
+          bounce: 0,
+          delay: SINK_DELAY + k * SINK_STEP,
+        }),
       );
       animate(checkMv, 1, { type: 'spring', duration: 0.35, bounce: L.bounce, delay: CHECK_DELAY });
       return;
@@ -367,7 +388,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
     if (L.reduce) {
       openMv.jump(0);
       checkMv.jump(0);
-      drops.forEach(d => d.jump(0));
+      drops.forEach((d) => d.jump(0));
       setVeiled(false);
       return;
     }
@@ -375,13 +396,13 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
     animate(openMv, 0, { duration: WASH_OUT, ease: EASE_OUT, delay: 0.06 }).then(() => {
       if (openMv.get() === 0) setVeiled(false);
     });
-    drops.forEach(d => animate(d, 0, { type: 'spring', duration: 0.3, bounce: 0, delay: 0.1 }));
+    drops.forEach((d) => animate(d, 0, { type: 'spring', duration: 0.3, bounce: 0, delay: 0.1 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   useEffect(() => {
     if (status !== 'error') return;
-    const filled = slotsRef.current.map((c, i) => (c ? i : -1)).filter(i => i >= 0);
+    const filled = slotsRef.current.map((c, i) => (c ? i : -1)).filter((i) => i >= 0);
     if (!filled.length) return;
     filled.reverse();
     draining.current = true;
@@ -390,7 +411,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
     filled.forEach((i, k) => drive(i, 0, k * step));
     moveActive(
       0,
-      slotsRef.current.map((_, j) => j)
+      slotsRef.current.map((_, j) => j),
     );
     clearTimeout(drainTimer.current);
     drainTimer.current = setTimeout(
@@ -398,7 +419,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
         draining.current = false;
         commit(Array.from({ length }, () => ''));
       },
-      L.reduce ? 300 : (filled.length - 1) * step + L.settle * 1000
+      L.reduce ? 300 : (filled.length - 1) * step + L.settle * 1000,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -412,7 +433,12 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
 
   const view = slots.length === length ? slots : Array.from({ length }, (_, i) => slots[i] ?? '');
   const showCaret =
-    caret && focused && !disabled && !veiled && status !== 'success' && (status === 'error' || !view[active]);
+    caret &&
+    focused &&
+    !disabled &&
+    !veiled &&
+    status !== 'success' &&
+    (status === 'error' || !view[active]);
 
   return (
     <div
@@ -428,7 +454,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
           '--cs-height': `${height}px`,
           '--cs-gap': `${gap}px`,
           '--cs-radius': `${Math.min(radius, slotSize / 2)}px`,
-          '--cs-font': `${Math.round(slotSize * 0.5)}px`
+          '--cs-font': `${Math.round(slotSize * 0.5)}px`,
         } as CSSProperties
       }
     >
@@ -473,8 +499,13 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
           />
         ))}
         <motion.span className="code-slots__wash" aria-hidden="true" style={{ clipPath: washClip }}>
-          <motion.span className="code-slots__check" style={{ transform: checkTransform, opacity: checkOpacity }}>
-            <span aria-hidden="true" style={{ fontSize: Math.round(slotSize * 0.6) }}>✓</span>
+          <motion.span
+            className="code-slots__check"
+            style={{ transform: checkTransform, opacity: checkOpacity }}
+          >
+            <span aria-hidden="true" style={{ fontSize: Math.round(slotSize * 0.6) }}>
+              ✓
+            </span>
           </motion.span>
         </motion.span>
         <motion.span
@@ -487,7 +518,9 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
         </motion.span>
       </div>
       <span id={`${uid}-count`} className="code-slots__sr" aria-live="polite">
-        {status === 'success' ? '验证码已通过' : `已输入 ${view.filter(Boolean).length} 位，共 ${length} 位`}
+        {status === 'success'
+          ? '验证码已通过'
+          : `已输入 ${view.filter(Boolean).length} 位，共 ${length} 位`}
       </span>
     </div>
   );
@@ -499,9 +532,12 @@ function Slot({ mv, drop, char, active, rise, sink }: SlotProps) {
   const fill = useTransform(mv, (t: number) => `scale(${Math.max(t, 0)})`);
   const lift = useTransform(
     [mv, drop],
-    ([t, d]: number[]) => `translateY(${(1 - t) * rise + Math.max(d, 0) * sink}px)`
+    ([t, d]: number[]) => `translateY(${(1 - t) * rise + Math.max(d, 0) * sink}px)`,
   );
-  const ink = useTransform([mv, drop], ([t, d]: number[]) => clamp01(t) * (1 - clamp01(d / SINK_FADE)));
+  const ink = useTransform(
+    [mv, drop],
+    ([t, d]: number[]) => clamp01(t) * (1 - clamp01(d / SINK_FADE)),
+  );
   return (
     <span
       className="code-slots__slot"

@@ -1,7 +1,7 @@
 function toIsoTimestamp(value) {
-  if (!value) return null
-  const normalized = String(value).includes('T') ? String(value) : `${value}Z`
-  return new Date(normalized).toISOString()
+  if (!value) return null;
+  const normalized = String(value).includes('T') ? String(value) : `${value}Z`;
+  return new Date(normalized).toISOString();
 }
 
 function findMusicById(database, id) {
@@ -12,7 +12,7 @@ function findMusicById(database, id) {
        JOIN users ON users.id = uploaded_music.uploader_id
        WHERE uploaded_music.id = ?`,
     )
-    .get(id)
+    .get(id);
 }
 
 function listMusic(database) {
@@ -23,7 +23,7 @@ function listMusic(database) {
        JOIN users ON users.id = uploaded_music.uploader_id
        ORDER BY uploaded_music.created_at DESC, uploaded_music.id DESC`,
     )
-    .all()
+    .all();
 }
 
 function createMusic(database, music) {
@@ -59,8 +59,8 @@ function createMusic(database, music) {
       music.fileSize,
       music.durationMs,
       music.uploaderId,
-    )
-  return findMusicById(database, result.lastInsertRowid)
+    );
+  return findMusicById(database, result.lastInsertRowid);
 }
 
 function recordDownload(database, musicId, userId) {
@@ -71,23 +71,22 @@ function recordDownload(database, musicId, userId) {
          SET download_count = download_count + 1
          WHERE id = ?`,
       )
-      .run(musicId)
+      .run(musicId);
     database
       .prepare('INSERT INTO download_logs (music_id, user_id) VALUES (?, ?)')
-      .run(musicId, userId)
-  })()
+      .run(musicId, userId);
+  })();
 }
 
 function deleteMusicRecord(database, musicId) {
-  return database
-    .transaction(() =>
-      database.prepare('DELETE FROM uploaded_music WHERE id = ?').run(musicId),
-    )()
+  return database.transaction(() =>
+    database.prepare('DELETE FROM uploaded_music WHERE id = ?').run(musicId),
+  )();
 }
 
 function toTrack(music) {
-  const baseUrl = `/api/local/music/${music.id}`
-  const streamUrl = `${baseUrl}/stream`
+  const baseUrl = `/api/local/music/${music.id}`;
+  const streamUrl = `${baseUrl}/stream`;
   return {
     id: music.id,
     source: 'local',
@@ -110,7 +109,7 @@ function toTrack(music) {
       nickname: music.uploader_nickname,
     },
     createdAt: toIsoTimestamp(music.created_at),
-  }
+  };
 }
 
 module.exports = {
@@ -120,4 +119,4 @@ module.exports = {
   listMusic,
   recordDownload,
   toTrack,
-}
+};

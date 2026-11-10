@@ -7,9 +7,17 @@ import React, {
   useState,
   type CSSProperties,
   type KeyboardEvent,
-  type PointerEvent
+  type PointerEvent,
 } from 'react';
-import { animate, motion, useMotionValue, useReducedMotion, useSpring, useTransform, useVelocity } from 'motion/react';
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+  useVelocity,
+} from 'motion/react';
 // 官方 React Bits Squish Switch，复用项目现有 motion。
 
 export interface SquishSwitchProps {
@@ -70,7 +78,7 @@ const SquishSwitch: React.FC<SquishSwitchProps> = ({
   colorDuration = 320,
   ariaLabel,
   className = '',
-  id
+  id,
 }) => {
   const reduce = useReducedMotion();
   const inset = Math.max(3, Math.round(height * 0.11));
@@ -121,7 +129,7 @@ const SquishSwitch: React.FC<SquishSwitchProps> = ({
       damping: 21.5,
       mass: 0.9,
       restDelta: 0.001,
-      restSpeed: 0.01
+      restSpeed: 0.01,
     });
     return () => controls.stop();
   }, [on, dragging, min, max, speed, reduce, x]);
@@ -141,7 +149,7 @@ const SquishSwitch: React.FC<SquishSwitchProps> = ({
       moved: false,
       startX: e.clientX,
       onAtPress: onRef.current,
-      slop: e.pointerType === 'touch' ? TAP_SLOP.coarse : TAP_SLOP.fine
+      slop: e.pointerType === 'touch' ? TAP_SLOP.coarse : TAP_SLOP.fine,
     };
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -207,15 +215,16 @@ const SquishSwitch: React.FC<SquishSwitchProps> = ({
             '--ss-thumb-r': `${thumbRadius}px`,
             '--ss-track': trackColor,
             '--ss-track-on': trackOnColor,
-            '--ss-thumb-color': thumbColor || `color-mix(in srgb, ${trackOnColor} 19%, ${trackColor})`,
+            '--ss-thumb-color':
+              thumbColor || `color-mix(in srgb, ${trackOnColor} 19%, ${trackColor})`,
             '--ss-thumb-on': thumbOnColor || trackColor,
-            '--ss-fade': `${colorDuration}ms`
+            '--ss-fade': `${colorDuration}ms`,
           } as CSSProperties
         }
         onPointerDown={down}
         onPointerMove={move}
-        onPointerUp={e => up(e, false)}
-        onPointerCancel={e => up(e, true)}
+        onPointerUp={(e) => up(e, false)}
+        onPointerCancel={(e) => up(e, true)}
         onPointerEnter={(e: PointerEvent<HTMLButtonElement>) => {
           if (e.pointerType === 'mouse' && !disabled) swell.set(hoverScale);
         }}
@@ -227,7 +236,11 @@ const SquishSwitch: React.FC<SquishSwitchProps> = ({
         onClick={click}
       >
         <span ref={trackRef} className="squish-switch__track">
-          <motion.span className="squish-switch__thumb" aria-hidden="true" style={{ x, scaleX, scaleY }} />
+          <motion.span
+            className="squish-switch__thumb"
+            aria-hidden="true"
+            style={{ x, scaleX, scaleY }}
+          />
         </span>
       </button>
       {label ? (

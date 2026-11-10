@@ -1,46 +1,48 @@
-const assert = require('node:assert/strict')
-const { afterEach, beforeEach, describe, it } = require('node:test')
-const fs = require('node:fs')
-const os = require('node:os')
-const path = require('node:path')
-const bcrypt = require('bcrypt')
-const request = require('supertest')
-const { once } = require('node:events')
+const assert = require('node:assert/strict');
+const { afterEach, beforeEach, describe, it } = require('node:test');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const bcrypt = require('bcrypt');
+const request = require('supertest');
+const { once } = require('node:events');
 
-const { createApp } = require('../src/app')
-const { createUser } = require('../src/db/users')
+const { createApp } = require('../src/app');
+const { createUser } = require('../src/db/users');
 
-const TEST_PASSWORD = 'test-password'
+const TEST_PASSWORD = 'test-password';
 
 describe('网易云 API 白名单', () => {
-  let directory
-  let app
-  let database
-  let memberAgent
-  let adminAgent
-  let calls
-  let neteaseService
-  let server
+  let directory;
+  let app;
+  let database;
+  let memberAgent;
+  let adminAgent;
+  let calls;
+  let neteaseService;
+  let server;
 
   beforeEach(async () => {
-    app = undefined; database = undefined; server = undefined
-    directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-'))
-    calls = []
+    app = undefined;
+    database = undefined;
+    server = undefined;
+    directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-'));
+    calls = [];
     neteaseService = {
       async call(moduleName, parameters) {
-        calls.push({ moduleName, parameters })
-        return { code: 200, moduleName, parameters }
+        calls.push({ moduleName, parameters });
+        return { code: 200, moduleName, parameters };
       },
-    }
+    };
     app = createApp({
       databasePath: path.join(directory, 'database.sqlite'),
       sessionDatabasePath: path.join(directory, 'sessions.sqlite'),
       sessionSecret: 'test-session-secret',
       neteaseService,
-    })
-    database = app.locals.database
+    });
+    database = app.locals.database;
 
-    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 4)
+    const passwordHash = await bcrypt.hash(TEST_PASSWORD, 4);
     createUser(database, {
       email: 'member@example.com',
       nickname: '普通成员',
@@ -48,7 +50,7 @@ describe('网易云 API 白名单', () => {
       role: 'user',
       status: 'active',
       mustChangePassword: false,
-    })
+    });
     createUser(database, {
       email: 'admin@example.com',
       nickname: '管理员',
@@ -56,33 +58,34 @@ describe('网易云 API 白名单', () => {
       role: 'admin',
       status: 'active',
       mustChangePassword: false,
-    })
+    });
 
     // 固定使用回环测试服务，避免每个请求隐式创建和关闭监听器。
-    server = app.listen(0, '127.0.0.1')
-    await once(server, 'listening')
-    memberAgent = request.agent(server).timeout({ deadline: 15_000 })
-    adminAgent = request.agent(server).timeout({ deadline: 15_000 })
-    await login(memberAgent, 'member@example.com')
-    await login(adminAgent, 'admin@example.com')
-  })
+    server = app.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    memberAgent = request.agent(server).timeout({ deadline: 15_000 });
+    adminAgent = request.agent(server).timeout({ deadline: 15_000 });
+    await login(memberAgent, 'member@example.com');
+    await login(adminAgent, 'admin@example.com');
+  });
 
   afterEach(async () => {
     try {
-      await app?.locals.accessLifecycle.stop()
-      if (server?.listening) await new Promise((resolve, reject) => {
-        server.close(error => error ? reject(error) : resolve())
-        server.closeAllConnections()
-      })
+      await app?.locals.accessLifecycle.stop();
+      if (server?.listening)
+        await new Promise((resolve, reject) => {
+          server.close((error) => (error ? reject(error) : resolve()));
+          server.closeAllConnections();
+        });
     } finally {
-      app?.locals.sessionStore.stopInterval?.()
-      if (database?.open) database.close()
-      fs.rmSync(directory, { recursive: true, force: true })
+      app?.locals.sessionStore.stopInterval?.();
+      if (database?.open) database.close();
+      fs.rmSync(directory, { recursive: true, force: true });
     }
-  })
+  });
 
   function login(agent, email) {
-    return agent.post('/api/auth/login').send({ email, password: TEST_PASSWORD })
+    return agent.post('/api/auth/login').send({ email, password: TEST_PASSWORD });
   }
 
   it('六个白名单接口都拒绝未登录访问', async () => {
@@ -93,28 +96,26 @@ describe('网易云 API 白名单', () => {
       '/api/netease/lyric?id=1',
       '/api/netease/playlist/detail?id=1',
       '/api/netease/album?id=1',
-    ]
+    ];
 
     for (const routePath of paths) {
-      const response = await request(server).get(routePath).timeout({ deadline: 15_000 })
-      assert.equal(response.status, 401)
+      const response = await request(server).get(routePath).timeout({ deadline: 15_000 });
+      assert.equal(response.status, 401);
     }
-    assert.equal(calls.length, 0)
-  })
+    assert.equal(calls.length, 0);
+  });
 
   it('普通用户和管理员都可以访问网易云接口', async () => {
-    const memberResponse = await memberAgent.get(
-      '/api/netease/search?keywords=测试歌曲',
-    )
-    const adminResponse = await adminAgent.get('/api/netease/lyric?id=123')
+    const memberResponse = await memberAgent.get('/api/netease/search?keywords=测试歌曲');
+    const adminResponse = await adminAgent.get('/api/netease/lyric?id=123');
 
-    assert.equal(memberResponse.status, 200)
-    assert.equal(adminResponse.status, 200)
+    assert.equal(memberResponse.status, 200);
+    assert.equal(adminResponse.status, 200);
     assert.deepEqual(
       calls.map((call) => call.moduleName),
       ['search', 'lyric'],
-    )
-  })
+    );
+  });
 
   it('六个接口映射到对应的白名单模块并原样返回上游 body', async () => {
     const routes = [
@@ -124,23 +125,23 @@ describe('网易云 API 白名单', () => {
       ['/api/netease/lyric?id=1', 'lyric'],
       ['/api/netease/playlist/detail?id=1', 'playlistDetail'],
       ['/api/netease/album?id=1', 'album'],
-    ]
+    ];
 
     for (const [routePath, moduleName] of routes) {
       neteaseService.call = async (name, parameters) => {
-        calls.push({ moduleName: name, parameters })
-        return { code: 200, result: { source: moduleName } }
-      }
-      const response = await memberAgent.get(routePath)
+        calls.push({ moduleName: name, parameters });
+        return { code: 200, result: { source: moduleName } };
+      };
+      const response = await memberAgent.get(routePath);
 
-      assert.equal(response.status, 200)
+      assert.equal(response.status, 200);
       assert.deepEqual(response.body, {
         code: 200,
         result: { source: moduleName },
-      })
-      assert.equal(calls.at(-1).moduleName, moduleName)
+      });
+      assert.equal(calls.at(-1).moduleName, moduleName);
     }
-  })
+  });
 
   it('所有必填参数缺失时返回 400', async () => {
     const paths = [
@@ -150,15 +151,15 @@ describe('网易云 API 白名单', () => {
       '/api/netease/lyric',
       '/api/netease/playlist/detail',
       '/api/netease/album',
-    ]
+    ];
 
     for (const routePath of paths) {
-      const response = await memberAgent.get(routePath)
-      assert.equal(response.status, 400)
-      assert.equal(response.body.success, false)
+      const response = await memberAgent.get(routePath);
+      assert.equal(response.status, 400);
+      assert.equal(response.body.success, false);
     }
-    assert.equal(calls.length, 0)
-  })
+    assert.equal(calls.length, 0);
+  });
 
   it('拒绝非法 ids、id、分页和音质参数', async () => {
     const paths = [
@@ -170,20 +171,20 @@ describe('网易云 API 白名单', () => {
       '/api/netease/lyric?id=1.5',
       '/api/netease/playlist/detail?id=abc',
       '/api/netease/album?id=abc',
-    ]
+    ];
 
     for (const routePath of paths) {
-      assert.equal((await memberAgent.get(routePath)).status, 400)
+      assert.equal((await memberAgent.get(routePath)).status, 400);
     }
-    assert.equal(calls.length, 0)
-  })
+    assert.equal(calls.length, 0);
+  });
 
   it('搜索默认歌曲类型并只传递允许的参数', async () => {
     const response = await memberAgent.get(
       '/api/netease/search?keywords=%20hello%20&limit=20&offset=2&unblock=true&proxy=http://example.com&crypto=api&cookie=secret',
-    )
+    );
 
-    assert.equal(response.status, 200)
+    assert.equal(response.status, 200);
     assert.deepEqual(calls[0], {
       moduleName: 'search',
       parameters: {
@@ -192,123 +193,142 @@ describe('网易云 API 白名单', () => {
         limit: 20,
         offset: 2,
       },
-    })
-  })
+    });
+  });
 
   it('只允许歌曲、专辑、歌手三种搜索类型', async () => {
     for (const type of [1, 10, 100]) {
-      const response = await memberAgent.get(`/api/netease/search?keywords=陈奕迅&type=${type}`)
-      assert.equal(response.status, 200)
+      const response = await memberAgent.get(`/api/netease/search?keywords=陈奕迅&type=${type}`);
+      assert.equal(response.status, 200);
       assert.deepEqual(calls.at(-1), {
         moduleName: 'search',
         parameters: { keywords: '陈奕迅', type },
-      })
+      });
     }
 
-    const callsBeforeInvalid = calls.length
+    const callsBeforeInvalid = calls.length;
     for (const type of ['1000', '2000', '0', 'abc', '1,10']) {
-      const response = await memberAgent.get(`/api/netease/search?keywords=陈奕迅&type=${type}`)
-      assert.equal(response.status, 400)
+      const response = await memberAgent.get(`/api/netease/search?keywords=陈奕迅&type=${type}`);
+      assert.equal(response.status, 400);
     }
-    assert.equal(calls.length, callsBeforeInvalid)
-  })
+    assert.equal(calls.length, callsBeforeInvalid);
+  });
 
   it('播放地址默认 standard 且不会传递解灰等危险参数', async () => {
     const response = await memberAgent.get(
       '/api/netease/song/url/v1?id=123&unblock=true&source=kuwo&proxy=http://example.com&domain=https://example.com&crypto=api&cookie=secret',
-    )
+    );
 
-    assert.equal(response.status, 200)
+    assert.equal(response.status, 200);
     assert.deepEqual(calls[0], {
       moduleName: 'songUrlV1',
       parameters: { id: '123', level: 'standard' },
-    })
-  })
+    });
+  });
 
   it('上游异常统一转换为不泄露细节的 502', async () => {
     neteaseService.call = async () => {
-      throw new Error('包含敏感上游细节')
-    }
+      throw new Error('包含敏感上游细节');
+    };
 
-    const response = await memberAgent.get('/api/netease/lyric?id=123')
+    const response = await memberAgent.get('/api/netease/lyric?id=123');
 
-    assert.equal(response.status, 502)
+    assert.equal(response.status, 502);
     assert.deepEqual(response.body, {
       success: false,
       message: '网易云服务暂时不可用',
-    })
-    assert.equal(JSON.stringify(response.body).includes('敏感'), false)
-  })
+    });
+    assert.equal(JSON.stringify(response.body).includes('敏感'), false);
+  });
 
   it('未白名单路径和错误请求方法返回 JSON 404', async () => {
-    const unknown = await memberAgent.get('/api/netease/comment/music?id=1')
+    const unknown = await memberAgent.get('/api/netease/comment/music?id=1');
     const wrongMethod = await memberAgent.post('/api/netease/search').send({
       keywords: 'test',
-    })
+    });
 
     for (const response of [unknown, wrongMethod]) {
-      assert.equal(response.status, 404)
+      assert.equal(response.status, 404);
       assert.deepEqual(response.body, {
         success: false,
         message: '网易云接口不存在',
-      })
+      });
     }
-    assert.equal(calls.length, 0)
-  })
+    assert.equal(calls.length, 0);
+  });
 
   it('专辑详情只接受合法 id，登录后原样返回完整曲目', async () => {
-    assert.equal((await request(server).get('/api/netease/album?id=6590').timeout({ deadline: 15_000 })).status, 401)
-    assert.equal((await memberAgent.get('/api/netease/album')).status, 400)
-    assert.equal((await memberAgent.get('/api/netease/album?id=invalid')).status, 400)
+    assert.equal(
+      (await request(server).get('/api/netease/album?id=6590').timeout({ deadline: 15_000 }))
+        .status,
+      401,
+    );
+    assert.equal((await memberAgent.get('/api/netease/album')).status, 400);
+    assert.equal((await memberAgent.get('/api/netease/album?id=invalid')).status, 400);
     neteaseService.call = async (name, parameters) => {
-      calls.push({ moduleName: name, parameters })
-      return { code: 200, songs: [{ id: 1, name: '第一首' }, { id: 2, name: '第二首' }] }
-    }
-    const response = await memberAgent.get('/api/netease/album?id=6590&cookie=secret&unblock=true')
-    assert.equal(response.status, 200)
-    assert.equal(response.body.songs.length, 2)
-    assert.deepEqual(calls, [{ moduleName: 'album', parameters: { id: '6590' } }])
-  })
+      calls.push({ moduleName: name, parameters });
+      return {
+        code: 200,
+        songs: [
+          { id: 1, name: '第一首' },
+          { id: 2, name: '第二首' },
+        ],
+      };
+    };
+    const response = await memberAgent.get('/api/netease/album?id=6590&cookie=secret&unblock=true');
+    assert.equal(response.status, 200);
+    assert.equal(response.body.songs.length, 2);
+    assert.deepEqual(calls, [{ moduleName: 'album', parameters: { id: '6590' } }]);
+  });
   it('歌手曲目仅登录可读，校验分页并剔除凭据和任意上游参数', async () => {
-    assert.equal((await request(server).get('/api/netease/artist/songs?id=1').timeout({ deadline: 15_000 })).status,401)
-    for (const query of ['id=x','id=1&limit=101','id=1&offset=-1','id=1&id=2']) {
-      assert.equal((await memberAgent.get('/api/netease/artist/songs?'+query)).status,400)
+    assert.equal(
+      (await request(server).get('/api/netease/artist/songs?id=1').timeout({ deadline: 15_000 }))
+        .status,
+      401,
+    );
+    for (const query of ['id=x', 'id=1&limit=101', 'id=1&offset=-1', 'id=1&id=2']) {
+      assert.equal((await memberAgent.get('/api/netease/artist/songs?' + query)).status, 400);
     }
-    const response = await memberAgent.get('/api/netease/artist/songs?id=123&limit=30&offset=60&cookie=secret&proxy=http://evil&order=time')
-    assert.equal(response.status,200)
-    assert.deepEqual(calls.at(-1),{moduleName:'artistSongs',parameters:{id:'123',limit:30,offset:60,order:'hot'}})
-  })
-})
+    const response = await memberAgent.get(
+      '/api/netease/artist/songs?id=123&limit=30&offset=60&cookie=secret&proxy=http://evil&order=time',
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(calls.at(-1), {
+      moduleName: 'artistSongs',
+      parameters: { id: '123', limit: 30, offset: 60, order: 'hot' },
+    });
+  });
+});
 
 describe('网易云服务适配器', () => {
   it('默认直接引用 vendor 原版 song_url_v1 模块', () => {
-    const vendorSongUrlV1 = require('../vendor/api-enhanced/module/song_url_v1')
-    const { DEFAULT_MODULES } = require('../src/services/netease.service')
+    const vendorSongUrlV1 = require('../vendor/api-enhanced/module/song_url_v1');
+    const { DEFAULT_MODULES } = require('../src/services/netease.service');
 
-    assert.equal(DEFAULT_MODULES.songUrlV1, vendorSongUrlV1)
-  })
+    assert.equal(DEFAULT_MODULES.songUrlV1, vendorSongUrlV1);
+  });
 
   it('把白名单参数交给模块并返回模块 body', async () => {
-    const requestClient = async () => ({ status: 200, body: { code: 200 } })
-    const moduleCalls = []
+    const requestClient = async () => ({ status: 200, body: { code: 200 } });
+    const moduleCalls = [];
     const moduleFunction = async (parameters, receivedRequestClient) => {
-      moduleCalls.push({ parameters, receivedRequestClient })
-      return { status: 200, body: { code: 200, songs: [] } }
-    }
-    const { createNeteaseService } = require('../src/services/netease.service')
+      moduleCalls.push({ parameters, receivedRequestClient });
+      return { status: 200, body: { code: 200, songs: [] } };
+    };
+    const { createNeteaseService } = require('../src/services/netease.service');
     const service = createNeteaseService({
       modules: { search: moduleFunction },
       requestClient,
-    })
+    });
 
     const body = await service.call('search', {
       keywords: 'hello',
       type: 1,
       limit: 20,
       offset: 0,
-    })
+    });
 
-    assert.deepEqual(body, { code: 200, songs: [] })
+    assert.deepEqual(body, { code: 200, songs: [] });
     assert.deepEqual(moduleCalls, [
       {
         parameters: {
@@ -320,118 +340,112 @@ describe('网易云服务适配器', () => {
         },
         receivedRequestClient: requestClient,
       },
-    ])
-  })
+    ]);
+  });
 
   it('启动初始化调用 vendor generateConfig 并验证运行时产物', async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'open-music-netease-runtime-'),
-    )
-    const calls = []
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-runtime-'));
+    const calls = [];
     const generateConfig = async () => {
-      calls.push('generateConfig')
-      fs.writeFileSync(path.join(directory, 'anonymous_token'), 'token', 'utf8')
+      calls.push('generateConfig');
+      fs.writeFileSync(path.join(directory, 'anonymous_token'), 'token', 'utf8');
       fs.writeFileSync(
         path.join(directory, 'xeapi_public_key'),
         JSON.stringify({ sk: 'public-key', deviceId: 'runtime-device' }),
         'utf8',
-      )
-    }
+      );
+    };
 
     try {
-      const { initializeNeteaseRuntime } = require('../src/services/netease.service')
+      const { initializeNeteaseRuntime } = require('../src/services/netease.service');
       const runtimeCredentials = await initializeNeteaseRuntime({
         generateConfig,
         tempDirectory: directory,
-      })
+      });
 
-      assert.deepEqual(calls, ['generateConfig'])
+      assert.deepEqual(calls, ['generateConfig']);
       assert.deepEqual(runtimeCredentials, {
         anonymousToken: 'token',
         deviceId: 'runtime-device',
-      })
+      });
     } finally {
-      fs.rmSync(directory, { recursive: true, force: true })
+      fs.rmSync(directory, { recursive: true, force: true });
     }
-  })
+  });
 
   it('匿名 token 为空时有限重试并记录 warning，但不阻止启动', async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'open-music-netease-runtime-'),
-    )
-    const calls = []
-    const warnings = []
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-runtime-'));
+    const calls = [];
+    const warnings = [];
 
     try {
-      const { initializeNeteaseRuntime } = require('../src/services/netease.service')
+      const { initializeNeteaseRuntime } = require('../src/services/netease.service');
       await initializeNeteaseRuntime({
         generateConfig: async () => {
-          calls.push('generateConfig')
-          fs.writeFileSync(path.join(directory, 'anonymous_token'), '', 'utf8')
+          calls.push('generateConfig');
+          fs.writeFileSync(path.join(directory, 'anonymous_token'), '', 'utf8');
           fs.writeFileSync(
             path.join(directory, 'xeapi_public_key'),
             JSON.stringify({ sk: 'public-key', deviceId: 'runtime-device' }),
             'utf8',
-          )
+          );
         },
         tempDirectory: directory,
         logger: {
           warn(message) {
-            warnings.push(message)
+            warnings.push(message);
           },
         },
-      })
+      });
 
-      assert.equal(calls.length, 2)
-      assert.equal(warnings.length, 1)
-      assert.match(warnings[0], /匿名 token.*为空/)
+      assert.equal(calls.length, 2);
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /匿名 token.*为空/);
     } finally {
-      fs.rmSync(directory, { recursive: true, force: true })
+      fs.rmSync(directory, { recursive: true, force: true });
     }
-  })
+  });
 
   it('把初始化后的匿名身份注入 vendor，且客户端参数不能覆盖', async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'open-music-netease-runtime-'),
-    )
-    const moduleCalls = []
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-runtime-'));
+    const moduleCalls = [];
 
     try {
       const {
         createNeteaseService,
         initializeNeteaseRuntime,
-      } = require('../src/services/netease.service')
+      } = require('../src/services/netease.service');
       const runtimeCredentials = await initializeNeteaseRuntime({
         generateConfig: async () => {
           fs.writeFileSync(
             path.join(directory, 'anonymous_token'),
             'server-anonymous-token',
             'utf8',
-          )
+          );
           fs.writeFileSync(
             path.join(directory, 'xeapi_public_key'),
             JSON.stringify({ sk: 'public-key', deviceId: 'server-device' }),
             'utf8',
-          )
+          );
         },
         tempDirectory: directory,
-      })
+      });
       const service = createNeteaseService({
         runtimeCredentials,
         modules: {
           songUrlV1: async (parameters) => {
-            moduleCalls.push(parameters)
-            return { status: 200, body: { code: 200, data: [] } }
+            moduleCalls.push(parameters);
+            return { status: 200, body: { code: 200, data: [] } };
           },
         },
         requestClient: async () => {},
-      })
+      });
 
       await service.call('songUrlV1', {
         id: '1',
         level: 'standard',
         cookie: { MUSIC_A: 'client-token', deviceId: 'client-device' },
-      })
+      });
 
       assert.deepEqual(moduleCalls, [
         {
@@ -442,123 +456,115 @@ describe('网易云服务适配器', () => {
             deviceId: 'server-device',
           },
         },
-      ])
+      ]);
     } finally {
-      fs.rmSync(directory, { recursive: true, force: true })
+      fs.rmSync(directory, { recursive: true, force: true });
     }
-  })
+  });
 
   it('generateConfig 失败后只重试一次并可恢复', async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'open-music-netease-runtime-'),
-    )
-    let attempts = 0
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-runtime-'));
+    let attempts = 0;
 
     try {
-      const { initializeNeteaseRuntime } = require('../src/services/netease.service')
+      const { initializeNeteaseRuntime } = require('../src/services/netease.service');
       await initializeNeteaseRuntime({
         generateConfig: async () => {
-          attempts += 1
-          if (attempts === 1) throw new Error('临时初始化错误')
-          fs.writeFileSync(
-            path.join(directory, 'anonymous_token'),
-            'token',
-            'utf8',
-          )
+          attempts += 1;
+          if (attempts === 1) throw new Error('临时初始化错误');
+          fs.writeFileSync(path.join(directory, 'anonymous_token'), 'token', 'utf8');
           fs.writeFileSync(
             path.join(directory, 'xeapi_public_key'),
             JSON.stringify({ sk: 'public-key' }),
             'utf8',
-          )
+          );
         },
         tempDirectory: directory,
-      })
+      });
 
-      assert.equal(attempts, 2)
+      assert.equal(attempts, 2);
     } finally {
-      fs.rmSync(directory, { recursive: true, force: true })
+      fs.rmSync(directory, { recursive: true, force: true });
     }
-  })
+  });
 
   it('两次初始化后仍缺少 XEAPI public key 时失败', async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'open-music-netease-runtime-'),
-    )
-    let attempts = 0
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'open-music-netease-runtime-'));
+    let attempts = 0;
 
     try {
-      const { initializeNeteaseRuntime } = require('../src/services/netease.service')
+      const { initializeNeteaseRuntime } = require('../src/services/netease.service');
       await assert.rejects(
         initializeNeteaseRuntime({
           generateConfig: async () => {
-            attempts += 1
+            attempts += 1;
           },
           tempDirectory: directory,
         }),
         /网易云运行时初始化失败/,
-      )
-      assert.equal(attempts, 2)
+      );
+      assert.equal(attempts, 2);
     } finally {
-      fs.rmSync(directory, { recursive: true, force: true })
+      fs.rmSync(directory, { recursive: true, force: true });
     }
-  })
+  });
 
   it('播放地址失败响应不缓存，下一次调用会重新请求上游', async () => {
     const failureResponses = [
       { status: 200, body: { code: 200, data: [{ id: 1, url: null }] } },
       { status: 403, body: { code: 403, message: 'forbidden' } },
       { status: 200, body: { code: 460, message: 'risk control' } },
-    ]
-    const { createNeteaseService } = require('../src/services/netease.service')
+    ];
+    const { createNeteaseService } = require('../src/services/netease.service');
 
     for (const failureResponse of failureResponses) {
-      let calls = 0
+      let calls = 0;
       const service = createNeteaseService({
         modules: {
           songUrlV1: async () => {
-            calls += 1
-            if (calls === 1) return failureResponse
+            calls += 1;
+            if (calls === 1) return failureResponse;
             return {
               status: 200,
               body: { code: 200, data: [{ id: 1, url: 'https://music.test/1' }] },
-            }
+            };
           },
         },
         requestClient: async () => {},
-      })
+      });
 
-      await service.call('songUrlV1', { id: '1', level: 'standard' })
+      await service.call('songUrlV1', { id: '1', level: 'standard' });
       const secondResponse = await service.call('songUrlV1', {
         id: '1',
         level: 'standard',
-      })
+      });
 
-      assert.equal(calls, 2)
-      assert.equal(secondResponse.data[0].url, 'https://music.test/1')
+      assert.equal(calls, 2);
+      assert.equal(secondResponse.data[0].url, 'https://music.test/1');
     }
-  })
+  });
 
   it('初始化失败后服务拒绝调用 vendor 模块', async () => {
-    let moduleCalled = false
-    const { createNeteaseService } = require('../src/services/netease.service')
+    let moduleCalled = false;
+    const { createNeteaseService } = require('../src/services/netease.service');
     const service = createNeteaseService({
       initializationError: new Error('初始化失败细节'),
       modules: {
         search: async () => {
-          moduleCalled = true
-          return { status: 200, body: { code: 200 } }
+          moduleCalled = true;
+          return { status: 200, body: { code: 200 } };
         },
       },
       requestClient: async () => {},
-    })
+    });
 
-    await assert.rejects(service.call('search', { keywords: 'test' }))
-    assert.equal(moduleCalled, false)
-  })
-})
+    await assert.rejects(service.call('search', { keywords: 'test' }));
+    assert.equal(moduleCalled, false);
+  });
+});
 
 it('统一搜索默认使用 cloudsearch，歌手曲目复用 vendor 只读模块', () => {
- const {DEFAULT_MODULES}=require('../src/services/netease.service')
- assert.equal(DEFAULT_MODULES.search,require('../vendor/api-enhanced/module/cloudsearch'))
- assert.equal(DEFAULT_MODULES.artistSongs,require('../vendor/api-enhanced/module/artist_songs'))
-})
+  const { DEFAULT_MODULES } = require('../src/services/netease.service');
+  assert.equal(DEFAULT_MODULES.search, require('../vendor/api-enhanced/module/cloudsearch'));
+  assert.equal(DEFAULT_MODULES.artistSongs, require('../vendor/api-enhanced/module/artist_songs'));
+});

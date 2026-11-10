@@ -1,8 +1,7 @@
-import { archiveColumns, columnFiles, fileLocation } from "./data.ts";
+import { archiveColumns, columnFiles, fileLocation } from './data.ts';
 
 export type ArchiveCell = { lane: number; row: number };
-export type ArchiveNavigation =
-  { axis: "row" | "lane"; direction: number } | { cell: ArchiveCell };
+export type ArchiveNavigation = { axis: 'row' | 'lane'; direction: number } | { cell: ArchiveCell };
 
 export const LOOP_COLUMNS = 9;
 export const LOOP_ROWS = 32;
@@ -16,11 +15,7 @@ export function wrap(value: number, count: number) {
 
 // Choose an occurrence of an item in an unbounded sequence. Directional moves
 // use adjacent cells instead, so the last-to-first transition never reverses.
-export function nearestOccurrence(
-  value: number,
-  center: number,
-  period: number,
-) {
+export function nearestOccurrence(value: number, center: number, period: number) {
   return value + Math.floor((center - value + period / 2) / period) * period;
 }
 
@@ -34,19 +29,15 @@ export function selectionCell(
   current: ArchiveCell,
   navigation?: ArchiveNavigation,
 ): ArchiveCell {
-  if (navigation && "cell" in navigation) return { ...navigation.cell };
+  if (navigation && 'cell' in navigation) return { ...navigation.cell };
   const next = fileLocation(index);
-  const row = nearestOccurrence(
-    next.row,
-    current.row,
-    columnFiles(next.lane).length,
-  );
-  if (navigation?.axis === "row") {
+  const row = nearestOccurrence(next.row, current.row, columnFiles(next.lane).length);
+  if (navigation?.axis === 'row') {
     return { lane: current.lane, row: current.row + navigation.direction };
   }
   return {
     lane:
-      navigation?.axis === "lane"
+      navigation?.axis === 'lane'
         ? current.lane + navigation.direction
         : nearestOccurrence(next.lane, current.lane, archiveColumns.length),
     row,
@@ -64,11 +55,7 @@ export function poolCell(index: number): ArchiveCell {
 
 export function visibleCell(index: number, center: ArchiveCell): ArchiveCell {
   return {
-    lane: nearestOccurrence(
-      POOL_LANES[Math.floor(index / LOOP_ROWS)],
-      center.lane,
-      LOOP_COLUMNS,
-    ),
+    lane: nearestOccurrence(POOL_LANES[Math.floor(index / LOOP_ROWS)], center.lane, LOOP_COLUMNS),
     row: nearestOccurrence(index % LOOP_ROWS, center.row, LOOP_ROWS),
   };
 }

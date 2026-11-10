@@ -1,53 +1,82 @@
-const { test, expect } = require('@playwright/test')
-const { graphicsProfile } = require('./graphics-profile')
-test.use({ deviceScaleFactor: 1 })
+const { test, expect } = require('@playwright/test');
+const { graphicsProfile } = require('./graphics-profile');
+test.use({ deviceScaleFactor: 1 });
 
 // 交互回归用合成接口；安全认证和真实音频由 member-journey 独立覆盖。
 async function mockWorkspace(page, role = 'user', initialQueue, skipAuthorized = false) {
   const tracks = Array.from({ length: 24 }, (_, index) => ({
-    source: index % 2 ? 'netease' : 'local', sourceId: String(index + 1),
+    source: index % 2 ? 'netease' : 'local',
+    sourceId: String(index + 1),
     trackKey: `${index % 2 ? 'netease' : 'local'}:${index + 1}`,
-    title: `迁移曲目 ${index + 1}`, artists: [{ name: '隔离测试歌手' }], album: { name: '隔离专辑' },
-    durationMs: 60000, coverUrl: null, playable: true, uploadedBy: { id: 1 },
-  }))
-  const writes = []
+    title: `迁移曲目 ${index + 1}`,
+    artists: [{ name: '隔离测试歌手' }],
+    album: { name: '隔离专辑' },
+    durationMs: 60000,
+    coverUrl: null,
+    playable: true,
+    uploadedBy: { id: 1 },
+  }));
+  const writes = [];
   await page.addInitScript(() => {
-    const Original = window.Audio
-    window.__migrationAudios = []
-    window.Audio = function (...args) { const audio = new Original(...args); window.__migrationAudios.push(audio); return audio }
-    window.Audio.prototype = Original.prototype
-  })
-  await page.route('https://*.music.126.net/**', route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#987654"/></svg>' }))
-  await page.route('**/api/**', async route => {
-    const request = route.request(), url = new URL(request.url())
-    let body = { success: true }
-    if (url.pathname === '/api/auth/me') body = { authenticated: true, user: { id: 1, email: 'isolated@example.test', role } }
-    else if (url.pathname === '/api/auth/login') body = { success: true }
-    else if (url.pathname === '/api/security/csrf-token') body = { csrfToken: 'isolated-csrf' }
+    const Original = window.Audio;
+    window.__migrationAudios = [];
+    window.Audio = function (...args) {
+      const audio = new Original(...args);
+      window.__migrationAudios.push(audio);
+      return audio;
+    };
+    window.Audio.prototype = Original.prototype;
+  });
+  await page.route('https://*.music.126.net/**', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#987654"/></svg>',
+    }),
+  );
+  await page.route('**/api/**', async (route) => {
+    const request = route.request(),
+      url = new URL(request.url());
+    let body = { success: true };
+    if (url.pathname === '/api/auth/me')
+      body = { authenticated: true, user: { id: 1, email: 'isolated@example.test', role } };
+    else if (url.pathname === '/api/auth/login') body = { success: true };
+    else if (url.pathname === '/api/security/csrf-token') body = { csrfToken: 'isolated-csrf' };
     else if (url.pathname === '/api/me/queue') {
-      if (request.method() === 'PUT') writes.push(request.postDataJSON().tracks)
-      else body = { tracks: initialQueue ?? tracks }
-    } else if (url.pathname === '/api/me/profile') body = { profile: { id: 1, nickname: '隔离成员', avatarUrl: null } }
-    else if (url.pathname === '/api/local/music') body = { success: true, tracks: tracks.filter(item => item.source === 'local') }
-    else if (url.pathname.startsWith('/api/me/likes/')) body = { liked: false }
-    else if (url.pathname === '/api/me/playlists') body = { playlists: [] }
-    else if (url.pathname === '/api/me/likes') body = { tracks: [] }
-    else if (url.pathname === '/api/footprint/timeline') body = { events: [], total: 0, timezoneOffsetMinutes: 480 }
-    else if (url.pathname === '/api/footprint/milestone') body = { milestone: { totalPlays: 0 }, timezoneOffsetMinutes: 480 }
-    else if (url.pathname === '/api/footprint/cards') body = { cards: [], total: 0 }
-    else if (url.pathname === '/api/footprint/posts') body = { posts: [], total: 0 }
-    else if (url.pathname === '/api/footprint/posts/mine') body = { posts: [] }
-    else if (url.pathname.includes('/album')) body = { code: 200, songs: [{ id: 900001, name: '专辑测试曲目', dt: 100000 }] }
-    else if (url.pathname.includes('/search')) body = { code: 200, result: { songs: [] } }
-    await route.fulfill({ json: body })
-  })
-  await page.route('**/assets/scene-*.js*', route => {
-    const url = new URL(route.request().url())
-    if (url.searchParams.has('acceptance-original')) return route.continue()
-    url.searchParams.set('acceptance-original', '1')
+      if (request.method() === 'PUT') writes.push(request.postDataJSON().tracks);
+      else body = { tracks: initialQueue ?? tracks };
+    } else if (url.pathname === '/api/me/profile')
+      body = { profile: { id: 1, nickname: '隔离成员', avatarUrl: null } };
+    else if (url.pathname === '/api/local/music')
+      body = { success: true, tracks: tracks.filter((item) => item.source === 'local') };
+    else if (url.pathname.startsWith('/api/me/likes/')) body = { liked: false };
+    else if (url.pathname === '/api/me/playlists') body = { playlists: [] };
+    else if (url.pathname === '/api/me/likes') body = { tracks: [] };
+    else if (url.pathname === '/api/footprint/timeline')
+      body = { events: [], total: 0, timezoneOffsetMinutes: 480 };
+    else if (url.pathname === '/api/footprint/milestone')
+      body = { milestone: { totalPlays: 0 }, timezoneOffsetMinutes: 480 };
+    else if (url.pathname === '/api/footprint/cards') body = { cards: [], total: 0 };
+    else if (url.pathname === '/api/footprint/posts') body = { posts: [], total: 0 };
+    else if (url.pathname === '/api/footprint/posts/mine') body = { posts: [] };
+    else if (url.pathname.includes('/album'))
+      body = { code: 200, songs: [{ id: 900001, name: '专辑测试曲目', dt: 100000 }] };
+    else if (url.pathname.includes('/search')) body = { code: 200, result: { songs: [] } };
+    await route.fulfill({ json: body });
+  });
+  await page.route('**/assets/scene-*.js*', (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.has('acceptance-original')) return route.continue();
+    url.searchParams.set('acceptance-original', '1');
     // 仅测试包装器观察公开渲染器计数，不在生产场景里加入全局调试变量。
-    const source = graphicsProfile(url.href).replace('export class ArchiveScene', 'class ProfileScene')
-    return route.fulfill({ contentType: 'application/javascript', body: source + `
+    const source = graphicsProfile(url.href).replace(
+      'export class ArchiveScene',
+      'class ProfileScene',
+    );
+    return route.fulfill({
+      contentType: 'application/javascript',
+      body:
+        source +
+        `
       export class ArchiveScene extends ProfileScene {
         constructor(...args) {
           super(...args);
@@ -65,1294 +94,1973 @@ async function mockWorkspace(page, role = 'user', initialQueue, skipAuthorized =
           this.probe.textures = this.renderer.info.memory.textures;
         }
         dispose() { if (this.probe) this.probe.live = false; super.dispose(); }
-      }` })
-  })
-  await page.goto('/')
-  await page.getByRole('button', { name: /点击进入/ }).click()
-  if (skipAuthorized) await page.getByRole('button', { name: '跳过 SVG 动画，进入系统' }).click()
-  await expect(page.locator('[data-album-archive]')).toBeVisible()
-  return { writes, tracks }
+      }`,
+    });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: /点击进入/ }).click();
+  if (skipAuthorized) await page.getByRole('button', { name: '跳过 SVG 动画，进入系统' }).click();
+  await expect(page.locator('[data-album-archive]')).toBeVisible();
+  return { writes, tracks };
 }
 
 async function showQueue(page) {
-  await page.mouse.move(700, 998)
-  await expect(page.locator('[data-global-player]')).toHaveClass(/is-visible/)
-  await page.locator('[data-player-queue-toggle]').click()
-  await expect(page.locator('[data-player-queue-panel]')).toBeVisible()
+  await page.mouse.move(700, 998);
+  await expect(page.locator('[data-global-player]')).toHaveClass(/is-visible/);
+  await page.locator('[data-player-queue-toggle]').click();
+  await expect(page.locator('[data-player-queue-panel]')).toBeVisible();
 }
-const order = page => page.locator('[data-player-queue-panel] [data-queue-key]').evaluateAll(rows => rows.map(row => row.dataset.queueKey))
+const order = (page) =>
+  page
+    .locator('[data-player-queue-panel] [data-queue-key]')
+    .evaluateAll((rows) => rows.map((row) => row.dataset.queueKey));
 
-test('LineSidebar 两页复用主题，真实拖拽收展及左缘箭头不丢草稿，窄屏菜单仍可用', async ({ page }, info) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const errors = []
-  page.on('pageerror', error => errors.push(error.message))
-  await mockWorkspace(page)
+test('LineSidebar 两页复用主题，真实拖拽收展及左缘箭头不丢草稿，窄屏菜单仍可用', async ({
+  page,
+}, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockWorkspace(page);
   for (const name of ['user', 'footprint']) {
-    await page.locator(`[data-nav="${name}"]`).click()
-    const view = page.locator(`[data-${name}-page]`)
-    await expect(view).toBeVisible()
-    const layout = view.locator('.sidebar-layout'), divider = layout.locator('.sidebar-divider')
-    const menu = view.locator('.line-sidebar')
-    await expect(menu).toBeVisible()
-    await expect(menu.locator('.line-sidebar__index')).toHaveCount(0)
-    await expect(menu.locator('button[aria-current="page"]')).toHaveCount(1)
-    const item = menu.locator('button').nth(1)
-    await item.hover()
-    await expect.poll(() => item.locator('..').evaluate(node => Number(node.style.getPropertyValue('--effect')))).toBeGreaterThan(.2)
-    await item.focus()
-    await page.keyboard.press('Enter')
-    await expect(item).toHaveAttribute('aria-current', 'page')
-    const contentSelector = name === 'user' ? '.user-content-shell' : '.fp-shell'
-    await view.locator(contentSelector).evaluate(element => { element.dataset.retained = 'yes' })
-    const before = await view.locator(contentSelector).boundingBox()
-    const bounds = await divider.boundingBox()
-    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(45, bounds.y + bounds.height / 2, { steps: 24 })
-    await page.mouse.up()
-    await expect(layout).toHaveAttribute('data-collapsed', 'true')
-    await expect(view.locator('aside')).toHaveAttribute('inert', '')
-    await expect.poll(async () => (await view.locator(contentSelector).boundingBox()).width).toBeGreaterThan(before.width + 100)
-    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes')
-    await page.mouse.move(1100, 200)
+    await page.locator(`[data-nav="${name}"]`).click();
+    const view = page.locator(`[data-${name}-page]`);
+    await expect(view).toBeVisible();
+    const layout = view.locator('.sidebar-layout'),
+      divider = layout.locator('.sidebar-divider');
+    const menu = view.locator('.line-sidebar');
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('.line-sidebar__index')).toHaveCount(0);
+    await expect(menu.locator('button[aria-current="page"]')).toHaveCount(1);
+    const item = menu.locator('button').nth(1);
+    await item.hover();
+    await expect
+      .poll(() =>
+        item.locator('..').evaluate((node) => Number(node.style.getPropertyValue('--effect'))),
+      )
+      .toBeGreaterThan(0.2);
+    await item.focus();
+    await page.keyboard.press('Enter');
+    await expect(item).toHaveAttribute('aria-current', 'page');
+    const contentSelector = name === 'user' ? '.user-content-shell' : '.fp-shell';
+    await view.locator(contentSelector).evaluate((element) => {
+      element.dataset.retained = 'yes';
+    });
+    const before = await view.locator(contentSelector).boundingBox();
+    const bounds = await divider.boundingBox();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(45, bounds.y + bounds.height / 2, { steps: 24 });
+    await page.mouse.up();
+    await expect(layout).toHaveAttribute('data-collapsed', 'true');
+    await expect(view.locator('aside')).toHaveAttribute('inert', '');
+    await expect
+      .poll(async () => (await view.locator(contentSelector).boundingBox()).width)
+      .toBeGreaterThan(before.width + 100);
+    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes');
+    await page.mouse.move(1100, 200);
     // 离开竖线后箭头不可见；只在展开入口悬停/聚焦时出现。
-    await page.locator('[data-nav="'+name+'"]').focus()
-    await expect.poll(() => divider.locator('.sidebar-divider-arrow').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(0)
-    await divider.hover()
-    await expect.poll(() => divider.locator('.sidebar-divider-arrow').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1)
-    await page.screenshot({ path: info.outputPath(`sidebar-${name}-collapsed.png`) })
-    await divider.click()
-    await expect(layout).toHaveAttribute('data-collapsed', 'false')
-    await expect(menu).toBeVisible()
-    await expect.poll(async () => Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width)).toBeLessThan(2)
-    await divider.focus()
-    await page.keyboard.press('Enter')
-    await expect(layout).toHaveAttribute('data-collapsed', 'true')
-    await page.keyboard.press('Enter')
-    await expect(layout).toHaveAttribute('data-collapsed', 'false')
-    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes')
-    await expect.poll(async () => Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width)).toBeLessThan(2)
-    await page.screenshot({ path: info.outputPath(`sidebar-${name}-expanded.png`) })
+    await page.locator('[data-nav="' + name + '"]').focus();
+    await expect
+      .poll(() =>
+        divider
+          .locator('.sidebar-divider-arrow')
+          .evaluate((node) => Number(getComputedStyle(node).opacity)),
+      )
+      .toBe(0);
+    await divider.hover();
+    await expect
+      .poll(() =>
+        divider
+          .locator('.sidebar-divider-arrow')
+          .evaluate((node) => Number(getComputedStyle(node).opacity)),
+      )
+      .toBe(1);
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-collapsed.png`) });
+    await divider.click();
+    await expect(layout).toHaveAttribute('data-collapsed', 'false');
+    await expect(menu).toBeVisible();
+    await expect
+      .poll(async () =>
+        Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width),
+      )
+      .toBeLessThan(2);
+    await divider.focus();
+    await page.keyboard.press('Enter');
+    await expect(layout).toHaveAttribute('data-collapsed', 'true');
+    await page.keyboard.press('Enter');
+    await expect(layout).toHaveAttribute('data-collapsed', 'false');
+    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes');
+    await expect
+      .poll(async () =>
+        Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width),
+      )
+      .toBeLessThan(2);
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-expanded.png`) });
     // 已收起时进入窄屏，菜单不能因 inert 残留而无法操作。
-    await divider.press('Home')
-    await page.setViewportSize({ width: 390, height: 844 })
-    await expect(view.locator('aside')).not.toHaveAttribute('inert', '')
-    await expect(divider).toBeHidden()
-    const mobileItem = menu.locator('button').last()
-    await mobileItem.click()
-    await expect(mobileItem).toHaveAttribute('aria-current', 'page')
-    await page.screenshot({ path: info.outputPath(`sidebar-${name}-mobile.png`) })
-    await page.setViewportSize({ width: 1440, height: 1000 })
+    await divider.press('Home');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(view.locator('aside')).not.toHaveAttribute('inert', '');
+    await expect(divider).toBeHidden();
+    const mobileItem = menu.locator('button').last();
+    await mobileItem.click();
+    await expect(mobileItem).toHaveAttribute('aria-current', 'page');
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-mobile.png`) });
+    await page.setViewportSize({ width: 1440, height: 1000 });
   }
-  await page.locator('[data-nav="settings"]').click()
-  await page.locator('[data-theme-preference="dark"]').click()
-  await page.getByRole('button', { name: '关闭设置', exact: true }).click()
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  const colors = await page.locator('[data-footprint-page] .line-sidebar').evaluate(element => ({
+  await page.locator('[data-nav="settings"]').click();
+  await page.locator('[data-theme-preference="dark"]').click();
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const colors = await page.locator('[data-footprint-page] .line-sidebar').evaluate((element) => ({
     accent: getComputedStyle(element).getPropertyValue('--accent-color').trim(),
     site: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim(),
-  }))
-  expect(colors.accent).toBe(colors.site)
-  const backgrounds = await page.evaluate(() => ['user', 'footprint'].map(name => getComputedStyle(document.querySelector(`[data-${name}-page]`)).background))
-  expect(backgrounds[0]).toBe(backgrounds[1])
-  await page.locator('[data-nav="user"]').click()
-  await expect(page.locator('[data-footprint-page]')).toBeHidden()
-  await expect.poll(() => page.locator('[data-user-page]').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1)
-  await page.locator('[data-nav="footprint"]').click()
-  await expect(page.locator('[data-user-page]')).toBeHidden()
-  await expect.poll(() => page.locator('[data-footprint-page]').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1)
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
-  expect(errors).toEqual([])
-})
+  }));
+  expect(colors.accent).toBe(colors.site);
+  const backgrounds = await page.evaluate(() =>
+    ['user', 'footprint'].map(
+      (name) => getComputedStyle(document.querySelector(`[data-${name}-page]`)).background,
+    ),
+  );
+  expect(backgrounds[0]).toBe(backgrounds[1]);
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('[data-footprint-page]')).toBeHidden();
+  await expect
+    .poll(() =>
+      page.locator('[data-user-page]').evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  await page.locator('[data-nav="footprint"]').click();
+  await expect(page.locator('[data-user-page]')).toBeHidden();
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-footprint-page]')
+        .evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+  expect(errors).toEqual([]);
+});
 
-test('React 页面反复切换保留实例；队列清空、外部点击、音量和主题不创建新 Audio', async ({ page }, info) => {
-  const errors = []
-  page.on('pageerror', error => errors.push(error.message))
-  await mockWorkspace(page)
-  for (let pass = 0; pass < 3; pass++) for (const name of ['upload', 'user', 'library']) {
-    await page.locator(`[data-nav="${name}"]`).click()
-    if (name !== 'library') await expect(page.locator(`[data-${name}-page]`)).toBeVisible()
-    expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
-  }
-  await showQueue(page)
-  await expect(page.locator('[data-queue-key]')).toHaveCount(24)
+test('React 页面反复切换保留实例；队列清空、外部点击、音量和主题不创建新 Audio', async ({
+  page,
+}, info) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockWorkspace(page);
+  for (let pass = 0; pass < 3; pass++)
+    for (const name of ['upload', 'user', 'library']) {
+      await page.locator(`[data-nav="${name}"]`).click();
+      if (name !== 'library') await expect(page.locator(`[data-${name}-page]`)).toBeVisible();
+      expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+    }
+  await showQueue(page);
+  await expect(page.locator('[data-queue-key]')).toHaveCount(24);
   // 点击外部导航必须既关闭浮层又完成导航，不允许全屏遮罩吞掉这次点击。
-  await page.locator('[data-nav="upload"]').click()
-  await expect(page.locator('[data-player-queue-panel]')).toBeHidden()
-  await expect(page.locator('[data-upload-page]')).toBeVisible()
-  await page.mouse.move(700, 998)
-  const volume = page.getByRole('slider', { name: '音量' })
-  await volume.focus()
-  await volume.press('Home')
-  expect(await page.evaluate(() => window.__migrationAudios[0].volume)).toBe(0)
-  await volume.press('End')
-  expect(await page.evaluate(() => window.__migrationAudios[0].volume)).toBe(1)
-  await page.locator('[data-nav="settings"]').click()
-  await page.locator('[data-theme-preference="dark"]').click()
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await page.getByRole('button', { name: '关闭设置', exact: true }).click()
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
-  expect(await page.evaluate(() => window.__migrationAudios[0].volume)).toBe(1)
-  await showQueue(page)
-  await page.locator('[data-queue-clear]').click()
-  await expect(page.locator('[data-player-queue-panel]')).toBeHidden()
-  await page.locator('[data-nav="user"]').click()
-  await expect(page.locator('[data-user-page]')).toBeVisible()
-  await expect(page.locator('[data-queue-count]')).toHaveText('00')
-  expect(errors).toEqual([])
-  await page.screenshot({ path: info.outputPath('react-dark-user.png') })
-})
+  await page.locator('[data-nav="upload"]').click();
+  await expect(page.locator('[data-player-queue-panel]')).toBeHidden();
+  await expect(page.locator('[data-upload-page]')).toBeVisible();
+  await page.mouse.move(700, 998);
+  const volume = page.getByRole('slider', { name: '音量' });
+  await volume.focus();
+  await volume.press('Home');
+  expect(await page.evaluate(() => window.__migrationAudios[0].volume)).toBe(0);
+  await volume.press('End');
+  expect(await page.evaluate(() => window.__migrationAudios[0].volume)).toBe(1);
+  await page.locator('[data-nav="settings"]').click();
+  await page.locator('[data-theme-preference="dark"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+  expect(await page.evaluate(() => window.__migrationAudios[0].volume)).toBe(1);
+  await showQueue(page);
+  await page.locator('[data-queue-clear]').click();
+  await expect(page.locator('[data-player-queue-panel]')).toBeHidden();
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('[data-user-page]')).toBeVisible();
+  await expect(page.locator('[data-queue-count]')).toHaveText('00');
+  expect(errors).toEqual([]);
+  await page.screenshot({ path: info.outputPath('react-dark-user.png') });
+});
 
 test('Motion 队列真实拖动松手才持久化，取消不提交，长队列边缘可滚动', async ({ page }) => {
-  const { writes } = await mockWorkspace(page)
-  await showQueue(page)
-  const first = page.locator('[data-queue-drag]').first()
-  await first.focus()
-  await first.press('ArrowDown')
-  await expect.poll(() => order(page)).toEqual(['netease:2', 'local:1', ...Array.from({ length: 22 }, (_, i) => `${(i + 2) % 2 ? 'netease' : 'local'}:${i + 3}`)])
-  await expect.poll(() => writes.length).toBe(1)
-  const before = await order(page)
-  const rows = page.locator('[data-queue-key]')
-  const start = await page.locator('[data-queue-drag]').first().boundingBox()
-  const second = await rows.nth(1).boundingBox()
-  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(start.x + start.width / 2, second.y + second.height * .8, { steps: 18 })
-  await expect(rows.first()).not.toHaveAttribute('data-queue-key', before[0])
-  expect(writes.length).toBe(1, '越过相邻歌曲时只更新 draft，不提前写服务器')
-  await page.mouse.up()
-  await expect.poll(() => writes.length).toBe(2)
-  const committed = await order(page)
-  const handle = await page.locator('[data-queue-drag]').first().boundingBox()
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height + 40, { steps: 10 })
-  await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, pointerType: 'mouse' })))
-  await page.mouse.up()
-  await expect.poll(() => order(page)).toEqual(committed)
-  expect(writes.length).toBe(2)
-  const panel = page.locator('[data-player-queue-panel]'), bounds = await panel.boundingBox()
-  const next = await page.locator('[data-queue-drag]').first().boundingBox()
-  await page.mouse.move(next.x + next.width / 2, next.y + next.height / 2)
-  await page.mouse.down()
-  for (let i = 0; i < 15; i++) await page.mouse.move(next.x + next.width / 2, bounds.y + bounds.height - 4 - i % 2, { steps: 3 })
-  await expect.poll(() => panel.evaluate(node => node.scrollTop)).toBeGreaterThan(0)
-  await page.keyboard.press('Escape')
-  await page.mouse.up()
-  await expect(panel).toBeHidden()
-  expect(writes.length).toBe(2, 'Escape 取消不能保存尚未松手的顺序')
-})
+  const { writes } = await mockWorkspace(page);
+  await showQueue(page);
+  const first = page.locator('[data-queue-drag]').first();
+  await first.focus();
+  await first.press('ArrowDown');
+  await expect
+    .poll(() => order(page))
+    .toEqual([
+      'netease:2',
+      'local:1',
+      ...Array.from({ length: 22 }, (_, i) => `${(i + 2) % 2 ? 'netease' : 'local'}:${i + 3}`),
+    ]);
+  await expect.poll(() => writes.length).toBe(1);
+  const before = await order(page);
+  const rows = page.locator('[data-queue-key]');
+  const start = await page.locator('[data-queue-drag]').first().boundingBox();
+  const second = await rows.nth(1).boundingBox();
+  await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(start.x + start.width / 2, second.y + second.height * 0.8, { steps: 18 });
+  await expect(rows.first()).not.toHaveAttribute('data-queue-key', before[0]);
+  expect(writes.length).toBe(1, '越过相邻歌曲时只更新 draft，不提前写服务器');
+  await page.mouse.up();
+  await expect.poll(() => writes.length).toBe(2);
+  const committed = await order(page);
+  const handle = await page.locator('[data-queue-drag]').first().boundingBox();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height + 40, { steps: 10 });
+  await page.evaluate(() =>
+    window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, pointerType: 'mouse' })),
+  );
+  await page.mouse.up();
+  await expect.poll(() => order(page)).toEqual(committed);
+  expect(writes.length).toBe(2);
+  const panel = page.locator('[data-player-queue-panel]'),
+    bounds = await panel.boundingBox();
+  const next = await page.locator('[data-queue-drag]').first().boundingBox();
+  await page.mouse.move(next.x + next.width / 2, next.y + next.height / 2);
+  await page.mouse.down();
+  for (let i = 0; i < 15; i++)
+    await page.mouse.move(next.x + next.width / 2, bounds.y + bounds.height - 4 - (i % 2), {
+      steps: 3,
+    });
+  await expect.poll(() => panel.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect(panel).toBeHidden();
+  expect(writes.length).toBe(2, 'Escape 取消不能保存尚未松手的顺序');
+});
 
 test('长队列定位末尾当前歌曲只滚动抽屉，打开和关闭不移动播放器', async ({ page }) => {
-  await mockWorkspace(page)
-  await page.route('https://e2e.music.126.net/queue-scroll.wav', route => route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }))
-  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/queue-scroll.wav' }] } }))
-  await showQueue(page)
-  await page.locator('[data-queue-play="netease:24"]').click()
-  await page.keyboard.press('Escape')
-  await page.mouse.move(700, 998)
-  await page.locator('[data-player-open]').click()
-  await expect(page.locator('[data-expanded-title]')).toHaveText('迁移曲目 24')
-  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1')
-  const track = page.locator('.player-expanded-track')
-  const before = await track.boundingBox()
-  const outerScroll = () => page.locator('.album-archive').evaluate(node => node.scrollTop)
-  const scrollBefore = await outerScroll()
-  await page.locator('[data-expanded-queue-toggle]').click()
-  const drawer = page.locator('[data-player-queue-panel]')
-  await expect(drawer).toBeVisible()
-  await expect(drawer.locator('[data-queue-close]')).toBeFocused()
-  await expect.poll(() => drawer.evaluate(node => {
-    const row = node.querySelector('li.is-active').getBoundingClientRect()
-    const panel = node.getBoundingClientRect()
-    return node.scrollTop > 0 && row.top >= node.querySelector('header').getBoundingClientRect().bottom && row.bottom <= panel.top + node.clientTop + node.clientHeight
-  })).toBe(true)
-  expect(await outerScroll()).toBe(scrollBefore)
-  expect(await track.boundingBox()).toEqual(before)
-  await page.keyboard.press('Escape')
-  await expect(drawer).toBeHidden()
-  await expect(page.locator('[data-expanded-queue-toggle]')).toBeFocused()
-  expect(await outerScroll()).toBe(scrollBefore)
-  expect(await track.boundingBox()).toEqual(before)
-})
+  await mockWorkspace(page);
+  await page.route('https://e2e.music.126.net/queue-scroll.wav', (route) =>
+    route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }),
+  );
+  await page.route('**/api/netease/song/url/v1?**', (route) =>
+    route.fulfill({
+      json: { code: 200, data: [{ url: 'https://e2e.music.126.net/queue-scroll.wav' }] },
+    }),
+  );
+  await showQueue(page);
+  await page.locator('[data-queue-play="netease:24"]').click();
+  await page.keyboard.press('Escape');
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect(page.locator('[data-expanded-title]')).toHaveText('迁移曲目 24');
+  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1');
+  const track = page.locator('.player-expanded-track');
+  const before = await track.boundingBox();
+  const outerScroll = () => page.locator('.album-archive').evaluate((node) => node.scrollTop);
+  const scrollBefore = await outerScroll();
+  await page.locator('[data-expanded-queue-toggle]').click();
+  const drawer = page.locator('[data-player-queue-panel]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.locator('[data-queue-close]')).toBeFocused();
+  await expect
+    .poll(() =>
+      drawer.evaluate((node) => {
+        const row = node.querySelector('li.is-active').getBoundingClientRect();
+        const panel = node.getBoundingClientRect();
+        return (
+          node.scrollTop > 0 &&
+          row.top >= node.querySelector('header').getBoundingClientRect().bottom &&
+          row.bottom <= panel.top + node.clientTop + node.clientHeight
+        );
+      }),
+    )
+    .toBe(true);
+  expect(await outerScroll()).toBe(scrollBefore);
+  expect(await track.boundingBox()).toEqual(before);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('[data-expanded-queue-toggle]')).toBeFocused();
+  expect(await outerScroll()).toBe(scrollBefore);
+  expect(await track.boundingBox()).toEqual(before);
+});
 
 test('退出重进释放旧场景与音频；后台页面不持续驱动场景，资源不逐轮增长', async ({ page }, info) => {
   // 本用例按完整封面负载比较 GPU 资源，测试包装器需响应晚到的贴图。
-  await page.addInitScript(() => { window.__archiveEntryProbe = { created: 0, frames: [], resourceReadiness: true } })
-  await mockWorkspace(page)
-  const samples = []
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { created: 0, frames: [], resourceReadiness: true };
+  });
+  await mockWorkspace(page);
+  const samples = [];
   for (let cycle = 0; cycle < 3; cycle++) {
     // 登录会恢复退出前的上传页；每轮先返回音乐库，不能比较隐藏场景的半加载状态。
-    if (cycle > 0) await page.locator('[data-nav="library"]').click()
-    await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive')
-    await expect.poll(() => page.evaluate(() => window.__migrationScenes?.at(-1)?.geometries || 0), { timeout: 60000 }).toBeGreaterThan(0)
-    await expect.poll(() => page.evaluate(() => {
-      const scene = window.__archiveEntryProbe.scene
-      return scene.coverTextures.length === scene.coverUrls.length && scene.coverTextures.every(texture =>
-        texture !== scene.fallbackCover && Boolean(scene.renderer.properties.get(texture).__webglTexture))
-    }), { timeout: 60000 }).toBe(true)
-    await page.locator('[data-nav="upload"]').click()
-    await expect(page.locator('[data-upload-page]')).toBeVisible()
+    if (cycle > 0) await page.locator('[data-nav="library"]').click();
+    await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive');
+    await expect
+      .poll(() => page.evaluate(() => window.__migrationScenes?.at(-1)?.geometries || 0), {
+        timeout: 60000,
+      })
+      .toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const scene = window.__archiveEntryProbe.scene;
+            return (
+              scene.coverTextures.length === scene.coverUrls.length &&
+              scene.coverTextures.every(
+                (texture) =>
+                  texture !== scene.fallbackCover &&
+                  Boolean(scene.renderer.properties.get(texture).__webglTexture),
+              )
+            );
+          }),
+        { timeout: 60000 },
+      )
+      .toBe(true);
+    await page.locator('[data-nav="upload"]').click();
+    await expect(page.locator('[data-upload-page]')).toBeVisible();
     const sample = await page.evaluate(async () => {
-      const scene = window.__migrationScenes.at(-1), before = scene.updates
+      const scene = window.__migrationScenes.at(-1),
+        before = scene.updates;
       // 这是明确的 300ms 资源观察窗口，不是用固定等待替代 UI 就绪条件。
-      await new Promise(resolve => setTimeout(resolve, 300))
-      return { ...scene, hiddenUpdates: scene.updates - before, liveScenes: window.__migrationScenes.filter(item => item.live).length }
-    })
-    expect(sample.hiddenUpdates).toBe(0)
-    expect(sample.liveScenes).toBe(1)
-    samples.push(sample)
-    if (cycle === 2) break
-    await page.locator('[data-nav="settings"]').click()
-    await page.locator('[data-settings-category="account"]').click()
-    await page.locator('[data-settings-logout]').click()
-    await expect(page.locator('[data-login-form]')).toBeVisible()
-    expect(await page.evaluate(() => window.__migrationScenes.filter(item => item.live).length)).toBe(0)
-    expect(await page.evaluate(() => window.__migrationAudios.every(audio => audio.paused && !audio.getAttribute('src')))).toBe(true)
-    await page.locator('#email').fill('isolated@example.test')
-    await page.emulateMedia({ reducedMotion: 'no-preference' })
-    await expect(page.locator('.letter-glitch canvas')).toBeAttached()
-  await page.locator('.letter-glitch canvas').evaluate(node => { node.dataset.continuity = 'login-background' })
-  await page.locator('#email').focus()
-  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
-  await page.locator('#password').fill('synthetic-secret')
-  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
-    await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page.locator('[data-login-form] [type="submit"]').click()
-    await expect(page.locator('[data-album-archive]')).toBeVisible()
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return {
+        ...scene,
+        hiddenUpdates: scene.updates - before,
+        liveScenes: window.__migrationScenes.filter((item) => item.live).length,
+      };
+    });
+    expect(sample.hiddenUpdates).toBe(0);
+    expect(sample.liveScenes).toBe(1);
+    samples.push(sample);
+    if (cycle === 2) break;
+    await page.locator('[data-nav="settings"]').click();
+    await page.locator('[data-settings-category="account"]').click();
+    await page.locator('[data-settings-logout]').click();
+    await expect(page.locator('[data-login-form]')).toBeVisible();
+    expect(
+      await page.evaluate(() => window.__migrationScenes.filter((item) => item.live).length),
+    ).toBe(0);
+    expect(
+      await page.evaluate(() =>
+        window.__migrationAudios.every((audio) => audio.paused && !audio.getAttribute('src')),
+      ),
+    ).toBe(true);
+    await page.locator('#email').fill('isolated@example.test');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect(page.locator('.letter-glitch canvas')).toBeAttached();
+    await page.locator('.letter-glitch canvas').evaluate((node) => {
+      node.dataset.continuity = 'login-background';
+    });
+    await page.locator('#email').focus();
+    await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+      'data-continuity',
+      'login-background',
+    );
+    await page.locator('#password').fill('synthetic-secret');
+    await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+      'data-continuity',
+      'login-background',
+    );
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.locator('[data-login-form] [type="submit"]').click();
+    await expect(page.locator('[data-album-archive]')).toBeVisible();
   }
-  expect(samples.map(sample => sample.geometries)).toEqual(Array(3).fill(samples[0].geometries))
-  expect(Math.max(...samples.map(sample => sample.textures)) - Math.min(...samples.map(sample => sample.textures))).toBeLessThanOrEqual(1)
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(3)
-  await info.attach('react-resource-samples.json', { contentType: 'application/json', body: JSON.stringify(samples, null, 2) })
-})
+  expect(samples.map((sample) => sample.geometries)).toEqual(Array(3).fill(samples[0].geometries));
+  expect(
+    Math.max(...samples.map((sample) => sample.textures)) -
+      Math.min(...samples.map((sample) => sample.textures)),
+  ).toBeLessThanOrEqual(1);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(3);
+  await info.attach('react-resource-samples.json', {
+    contentType: 'application/json',
+    body: JSON.stringify(samples, null, 2),
+  });
+});
 
-test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与登录字符背景不遮挡操作', async ({ page }, info) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const errors = []
-  page.on('pageerror', error => errors.push(error.message))
-  await mockWorkspace(page)
-  await page.locator('[data-nav="user"]').click()
-  await page.locator('[data-user-tab="uploads"]').click()
-  await page.locator('[data-user-enqueue]').first().click()
-  await expect(page.locator('.queue-add-flight')).toHaveCount(1)
-  await expect(page.locator('.queue-add-flight')).toHaveCount(0)
-  await page.mouse.move(700, 998)
-  await page.locator('[data-player-open]').click()
-  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/)
-  await expect.poll(() => page.locator('.player-expanded-content').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1)
-  const bounds = await page.locator('[data-player-expanded]').boundingBox()
-  expect(bounds.y).toBe(0)
-  expect(bounds.width).toBe(1440)
-  await page.screenshot({ path: info.outputPath('react-expanded-player-motion.png') })
-  await page.locator('[data-player-close]').click()
-  await page.locator('[data-nav="upload"]').click()
-  await expect(page.locator('[data-user-page]')).toBeHidden()
-  await expect(page.locator('[data-upload-page]')).toBeVisible()
-  await page.screenshot({ path: info.outputPath('react-upload.png') })
-  await page.setViewportSize({ width: 800, height: 900 })
-  await expect(page.locator('[data-nav="user"]')).toBeInViewport()
-  await page.locator('[data-nav="user"]').click()
-  await expect(page.locator('[data-user-page]')).toBeVisible()
-  await page.screenshot({ path: info.outputPath('react-narrow-user.png') })
+test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与登录字符背景不遮挡操作', async ({
+  page,
+}, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockWorkspace(page);
+  await page.locator('[data-nav="user"]').click();
+  await page.locator('[data-user-tab="uploads"]').click();
+  await page.locator('[data-user-enqueue]').first().click();
+  await expect(page.locator('.queue-add-flight')).toHaveCount(1);
+  await expect(page.locator('.queue-add-flight')).toHaveCount(0);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/);
+  await expect
+    .poll(() =>
+      page
+        .locator('.player-expanded-content')
+        .evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  const bounds = await page.locator('[data-player-expanded]').boundingBox();
+  expect(bounds.y).toBe(0);
+  expect(bounds.width).toBe(1440);
+  await page.screenshot({ path: info.outputPath('react-expanded-player-motion.png') });
+  await page.locator('[data-player-close]').click();
+  await page.locator('[data-nav="upload"]').click();
+  await expect(page.locator('[data-user-page]')).toBeHidden();
+  await expect(page.locator('[data-upload-page]')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('react-upload.png') });
+  await page.setViewportSize({ width: 800, height: 900 });
+  await expect(page.locator('[data-nav="user"]')).toBeInViewport();
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('[data-user-page]')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('react-narrow-user.png') });
   // 沿用原响应式：900px 以下设置入口本就隐藏，恢复桌面后再操作，不改变产品布局。
-  await page.setViewportSize({ width: 1440, height: 1000 })
-  await page.locator('[data-nav="settings"]').click()
-  await page.locator('[data-settings-category="account"]').click()
-  await page.locator('[data-settings-logout]').click()
-  await expect(page.locator('[data-login-form]')).toBeVisible()
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('[data-nav="settings"]').click();
+  await page.locator('[data-settings-category="account"]').click();
+  await page.locator('[data-settings-logout]').click();
+  await expect(page.locator('[data-login-form]')).toBeVisible();
   // 可见边界盒不等于入场动画已完成；截图必须等待真实表单透明度达到最终值。
-  await expect.poll(() => page.locator('.access-stack').evaluate(node => Number(getComputedStyle(node).opacity))).toBe(1)
-  await expect(page.locator('.letter-glitch canvas')).toBeAttached()
-  await page.locator('.letter-glitch canvas').evaluate(node => { node.dataset.continuity = 'login-background' })
-  await page.locator('#email').focus()
-  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
-  await page.locator('#password').fill('synthetic-secret')
-  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute('data-continuity', 'login-background')
-  await page.locator('[data-reveal-password]').click()
-  await expect(page.locator('#password')).toHaveAttribute('type', 'text')
-  await expect(page.locator('#password')).toHaveValue('synthetic-secret')
-  await page.locator('#password').blur()
-  await expect(page.locator('.letter-glitch')).toBeAttached()
-  await page.screenshot({ path: info.outputPath('react-login-letter-glitch.png') })
-  expect(errors).toEqual([])
-})
+  await expect
+    .poll(() =>
+      page.locator('.access-stack').evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  await expect(page.locator('.letter-glitch canvas')).toBeAttached();
+  await page.locator('.letter-glitch canvas').evaluate((node) => {
+    node.dataset.continuity = 'login-background';
+  });
+  await page.locator('#email').focus();
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+    'data-continuity',
+    'login-background',
+  );
+  await page.locator('#password').fill('synthetic-secret');
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+    'data-continuity',
+    'login-background',
+  );
+  await page.locator('[data-reveal-password]').click();
+  await expect(page.locator('#password')).toHaveAttribute('type', 'text');
+  await expect(page.locator('#password')).toHaveValue('synthetic-secret');
+  await page.locator('#password').blur();
+  await expect(page.locator('.letter-glitch')).toBeAttached();
+  await page.screenshot({ path: info.outputPath('react-login-letter-glitch.png') });
+  expect(errors).toEqual([]);
+});
 
-test('用户左侧栏进入审核不重载、不重播授权动画，保留队列与同一音频', async ({page}, info) => {
-  await mockWorkspace(page, 'admin')
-  await page.route('**/api/admin/applications?**', route => route.fulfill({json:{success:true,total:1,applications:[{
-    id:81,nickname:'左侧栏审核验收',reason:'检查原页面内切换',status:'pending',emailVerified:false,canReview:true,canResendActivation:false,
-    activationMailStatus:null,createdAt:'2026-10-27T00:00:00Z',reviewedAt:null,reviewedBy:null,activatedAt:null,notificationStatus:'delivered',
-  }]}}))
-  await page.locator('[data-nav="user"]').click()
-  const side = page.locator('.user-sidebar')
-  await expect(side.locator('[data-user-tab="admin"]')).toBeVisible()
-  await expect(side.locator('.line-sidebar__item').last()).toContainText('申请审核')
-  await expect(page.locator('[data-archive-navigation] .application-admin-entry')).toHaveCount(0)
-  const before = await page.evaluate(()=>({timeOrigin:performance.timeOrigin,audio:window.__migrationAudios.length,url:location.href}))
-  const queueCount = await page.locator('[data-queue-count]').textContent()
-  await page.evaluate(()=>{
-    window.__replayedAuthorization = false
-    window.__reviewNavigationObserver = new MutationObserver(()=>{ if(document.querySelector('[data-authorized-stage]')) window.__replayedAuthorization = true })
-    window.__reviewNavigationObserver.observe(document.body,{childList:true,subtree:true})
-  })
-  await side.locator('[data-user-tab="admin"]').click()
-  const panel = page.locator('[data-admin-applications]')
-  await expect(panel).toBeVisible()
-  await expect(panel.locator('.archive-brand')).toHaveCount(0)
-  await panel.getByRole('button',{name:/左侧栏审核验收/}).click()
-  await panel.getByRole('button',{name:'通过审核',exact:true}).click()
-  await expect(page.getByRole('dialog',{name:'确认通过申请？'})).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog',{name:'确认通过申请？'})).not.toBeVisible()
-  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view','user')
-  await expect(panel.getByRole('button',{name:'通过审核',exact:true}).locator('span')).toHaveCSS('z-index','1')
-  await page.screenshot({path:info.outputPath('user-sidebar-admin-light.png')})
-  await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'))
-  await page.screenshot({path:info.outputPath('user-sidebar-admin-dark.png')})
-  await side.locator('[data-user-tab="playlists"]').click()
-  await expect(page.locator('[data-user-create]')).toBeVisible()
-  await expect(panel).toHaveCount(0)
-  await side.locator('[data-user-tab="admin"]').click()
-  await expect(panel).toBeVisible()
-  expect(await page.locator('[data-queue-count]').textContent()).toBe(queueCount)
-  expect(await page.evaluate(()=>({timeOrigin:performance.timeOrigin,audio:window.__migrationAudios.length,url:location.href}))).toEqual(before)
-  expect(await page.evaluate(()=>window.__replayedAuthorization)).toBe(false)
-  await page.evaluate(()=>window.__reviewNavigationObserver.disconnect())
-  await page.setViewportSize({width:390,height:844})
-  expect(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth)).toBe(true)
-})
+test('用户左侧栏进入审核不重载、不重播授权动画，保留队列与同一音频', async ({ page }, info) => {
+  await mockWorkspace(page, 'admin');
+  await page.route('**/api/admin/applications?**', (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        total: 1,
+        applications: [
+          {
+            id: 81,
+            nickname: '左侧栏审核验收',
+            reason: '检查原页面内切换',
+            status: 'pending',
+            emailVerified: false,
+            canReview: true,
+            canResendActivation: false,
+            activationMailStatus: null,
+            createdAt: '2026-10-27T00:00:00Z',
+            reviewedAt: null,
+            reviewedBy: null,
+            activatedAt: null,
+            notificationStatus: 'delivered',
+          },
+        ],
+      },
+    }),
+  );
+  await page.locator('[data-nav="user"]').click();
+  const side = page.locator('.user-sidebar');
+  await expect(side.locator('[data-user-tab="admin"]')).toBeVisible();
+  await expect(side.locator('.line-sidebar__item').last()).toContainText('申请审核');
+  await expect(page.locator('[data-archive-navigation] .application-admin-entry')).toHaveCount(0);
+  const before = await page.evaluate(() => ({
+    timeOrigin: performance.timeOrigin,
+    audio: window.__migrationAudios.length,
+    url: location.href,
+  }));
+  const queueCount = await page.locator('[data-queue-count]').textContent();
+  await page.evaluate(() => {
+    window.__replayedAuthorization = false;
+    window.__reviewNavigationObserver = new MutationObserver(() => {
+      if (document.querySelector('[data-authorized-stage]')) window.__replayedAuthorization = true;
+    });
+    window.__reviewNavigationObserver.observe(document.body, { childList: true, subtree: true });
+  });
+  await side.locator('[data-user-tab="admin"]').click();
+  const panel = page.locator('[data-admin-applications]');
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('.archive-brand')).toHaveCount(0);
+  await panel.getByRole('button', { name: /左侧栏审核验收/ }).click();
+  await panel.getByRole('button', { name: '通过审核', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '确认通过申请？' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: '确认通过申请？' })).not.toBeVisible();
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'user');
+  await expect(
+    panel.getByRole('button', { name: '通过审核', exact: true }).locator('span'),
+  ).toHaveCSS('z-index', '1');
+  await page.screenshot({ path: info.outputPath('user-sidebar-admin-light.png') });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.screenshot({ path: info.outputPath('user-sidebar-admin-dark.png') });
+  await side.locator('[data-user-tab="playlists"]').click();
+  await expect(page.locator('[data-user-create]')).toBeVisible();
+  await expect(panel).toHaveCount(0);
+  await side.locator('[data-user-tab="admin"]').click();
+  await expect(panel).toBeVisible();
+  expect(await page.locator('[data-queue-count]').textContent()).toBe(queueCount);
+  expect(
+    await page.evaluate(() => ({
+      timeOrigin: performance.timeOrigin,
+      audio: window.__migrationAudios.length,
+      url: location.href,
+    })),
+  ).toEqual(before);
+  expect(await page.evaluate(() => window.__replayedAuthorization)).toBe(false);
+  await page.evaluate(() => window.__reviewNavigationObserver.disconnect());
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.locator('body').evaluate((el) => el.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+});
 
-test('歌单散放卡片首屏显示封面，拖动不进入详情，点击、键盘与窄屏所有歌单同页可用', async ({ page }, info) => {
-  await mockWorkspace(page)
-  const errors = []
-  page.on('pageerror', error => errors.push(error.message))
-  const lists = Array.from({ length: 6 }, (_, index) => ({ id: index + 1, name: `唱片档案 ${index + 1}`, trackCount: 1,
-    coverUrl: `https://p.music.126.net/playlist-${index + 1}.svg`, createdAt: '', updatedAt: '' }))
-  let detailCalls = 0
-  await page.route('**/api/me/playlists**', async route => {
-    const url = new URL(route.request().url())
-    if (url.pathname === '/api/me/playlists') return route.fulfill({ json: { playlists: lists } })
-    detailCalls++
-    return route.fulfill({ json: { playlist: lists.find(list => list.id === Number(url.pathname.split('/').at(-1))), tracks: [] } })
-  })
-  await page.locator('[data-nav="user"]').click()
-  await expect(page.locator('[data-user-list]')).toHaveCount(6)
+test('歌单散放卡片首屏显示封面，拖动不进入详情，点击、键盘与窄屏所有歌单同页可用', async ({
+  page,
+}, info) => {
+  await mockWorkspace(page);
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const lists = Array.from({ length: 6 }, (_, index) => ({
+    id: index + 1,
+    name: `唱片档案 ${index + 1}`,
+    trackCount: 1,
+    coverUrl: `https://p.music.126.net/playlist-${index + 1}.svg`,
+    createdAt: '',
+    updatedAt: '',
+  }));
+  let detailCalls = 0;
+  await page.route('**/api/me/playlists**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/me/playlists') return route.fulfill({ json: { playlists: lists } });
+    detailCalls++;
+    return route.fulfill({
+      json: {
+        playlist: lists.find((list) => list.id === Number(url.pathname.split('/').at(-1))),
+        tracks: [],
+      },
+    });
+  });
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('[data-user-list]')).toHaveCount(6);
   for (let id = 1; id <= 6; id++) {
-    const image = page.locator(`[data-user-list="${id}"] img`)
-    await expect(image).toHaveAttribute('src', `https://p.music.126.net/playlist-${id}.svg`)
-    await expect.poll(() => image.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true)
+    const image = page.locator(`[data-user-list="${id}"] img`);
+    await expect(image).toHaveAttribute('src', `https://p.music.126.net/playlist-${id}.svg`);
+    await expect
+      .poll(() => image.evaluate((node) => node.complete && node.naturalWidth > 0))
+      .toBe(true);
   }
-  expect(detailCalls).toBe(0)
-  const card = page.locator('[data-user-list="3"]')
-  await card.focus()
+  expect(detailCalls).toBe(0);
+  const card = page.locator('[data-user-list="3"]');
+  await card.focus();
   // 随机重叠与三维旋转会让边界盒内的点落在另一张卡片上；先确认真实命中目标。
-  let start
-  await expect.poll(async () => {
-    start = await card.evaluate(node => {
-      const box = node.getBoundingClientRect()
-      for (const horizontal of [.5, .35, .65]) {
-        for (const vertical of [.5, .35, .65]) {
-          const x = box.x + box.width * horizontal, y = box.y + box.height * vertical
-          if (node.contains(document.elementFromPoint(x, y))) return { x, y, beforeX: box.x }
+  let start;
+  await expect
+    .poll(async () => {
+      start = await card.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        for (const horizontal of [0.5, 0.35, 0.65]) {
+          for (const vertical of [0.5, 0.35, 0.65]) {
+            const x = box.x + box.width * horizontal,
+              y = box.y + box.height * vertical;
+            if (node.contains(document.elementFromPoint(x, y))) return { x, y, beforeX: box.x };
+          }
         }
-      }
-      return null
+        return null;
+      });
+      return Boolean(start);
     })
-    return Boolean(start)
-  }).toBe(true)
-  await page.mouse.move(start.x, start.y)
-  await expect.poll(() => card.evaluate((node, point) => node.contains(document.elementFromPoint(point.x, point.y)), start)).toBe(true)
-  await page.mouse.down()
-  await page.mouse.move(start.x - 65, start.y + 22, { steps: 12 })
-  await page.mouse.up()
-  await expect.poll(async () => Math.abs((await card.boundingBox()).x - start.beforeX)).toBeGreaterThan(30)
-  expect(detailCalls).toBe(0)
-  await page.screenshot({ path: info.outputPath('playlist-draggable-desktop.png') })
-  await card.focus()
-  await page.keyboard.press('Enter')
-  await expect(page.locator('[data-user-back]')).toBeVisible()
-  await expect.poll(() => detailCalls).toBe(1)
-  await page.locator('[data-user-back]').click()
-  await expect(page.locator('[data-user-list="3"]')).toBeEnabled()
+    .toBe(true);
+  await page.mouse.move(start.x, start.y);
+  await expect
+    .poll(() =>
+      card.evaluate(
+        (node, point) => node.contains(document.elementFromPoint(point.x, point.y)),
+        start,
+      ),
+    )
+    .toBe(true);
+  await page.mouse.down();
+  await page.mouse.move(start.x - 65, start.y + 22, { steps: 12 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => Math.abs((await card.boundingBox()).x - start.beforeX))
+    .toBeGreaterThan(30);
+  expect(detailCalls).toBe(0);
+  await page.screenshot({ path: info.outputPath('playlist-draggable-desktop.png') });
+  await card.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-user-back]')).toBeVisible();
+  await expect.poll(() => detailCalls).toBe(1);
+  await page.locator('[data-user-back]').click();
+  await expect(page.locator('[data-user-list="3"]')).toBeEnabled();
   // 先将目标置顶，避免随机重叠的其他卡片挡住本次普通点击验收。
-  await page.locator('[data-user-list="3"]').focus()
-  await page.locator('[data-user-list="3"]').click()
-  await expect(page.locator('[data-user-back]')).toBeVisible()
-  await page.locator('[data-user-back]').click()
-  await expect(page.locator('[data-user-list="3"]')).toBeEnabled()
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
-  await page.screenshot({ path: info.outputPath('playlist-draggable-dark.png') })
-  await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.locator('[data-user-list="3"]')).toBeVisible()
-  await expect(page.locator('[data-user-create]')).toBeInViewport()
-  const board = page.locator('[data-playlist-deck]')
+  await page.locator('[data-user-list="3"]').focus();
+  await page.locator('[data-user-list="3"]').click();
+  await expect(page.locator('[data-user-back]')).toBeVisible();
+  await page.locator('[data-user-back]').click();
+  await expect(page.locator('[data-user-list="3"]')).toBeEnabled();
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.screenshot({ path: info.outputPath('playlist-draggable-dark.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('[data-user-list="3"]')).toBeVisible();
+  await expect(page.locator('[data-user-create]')).toBeInViewport();
+  const board = page.locator('[data-playlist-deck]');
   // 在同一帧采样全部边界，等待侧栏响应式过渡完成，不能混用不同帧的坐标。
-  await expect.poll(() => board.evaluate(node => {
-    const bounds = node.getBoundingClientRect()
-    return [...node.querySelectorAll('[data-draggable-card]')].every(card => {
-      const box = card.getBoundingClientRect()
-      return box.left >= bounds.left - 4 && box.right <= bounds.right + 4
-    })
-  })).toBe(true)
-  await page.screenshot({ path: info.outputPath('playlist-draggable-mobile.png') })
-  await expect(page.locator('[data-user-list]')).toHaveCount(6)
-  await expect(page.locator('[data-user-page-step]')).toHaveCount(0)
-  await expect.poll(() => board.evaluate(node => {
-    const bounds = node.getBoundingClientRect()
-    return [...node.querySelectorAll('[data-draggable-card]')].slice(3).every(card => {
-      const box = card.getBoundingClientRect()
-      return box.top >= bounds.top - 4 && box.bottom <= bounds.bottom + 4
-    })
-  })).toBe(true)
-  await page.locator('[data-user-list="6"]').focus()
-  await page.keyboard.press('Enter')
-  await expect(page.locator('[data-user-back]')).toBeVisible()
-  expect(errors).toEqual([])
-})
-
+  await expect
+    .poll(() =>
+      board.evaluate((node) => {
+        const bounds = node.getBoundingClientRect();
+        return [...node.querySelectorAll('[data-draggable-card]')].every((card) => {
+          const box = card.getBoundingClientRect();
+          return box.left >= bounds.left - 4 && box.right <= bounds.right + 4;
+        });
+      }),
+    )
+    .toBe(true);
+  await page.screenshot({ path: info.outputPath('playlist-draggable-mobile.png') });
+  await expect(page.locator('[data-user-list]')).toHaveCount(6);
+  await expect(page.locator('[data-user-page-step]')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      board.evaluate((node) => {
+        const bounds = node.getBoundingClientRect();
+        return [...node.querySelectorAll('[data-draggable-card]')].slice(3).every((card) => {
+          const box = card.getBoundingClientRect();
+          return box.top >= bounds.top - 4 && box.bottom <= bounds.bottom + 4;
+        });
+      }),
+    )
+    .toBe(true);
+  await page.locator('[data-user-list="6"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-user-back]')).toBeVisible();
+  expect(errors).toEqual([]);
+});
 
 test('歌单进入及返回沿用分类淡出淡入，等待详情期间内容保持透明', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await mockWorkspace(page)
-  const list = { id: 1, name: '过渡验收歌单', trackCount: 0, coverUrl: null }
-  let releaseDetail
-  await page.route('**/api/me/playlists**', async route => {
-    if (new URL(route.request().url()).pathname === '/api/me/playlists') return route.fulfill({ json: { playlists: [list] } })
-    await new Promise(resolve => { releaseDetail = resolve })
-    return route.fulfill({ json: { playlist: list, tracks: [] } })
-  })
-  await page.locator('[data-nav="user"]').click()
-  const content = page.locator('[data-user-content]')
-  await expect(page.locator('[data-user-list="1"]')).toBeEnabled()
-  await page.locator('[data-user-list="1"]').click()
-  await expect(content).toHaveClass(/is-changing/)
-  await expect.poll(() => Boolean(releaseDetail)).toBe(true)
-  await expect(content).toHaveCSS('opacity', '0')
-  await expect(content).toHaveAttribute('inert', '')
-  releaseDetail()
-  await expect(content).not.toHaveClass(/is-changing/)
-  await expect(content).toHaveCSS('opacity', '1')
-  await page.locator('[data-user-back]').click()
-  await expect(content).toHaveClass(/is-changing/)
-  await expect(page.locator('[data-user-list="1"]')).toBeEnabled()
-  await expect(content).toHaveCSS('opacity', '1')
-  await expect(content).not.toHaveAttribute('inert', '')
-})
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page);
+  const list = { id: 1, name: '过渡验收歌单', trackCount: 0, coverUrl: null };
+  let releaseDetail;
+  await page.route('**/api/me/playlists**', async (route) => {
+    if (new URL(route.request().url()).pathname === '/api/me/playlists')
+      return route.fulfill({ json: { playlists: [list] } });
+    await new Promise((resolve) => {
+      releaseDetail = resolve;
+    });
+    return route.fulfill({ json: { playlist: list, tracks: [] } });
+  });
+  await page.locator('[data-nav="user"]').click();
+  const content = page.locator('[data-user-content]');
+  await expect(page.locator('[data-user-list="1"]')).toBeEnabled();
+  await page.locator('[data-user-list="1"]').click();
+  await expect(content).toHaveClass(/is-changing/);
+  await expect.poll(() => Boolean(releaseDetail)).toBe(true);
+  await expect(content).toHaveCSS('opacity', '0');
+  await expect(content).toHaveAttribute('inert', '');
+  releaseDetail();
+  await expect(content).not.toHaveClass(/is-changing/);
+  await expect(content).toHaveCSS('opacity', '1');
+  await page.locator('[data-user-back]').click();
+  await expect(content).toHaveClass(/is-changing/);
+  await expect(page.locator('[data-user-list="1"]')).toBeEnabled();
+  await expect(content).toHaveCSS('opacity', '1');
+  await expect(content).not.toHaveAttribute('inert', '');
+});
 
 test('用户与足迹右侧无重复标题和顶线，设置弹窗标题保持原样', async ({ page }, info) => {
-  await mockWorkspace(page)
-  const errors = []
-  page.on('pageerror', error => errors.push(error.message))
-  await page.locator('[data-nav="user"]').click()
-  await expect(page.locator('.user-content-header')).toHaveCSS('height', '0px')
-  await expect(page.locator('.user-content-header')).toHaveCSS('border-bottom-width', '0px')
-  await expect(page.locator('[data-user-heading]')).toHaveClass('sr-only')
-  await expect(page.locator('.user-content-header p, .user-content-header span')).toHaveCount(0)
-  await expect(page.locator('.user-collection-intro')).not.toContainText('MY PLAYLISTS')
-  await expect(page.locator('[data-user-create]')).toBeVisible()
-  await page.screenshot({ path: info.outputPath('user-without-repeated-headings.png') })
-  await page.locator('[data-nav="footprint"]').click()
-  await expect(page.locator('.fp-header')).toHaveCSS('height', '0px')
-  await expect(page.locator('.fp-header')).toHaveCSS('border-bottom-width', '0px')
-  await expect(page.locator('.fp-header h2')).toHaveClass('sr-only')
+  await mockWorkspace(page);
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('.user-content-header')).toHaveCSS('height', '0px');
+  await expect(page.locator('.user-content-header')).toHaveCSS('border-bottom-width', '0px');
+  await expect(page.locator('[data-user-heading]')).toHaveClass('sr-only');
+  await expect(page.locator('.user-content-header p, .user-content-header span')).toHaveCount(0);
+  await expect(page.locator('.user-collection-intro')).not.toContainText('MY PLAYLISTS');
+  await expect(page.locator('[data-user-create]')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('user-without-repeated-headings.png') });
+  await page.locator('[data-nav="footprint"]').click();
+  await expect(page.locator('.fp-header')).toHaveCSS('height', '0px');
+  await expect(page.locator('.fp-header')).toHaveCSS('border-bottom-width', '0px');
+  await expect(page.locator('.fp-header h2')).toHaveClass('sr-only');
   for (const tab of ['timeline', 'milestone', 'studio', 'square', 'mine']) {
-    await page.locator(`[data-fp-tab="${tab}"]`).click()
-    await expect(page.locator(`.fp-view.fp-${tab}`)).toBeVisible()
-    await expect(page.locator('.fp-view > .fp-view-header')).toHaveCount(0)
+    await page.locator(`[data-fp-tab="${tab}"]`).click();
+    await expect(page.locator(`.fp-view.fp-${tab}`)).toBeVisible();
+    await expect(page.locator('.fp-view > .fp-view-header')).toHaveCount(0);
   }
-  await page.locator('[data-fp-tab="timeline"]').click()
-  await expect(page.locator('.fp-view-summary')).toContainText('播放记录')
-  await page.screenshot({ path: info.outputPath('footprint-without-repeated-headings.png') })
-  await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.locator('.fp-header')).toHaveCSS('height', '0px')
-  await expect(page.locator('.fp-header')).toHaveCSS('border-bottom-width', '0px')
-  expect(await page.locator('body').evaluate(node => node.scrollWidth <= window.innerWidth)).toBe(true)
-  await page.screenshot({ path: info.outputPath('footprint-without-repeated-headings-mobile.png') })
-  await page.setViewportSize({ width: 1440, height: 1000 })
-  await page.locator('[data-nav="settings"]').click()
-  await expect(page.locator('#settings-title')).toBeVisible()
-  await expect(page.locator('.settings-section-heading')).toBeVisible()
-  expect(errors).toEqual([])
-})
-
+  await page.locator('[data-fp-tab="timeline"]').click();
+  await expect(page.locator('.fp-view-summary')).toContainText('播放记录');
+  await page.screenshot({ path: info.outputPath('footprint-without-repeated-headings.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.fp-header')).toHaveCSS('height', '0px');
+  await expect(page.locator('.fp-header')).toHaveCSS('border-bottom-width', '0px');
+  expect(await page.locator('body').evaluate((node) => node.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({
+    path: info.outputPath('footprint-without-repeated-headings-mobile.png'),
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('[data-nav="settings"]').click();
+  await expect(page.locator('#settings-title')).toBeVisible();
+  await expect(page.locator('.settings-section-heading')).toBeVisible();
+  expect(errors).toEqual([]);
+});
 
 test('上传页初始保留01和02，选择音频后03沿用页面动效显示，移除后隐藏', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await mockWorkspace(page)
-  await page.locator('[data-nav="upload"]').click()
-  const form = page.locator('[data-upload-form]')
-  const workspace = page.locator('.upload-workspace')
-  await expect(workspace).toBeVisible()
-  await expect(page.locator('[data-upload-selected-row]')).toBeVisible()
-  await expect(form).toBeHidden()
-  await expect.poll(() => page.locator('[data-upload-page]').evaluate(node => getComputedStyle(node).opacity)).toBe('1')
-  const before = await workspace.boundingBox()
-  await page.locator('[data-upload-file]').setInputFiles({ name: 'isolated.wav', mimeType: 'audio/wav', buffer: require('./fixtures').wave() })
-  await expect(form).toBeVisible()
-  await expect(form).toHaveCSS('opacity', '1')
-  await expect(form).toHaveCSS('transform', 'none')
-  const after = await workspace.boundingBox()
-  expect(Math.abs(before.x - after.x)).toBeLessThan(1)
-  expect(Math.abs(before.y - after.y)).toBeLessThan(1)
-  expect(Math.abs(before.width - after.width)).toBeLessThan(1)
-  await page.locator('[data-upload-remove]').click()
-  await expect(form).toHaveAttribute('inert', '')
-  await expect(form).toBeHidden()
-  await expect(page.locator('[data-upload-selected-row]')).toBeVisible()
-  await expect(page.locator('[data-upload-feedback]')).toBeVisible()
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.locator('[data-upload-file]').setInputFiles({ name: 'reduced.wav', mimeType: 'audio/wav', buffer: require('./fixtures').wave() })
-  await expect(form).toBeVisible()
-  await expect(form).toHaveCSS('opacity', '1')
-})
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page);
+  await page.locator('[data-nav="upload"]').click();
+  const form = page.locator('[data-upload-form]');
+  const workspace = page.locator('.upload-workspace');
+  await expect(workspace).toBeVisible();
+  await expect(page.locator('[data-upload-selected-row]')).toBeVisible();
+  await expect(form).toBeHidden();
+  await expect
+    .poll(() =>
+      page.locator('[data-upload-page]').evaluate((node) => getComputedStyle(node).opacity),
+    )
+    .toBe('1');
+  const before = await workspace.boundingBox();
+  await page.locator('[data-upload-file]').setInputFiles({
+    name: 'isolated.wav',
+    mimeType: 'audio/wav',
+    buffer: require('./fixtures').wave(),
+  });
+  await expect(form).toBeVisible();
+  await expect(form).toHaveCSS('opacity', '1');
+  await expect(form).toHaveCSS('transform', 'none');
+  const after = await workspace.boundingBox();
+  expect(Math.abs(before.x - after.x)).toBeLessThan(1);
+  expect(Math.abs(before.y - after.y)).toBeLessThan(1);
+  expect(Math.abs(before.width - after.width)).toBeLessThan(1);
+  await page.locator('[data-upload-remove]').click();
+  await expect(form).toHaveAttribute('inert', '');
+  await expect(form).toBeHidden();
+  await expect(page.locator('[data-upload-selected-row]')).toBeVisible();
+  await expect(page.locator('[data-upload-feedback]')).toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('[data-upload-file]').setInputFiles({
+    name: 'reduced.wav',
+    mimeType: 'audio/wav',
+    buffer: require('./fixtures').wave(),
+  });
+  await expect(form).toBeVisible();
+  await expect(form).toHaveCSS('opacity', '1');
+});
 
 test('登录 Code Slots 自动验证、错误重试、恢复码切换与窄屏主题正常', async ({ page }, info) => {
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  let verified = false, attempts = []
-  await page.route('**/api/**', async route => {
-    const path = new URL(route.request().url()).pathname
-    let body = { success: true }, status = 200
-    if (path === '/api/auth/me') body = verified ? { authenticated: true, user: { role: 'user' } } : { authenticated: false }
-    else if (path === '/api/security/csrf-token') body = { csrfToken: 'isolated-token' }
-    else if (path === '/api/auth/login') body = { requiresTwoFactor: true }
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  let verified = false,
+    attempts = [];
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let body = { success: true },
+      status = 200;
+    if (path === '/api/auth/me')
+      body = verified ? { authenticated: true, user: { role: 'user' } } : { authenticated: false };
+    else if (path === '/api/security/csrf-token') body = { csrfToken: 'isolated-token' };
+    else if (path === '/api/auth/login') body = { requiresTwoFactor: true };
     else if (path === '/api/auth/2fa/verify') {
-      const code = route.request().postDataJSON().code
-      attempts.push(code)
-      if (code === '000000') { status = 401; body = { message: '验证失败' } }
-      else { verified = true }
-    }
-    await route.fulfill({ status, json: body })
-  })
-  await page.goto('/')
-  await page.getByRole('button', { name: /点击进入/ }).click()
-  await page.locator('#email').fill('isolated@example.test')
-  await page.locator('#password').fill('synthetic-password')
-  await page.locator('[data-login-form] [type="submit"]').click()
-  const dialog = page.locator('[data-login-factor-dialog]')
-  const input = dialog.getByLabel('验证码', { exact: true })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.locator('.code-slots__slot')).toHaveCount(6)
-  await expect(dialog.locator('.factor-confirm')).toHaveCount(0)
-  await input.fill('000000')
-  await expect(dialog.locator('[data-factor-feedback]')).toContainText('验证失败')
-  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0)
-  expect(attempts).toEqual(['000000'])
-  await dialog.locator('[name=recovery]').check()
-  await expect(dialog.getByLabel('恢复码', { exact: true })).toBeVisible()
-  await expect(dialog.locator('.factor-confirm')).toBeVisible()
-  await dialog.getByLabel('恢复码', { exact: true }).fill('synthetic-unused-code')
-  await dialog.locator('[name=recovery]').uncheck()
-  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0)
-  await input.fill('123')
-  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(3)
-  await expect(dialog.locator('.code-slots__digit').nth(2)).toHaveCSS('opacity', '1')
-  await expect(dialog.locator('.code-slots__fill').nth(2)).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)')
-  await page.screenshot({ path: info.outputPath('code-slots-light.png') })
-  await page.setViewportSize({ width: 320, height: 740 })
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
-  const bounds = await dialog.boundingBox()
-  const slots = await dialog.locator('.code-slots').boundingBox()
-  expect(slots.x).toBeGreaterThanOrEqual(bounds.x)
-  expect(slots.x + slots.width).toBeLessThanOrEqual(bounds.x + bounds.width)
-  await expect(dialog.locator('.code-slots__slot').nth(4)).toHaveCSS('background-color', 'rgba(24, 33, 38, 0.75)')
-  await page.screenshot({ path: info.outputPath('code-slots-dark-mobile.png') })
-  await dialog.locator('[data-login-factor-close]').click()
-  await expect(dialog).not.toBeVisible()
-})
-
-test('展开播放器封面环境取色、交叉淡入、缓存与收藏正常，CORS失败不影响播放', async ({ page }, info) => {
-  await mockWorkspace(page, 'user', [])
-  const errors = [], extractions = [], likes = []
-  let ambientLiked = false
-  page.on('pageerror', error => errors.push(error.message))
-  const colors = { 101: '#d62b49', 102: '#246ac2', 103: '#369963' }
-  await page.route('https://p.music.126.net/ambient-*.svg', async route => {
-    const id = Number(route.request().url().match(/ambient-(\d+)/)[1])
-    const headers = await route.request().allHeaders()
-    if (headers['sec-fetch-mode'] === 'cors' || headers.origin) extractions.push(id)
-    // 明确拒绝来源；Playwright 对缺省 CORS 头会自动放行，不能用空 headers 模拟失败。
-    await route.fulfill({ contentType: 'image/svg+xml', headers: { 'Access-Control-Allow-Origin': id === 103 ? 'https://blocked.invalid' : '*' },
-      body: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${colors[id]}"/></svg>` })
-  })
-  await page.route('https://e2e.music.126.net/ambient.wav', route => route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }))
-  await page.route('**/api/netease/search?**', route => route.fulfill({ json: { code: 200, result: { songs: [101,102,103].map(id => ({ id, name: `ambient ${id}`, ar: [{ name: '隔离歌手' }], al: { name: '环境背景测试', picUrl: `https://p.music.126.net/ambient-${id}.svg` }, dt: 60000 })) } } }))
-  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/ambient.wav' }] } }))
-  await page.route('**/api/netease/lyric?**', route => route.fulfill({ json: { code: 200, lrc: { lyric: '[00:00.00]音乐让颜色缓慢流动\n[00:05.00]当这句很长的歌词缓缓唱起，愿每一个音符都能自然换行，留在恰好舒适的阅读位置\n[00:10.00]沿着时间的方向\n[00:15.00]听见远处的回响\n[00:20.00]让旋律继续流淌\n[00:30.00]保留原来的声音' } } }))
-  await page.route('**/api/me/likes/netease/*', async route => {
-    if (route.request().method() !== 'GET') { likes.push(route.request().method()); ambientLiked = route.request().method() === 'PUT' }
-    await route.fulfill({ json: { success: true, liked: ambientLiked } })
-  })
-  await page.locator('[data-nav="search"]').click()
-  await page.getByRole('searchbox',{name:'搜索音乐'}).fill('ambient')
-  await page.getByRole('searchbox',{name:'搜索音乐'}).press('Enter')
-  const play = async id => {
-    await page.getByRole('button', { name: `播放 ambient ${id}`, exact: true }).click()
-    await expect(page.locator('[data-expanded-title]')).toHaveText(`ambient ${id}`)
-  }
-  await play(101)
-  await page.mouse.move(700, 998)
-  await page.locator('[data-player-open]').click()
-  const background = page.locator('[data-album-ambient]')
-  const palette = () => background.locator('[data-front="true"]').evaluate(node => node.style.getPropertyValue('--ambient-color-1'))
-  await expect.poll(palette).toBe('rgb(214 43 73)')
-  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1')
-  await expect(page.locator('[data-global-player]')).toHaveCSS('visibility', 'hidden')
-  await expect(page.locator('[data-global-player]')).toHaveAttribute('inert', '')
-  const columns = await page.locator('.player-expanded-content').evaluate(node => getComputedStyle(node).gridTemplateColumns.split(' ').length)
-  expect(columns).toBe(2)
-  await expect(page.locator('[data-expanded-queue]')).toHaveCount(0)
-  await expect(page.locator('[data-expanded-progress]')).toBeInViewport()
-  await page.locator('[data-expanded-toggle]').click()
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(true)
-  await page.locator('[data-expanded-toggle]').click()
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false)
-  await page.locator('[data-expanded-progress]').press('Home')
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeLessThan(2)
-  await expect(page.locator('[data-lyric-distance="3"]').first()).toHaveCSS('filter', 'blur(2px)')
-  const longLine = page.locator('[data-player-lyrics] p').nth(1)
-  expect(await longLine.evaluate(node => node.getBoundingClientRect().height > parseFloat(getComputedStyle(node).lineHeight))).toBe(true)
-  await longLine.locator('button').click()
-  await expect(page.locator('[data-player-lyrics] .is-current')).toContainText('当这句很长的歌词')
-  await expect(longLine.locator('button')).toHaveCSS('color', 'rgb(247, 244, 239)')
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeGreaterThanOrEqual(5)
-  const volume = await page.evaluate(() => window.__migrationAudios[0].volume)
-  await page.locator('.expanded-player-volume [role="slider"]').press('ArrowLeft')
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].volume)).toBeCloseTo(volume - .01)
-  await page.screenshot({ path: info.outputPath('ambient-album-red-desktop.png') })
-  const audioCount = await page.evaluate(() => window.__migrationAudios.length)
-  await page.locator('[data-expanded-like]').click()
-  await expect(page.locator('[data-expanded-like]')).toHaveAttribute('aria-pressed', 'true')
-  await expect(page.locator('[data-player-like]')).toHaveAttribute('aria-pressed', 'true')
-  expect(likes).toEqual(['PUT'])
-  await expect(page.locator('[data-expanded-more]')).toBeDisabled()
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await expect(background.locator('[data-front="true"] .ambient-album-blob').first()).toHaveCSS('animation-play-state', 'running')
-  await page.locator('[data-player-close]').click()
-  await play(102)
-  await page.mouse.move(700, 998)
-  await page.locator('[data-player-open]').click()
-  await expect.poll(palette).toBe('rgb(36 106 194)')
-  await expect(background.locator('[data-ambient-layer]')).toHaveCount(2)
-  const previous = background.locator('[data-front="false"]')
-  await expect.poll(() => previous.evaluate(node => { const opacity = Number(getComputedStyle(node).opacity); return opacity > 0 && opacity < 1 })).toBe(true)
-  await expect(previous).toHaveCSS('opacity', '0')
-  await page.screenshot({ path: info.outputPath('ambient-album-blue-desktop.png') })
-  await page.locator('[data-expanded-previous]').click()
-  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 101')
-  await page.locator('[data-expanded-next]').click()
-  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 102')
-  const layoutBefore = await page.locator('.player-expanded-track').boundingBox()
-  const outerScroll = () => page.locator('.album-archive').evaluate(node => ({ top: node.scrollTop, left: node.scrollLeft }))
-  const scrollBefore = await outerScroll()
-  await page.locator('[data-expanded-queue-toggle]').click()
-  const drawer = page.locator('[data-player-queue-panel]')
-  await expect(drawer).toBeVisible()
-  await expect(drawer).toHaveCSS('opacity', '1')
-  await expect(drawer).toBeInViewport()
-  await expect(drawer).toHaveClass(/is-immersive/)
-  await expect(drawer.locator('[data-queue-key].is-active')).toHaveAttribute('data-queue-key', 'netease:102')
-  expect(await page.locator('.player-expanded-track').boundingBox()).toEqual(layoutBefore)
-  expect(await outerScroll()).toEqual(scrollBefore)
-  await expect(drawer.locator('[data-queue-close]')).toBeFocused()
-  await page.screenshot({ path: info.outputPath('immersive-queue-desktop.png') })
-  await page.locator('[data-queue-drag="netease:102"]').press('ArrowUp')
-  await expect.poll(() => order(page)).toEqual(['netease:102', 'netease:101'])
-  await page.locator('[data-queue-remove="netease:101"]').click()
-  await expect(drawer.locator('[data-queue-key]')).toHaveCount(1)
-  // 删除按钮的自动化点击可能先滚动页面；关闭只与关闭前的真实位置比较。
-  const layoutBeforeClose = await page.locator('.player-expanded-track').boundingBox()
-  const scrollBeforeClose = await outerScroll()
-  await page.locator('[data-queue-close]').press('Escape')
-  await expect(drawer).toBeHidden()
-  await expect(page.locator('[data-expanded-queue-toggle]')).toBeFocused()
-  expect(await outerScroll()).toEqual(scrollBeforeClose)
-  expect(await page.locator('.player-expanded-track').boundingBox()).toEqual(layoutBeforeClose)
-  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/)
-  await page.locator('[data-player-close]').click()
-  await play(101)
-  await page.mouse.move(700, 998)
-  await page.locator('[data-player-open]').click()
-  await expect.poll(palette).toBe('rgb(214 43 73)')
-  expect(extractions.filter(id => id === 101).length).toBe(1)
-  await page.locator('[data-player-close]').click()
-  await play(103)
-  await page.mouse.move(700, 998)
-  await page.locator('[data-player-open]').click()
-  await expect.poll(palette).toBe('rgb(109 74 88)')
-  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 103')
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount)
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await expect(background.locator('.ambient-album-blob').first()).toHaveCSS('animation-name', 'none')
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
-  await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.locator('[data-expanded-like]')).toBeInViewport()
-  await expect(page.locator('[data-expanded-progress]')).toBeInViewport()
-  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport()
-  expect((await page.locator('[data-player-lyrics]').boundingBox()).height).toBeGreaterThan(100)
-  await page.screenshot({ path: info.outputPath('ambient-album-mobile-dark.png') })
-  await page.locator('[data-expanded-queue-toggle]').click()
-  await expect(page.locator('[data-queue-close]')).toBeInViewport()
-  await page.locator('[data-queue-close]').click()
-  await page.setViewportSize({ width: 320, height: 640 })
-  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport()
-  await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await page.screenshot({ path: info.outputPath('immersive-player-320.png') })
-  await page.locator('[data-player-close]').click()
-  await expect(page.locator('[data-global-player]')).toHaveAttribute('aria-hidden', 'false')
-  await expect(page.locator('[data-player-open-compact]')).toBeFocused()
-  await page.locator('[data-player-open-compact]').press('Enter')
-  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/)
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount)
-  expect(errors).toEqual([])
-})
-
-
-test('窄屏收起播放器后返回可见入口并可用键盘重开', async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 640 })
-  await mockWorkspace(page)
-  await page.mouse.move(120, 638)
-  await page.locator('[data-player-open-compact]').click()
-  await expect(page.locator('[data-player-close]')).toBeFocused()
-  await page.locator('[data-player-close]').click()
-  await expect(page.locator('[data-player-open-compact]')).toBeFocused()
-  await page.locator('[data-player-open-compact]').press('Enter')
-  await expect(page.locator('[data-player-close]')).toBeFocused()
-})
-
-test('长歌词自动定位和首尾滚轮只滚动歌词容器，播放器与外层页面保持原位', async ({ page }, info) => {
-  await mockWorkspace(page, 'user', [])
-  const lines = Array.from({ length: 56 }, (_, i) => `[00:${String(i).padStart(2, '0')}.00]第 ${i} 句歌词，用长文本检查换行、跟随和滚动边界，播放器应始终保持原位`).join('\n')
-  await page.route('**/api/netease/search?**', route => route.fulfill({ json: { code: 200, result: { songs: [
-    { id: 611, name: '滚动隔离测试', ar: [{ name: '隔离歌手' }], al: { name: '隔离专辑' }, dt: 60000 },
-  ] } } }))
-  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/scroll.wav' }] } }))
-  const media = require('./fixtures').wave()
-  await page.route('https://e2e.music.126.net/scroll.wav', async route => {
-    // 模拟媒体也支持范围读取，保证跳转到后半段时使用真实 seek，而非被浏览器重置到零。
-    const range = route.request().headers().range?.match(/^bytes=(\d+)-(\d*)$/)
-    const start = range ? Number(range[1]) : 0
-    const end = range?.[2] ? Math.min(Number(range[2]), media.length - 1) : media.length - 1
-    await route.fulfill({ status: range ? 206 : 200, contentType: 'audio/wav',
-      headers: { 'Accept-Ranges': 'bytes', ...(range ? { 'Content-Range': `bytes ${start}-${end}/${media.length}` } : {}) },
-      body: media.subarray(start, end + 1) })
-  })
-  await page.route('**/api/netease/lyric?**', route => route.fulfill({ json: { code: 200, lrc: { lyric: lines } } }))
-  await page.locator('[data-nav="search"]').click()
-  await page.getByRole('searchbox',{name:'搜索音乐'}).fill('滚动隔离')
-  await page.getByRole('searchbox',{name:'搜索音乐'}).press('Enter')
-  await page.getByRole('button', { name: '播放 滚动隔离测试', exact: true }).click()
-  await page.mouse.move(700, 998)
-  await page.locator('[data-player-open]').click()
-  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1')
-  await expect(page.locator('[data-player-lyrics] p')).toHaveCount(56)
-  await page.locator('[data-expanded-toggle]').click()
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(true)
-  await expect.poll(() => page.evaluate(() => { const ranges = window.__migrationAudios[0].seekable; return ranges.length ? ranges.end(ranges.length - 1) : 0 })).toBeGreaterThan(55)
-  const outer = () => page.evaluate(() => {
-    const lyric = document.querySelector('[data-player-lyrics]')
-    const ancestors = []
-    for (let node = lyric.parentElement; node; node = node.parentElement) {
-      ancestors.push({ name: node.className || node.tagName, top: node.scrollTop, left: node.scrollLeft })
-    }
-    return { ancestors, x: scrollX, y: scrollY, playerTop: document.querySelector('[data-player-expanded]').getBoundingClientRect().top,
-      coverTop: document.querySelector('[data-expanded-cover]').getBoundingClientRect().top }
-  })
-  const seek = async second => {
-    await page.evaluate(time => {
-      const audio = window.__migrationAudios[0]
-      audio.currentTime = time + .05
-    }, second)
-    await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeCloseTo(second + .05, 1)
-    await expect(page.locator('[data-player-lyrics] .is-current')).toContainText(`第 ${second} 句`)
-  }
-  const lyrics = page.locator('[data-player-lyrics]')
-  for (const [width, height, reducedMotion] of [[1440, 1000, 'no-preference'], [390, 844, 'reduce']]) {
-    await page.setViewportSize({ width, height })
-    await page.emulateMedia({ reducedMotion })
-    const baseline = await outer()
-    expect(baseline.playerTop).toBe(0)
-    await seek(45)
-    await expect.poll(() => lyrics.evaluate(node => node.scrollTop)).toBeGreaterThan(1000)
-    // 等真实平滑定位完成，再验证手动滚动，避免两次滚动在同一帧竞争。
-    await expect.poll(() => lyrics.evaluate(node => {
-      const line = node.querySelector('.is-current').getBoundingClientRect()
-      return Math.abs(line.top + line.height / 2 - node.getBoundingClientRect().top - node.clientTop - node.clientHeight / 2)
-    })).toBeLessThan(2)
-    expect(await outer()).toEqual(baseline)
-    const box = await lyrics.boundingBox()
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.mouse.wheel(0, 100000)
-    await expect.poll(() => lyrics.evaluate(node => Math.abs(node.scrollHeight - node.clientHeight - node.scrollTop))).toBeLessThan(2)
-    await page.mouse.wheel(0, 1000)
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-    expect(await outer()).toEqual(baseline)
-    // 连续滚轮输入覆盖滚动惯性和方向反转，并逐次检查外层未被带动。
-    for (let gesture = 0; gesture < 8; gesture++) {
-      await page.mouse.wheel(0, -5000)
-      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-      expect(await outer()).toEqual(baseline)
-    }
-    await expect.poll(() => lyrics.evaluate(node => node.scrollTop)).toBe(0)
-    await page.mouse.wheel(0, -1000)
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
-    expect(await outer()).toEqual(baseline)
-    await seek(8)
-    await expect.poll(() => lyrics.evaluate(node => node.scrollTop)).toBeGreaterThan(0)
-    await expect.poll(() => lyrics.evaluate(node => {
-      const line = node.querySelector('.is-current').getBoundingClientRect()
-      return Math.abs(line.top + line.height / 2 - node.getBoundingClientRect().top - node.clientTop - node.clientHeight / 2)
-    })).toBeLessThan(2)
-    expect(await outer()).toEqual(baseline)
-    await page.screenshot({ path: info.outputPath(`lyrics-scroll-isolated-${width}.png`) })
-  }
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
-})
-
-test.describe('完整播放器 Wake Slider', () => {
-  test.use({ hasTouch: true })
-  test('仅替换展开页音量，键盘鼠标触屏同步原音频，保留迷你播放器', async ({ page }, info) => {
-    await mockWorkspace(page)
-    const errors = []
-    page.on('pageerror', error => errors.push(error.message))
-    const initial = await page.evaluate(() => ({ count: window.__migrationAudios.length, src: window.__migrationAudios[0].src, paused: window.__migrationAudios[0].paused }))
-    await page.mouse.move(700, 998)
-    await page.locator('[data-player-open]').click()
-    const wake = page.locator('.expanded-player-volume .wake-slider')
-    const handle = wake.getByRole('slider', { name: '音量' })
-    const audioVolume = () => page.evaluate(() => window.__migrationAudios[0].volume)
-    await expect(wake).toBeVisible()
-    await expect(wake.locator('.wake-slider__bar')).toHaveCount(28)
-    await expect(page.locator('[data-global-player] .wake-slider')).toHaveCount(0)
-    await expect(page.locator('[data-player-volume-input]')).toHaveClass(/player-volume-slider-thumb/)
-    await handle.press('Home')
-    await expect.poll(audioVolume).toBe(0)
-    await expect(wake.locator('[data-on="true"]')).toHaveCount(0)
-    await handle.press('End')
-    await expect.poll(audioVolume).toBe(1)
-    await expect(wake.locator('[data-on="true"]')).toHaveCount(28)
-    await page.emulateMedia({ reducedMotion: 'no-preference' })
-    const track = wake.locator('.wake-slider__track')
-    const box = await track.boundingBox()
-    await page.mouse.move(box.x + box.width * .2, box.y + box.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(box.x + box.width * .8, box.y + box.height / 2, { steps: 6 })
-    const maxScale = () => wake.locator('.wake-slider__bar').evaluateAll(bars => Math.max(...bars.map(bar => Number(bar.style.transform.match(/scaleY\(([^)]+)\)/)?.[1] ?? 0))))
-    await expect.poll(maxScale, { intervals: [16, 32, 50], timeout: 3000 }).toBeGreaterThan(.22)
-    await page.mouse.up()
-    await expect.poll(audioVolume).toBeCloseTo(.8, 1)
-    await page.screenshot({ path: info.outputPath('wake-slider-desktop.png') })
-    await expect.poll(maxScale).toBeLessThan(.18)
-    await page.locator('[data-player-close]').click()
-    const mini = page.locator('[data-player-volume-input]')
-    const before = await audioVolume()
-    await mini.press('ArrowLeft')
-    await expect.poll(audioVolume).toBeCloseTo(before - .01)
-    await page.locator('[data-player-open]').click()
-    await expect(handle).toHaveAttribute('aria-valuenow', String(Math.round((before - .01) * 100)))
-    await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
-    const touchBox = await track.boundingBox()
-    const session = await page.context().newCDPSession(page)
-    const point = fraction => ({ x: touchBox.x + touchBox.width * fraction, y: touchBox.y + touchBox.height / 2 })
-    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [point(.15)] })
-    await session.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [point(.75)] })
-    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-    await session.detach()
-    await expect.poll(audioVolume).toBeCloseTo(.75, 1)
-    await expect.poll(maxScale).toBeLessThan(.18)
-    await expect(wake).toBeInViewport()
-    await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport()
-    await page.screenshot({ path: info.outputPath('wake-slider-mobile-dark.png') })
-    expect(await page.evaluate(() => ({ count: window.__migrationAudios.length, src: window.__migrationAudios[0].src, paused: window.__migrationAudios[0].paused }))).toEqual(initial)
-    expect(errors).toEqual([])
-  })
-})
-
-test('档案阵列入场不聚焦特定专辑，结束后点击才显示资料并保持原高度', async ({ page }, info) => {
-  await page.addInitScript(() => { window.__archiveEntryProbe = { created: 0, frames: [] } })
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await mockWorkspace(page)
-  const root = page.locator('[data-album-archive]')
-  await expect(root).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 })
-  const cinema = await page.evaluate(() => window.__archiveEntryProbe.frames.filter(frame => frame.cinematic).map(frame => frame.cinematic))
-  expect(cinema.length).toBeGreaterThanOrEqual(1)
-  expect(await page.evaluate(() => window.__archiveEntryProbe.frames.filter(frame => frame.cinematic).every(frame => frame.navigationInert && frame.informationHidden))).toBe(true)
-  expect(await page.evaluate(() => new Set(window.__archiveEntryProbe.frames.map(frame => JSON.stringify(frame.camera))).size)).toBeGreaterThan(1)
-  expect(cinema.every(frame => frame.time < 25.05 && frame.lift === 0 && frame.zoom === 0)).toBe(true)
-  const cameraFrames = await page.evaluate(() => window.__archiveEntryProbe.frames)
-  const first = cameraFrames.find(frame => frame.cinematic)
-  const vector = first.camera.map((v, i) => v - first.aim[i])
-  expect(Math.asin(vector[1] / Math.hypot(...vector)) * 180 / Math.PI).toBeGreaterThan(30)
-  const modelZ = cameraFrames.filter(frame => frame.cinematic).map(frame => frame.position[2])
-  expect(Math.max(...modelZ) - Math.min(...modelZ)).toBeLessThan(.001)
-  const settled = cameraFrames.find(frame => frame.phase === 'settling')
-  const readyFrame = cameraFrames.filter(frame => frame.phase === 'ready').at(-1)
-  expect(Math.hypot(...settled.camera.map((v, i) => v - readyFrame.camera[i]))).toBeLessThan(.001)
-  expect(Math.abs(settled.fov - readyFrame.fov)).toBeLessThan(.001)
-
-  await expect(page.locator('[data-album-detail]')).toBeHidden()
-  await expect(page.locator('[data-album-information]')).toBeHidden()
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats())
-  // 用原波形和当前模拟状态计算未抬高的高度，排除波峰运动对测量的影响。
-  const { archiveWave, settlingWave, columnStrength, idleWave } = require('../../frontend/src/rhine/motion.ts')
-  const rise = async (subtractExtraction = false) => {
-    const state = await page.evaluate(() => {
-      const scene = window.__archiveEntryProbe.scene, stats = scene.getStats()
-      return { y: stats.modelPosition[1], row: stats.selectedCell.row, lane: stats.selectedCell.lane,
-        origin: stats.coordinateOrigin, time: scene.clock, scanTime: scene.scanTime, scanBlend: scene.scanBlend,
-        shoulder: scene.shoulder.value, focus: scene.laneFocus.value, idle: scene.idleGain, lift: scene.lift.value }
-    })
-    const { row, lane, origin } = state
-    const original = -4.6 + archiveWave(row + origin.row, lane + origin.lane, state.scanTime) * state.scanBlend
-      + settlingWave(row - state.shoulder, 26.56) * columnStrength(lane, state.focus)
-      + idleWave(row + origin.row, lane + origin.lane, state.time) * state.idle
-    return state.y - original - (subtractExtraction ? state.lift : 0)
-  }
-  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
-  const point = await page.evaluate(() => window.__archiveEntryProbe.scene.projectCard(0, 3.5))
-  await page.mouse.move(point[0], point[1])
-  await expect.poll(() => rise()).toBeCloseTo(.68, 2)
-  await expect(page.locator('[data-album-information]')).toBeHidden()
-  await page.mouse.move(1400, 50)
-  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
-  await page.mouse.click(point[0], point[1])
-  await expect(page.locator('[data-album-information]')).toBeVisible()
-  // 原选中逻辑会清空悬停；点击后恢复原预览高度，不保留额外增量。
-  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
-  await page.mouse.move(1400, 50)
-  await expect.poll(() => rise()).toBeCloseTo(.4, 2)
-  await expect(page.locator('[data-album-detail]')).toBeHidden()
-  await page.screenshot({ path: info.outputPath('archive-selected-information.png') })
-  await page.locator('[data-open-selected]').click()
-  await page.evaluate(() => { window.__archiveEntryProbe.animate = true })
-  await expect(page.locator('[data-album-detail]')).toBeVisible()
-  const { INSPECTION_LIFT } = require('../../frontend/src/rhine/motion.ts')
-  await expect.poll(async () => (await stats()).extraction).toBeGreaterThan(3.9)
-  expect((await stats()).extraction).toBeLessThanOrEqual(INSPECTION_LIFT + .001)
-  // 原详情展示完成会停帧；精确核对实际抽出进度对应的原公式，没有新增偏移。
-  await expect.poll(() => rise(true)).toBeCloseTo(0, 2)
-  // 软件 GPU 只在观察动画时连续渲染，避免闲置重绘阻塞真实按钮输入。
-  await page.evaluate(() => { window.__archiveEntryProbe.animate = false })
-  await page.locator('[data-back-to-archive]').click()
-  await page.evaluate(() => { window.__archiveEntryProbe.animate = true })
-  await expect(page.locator('[data-album-detail]')).toBeHidden()
-  await expect.poll(() => rise(), { timeout: 45000 }).toBeCloseTo(.4, 2)
-  await page.evaluate(() => { window.__archiveEntryProbe.animate = false })
-  await page.locator('[data-nav="search"]').click()
-  await page.locator('[data-nav="library"]').click()
-  expect(await page.evaluate(() => window.__archiveEntryProbe.frames.filter(frame => frame.cinematic).length)).toBe(cinema.length)
-  expect(await page.evaluate(() => window.__archiveEntryProbe.created)).toBe(1)
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
-})
-
-test('ENTER SYSTEM 只跳过 SVG，阵列仍正常入场且没有独立跳过入口', async ({ page }) => {
-  await page.addInitScript(() => { window.__archiveEntryProbe = { created: 0, frames: [] } })
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await mockWorkspace(page, 'user', [], true)
-  await expect(page.locator('[data-archive-entry] button')).toHaveCount(0)
-  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 })
-  expect(await page.evaluate(() => window.__archiveEntryProbe.frames.some(frame => frame.cinematic))).toBe(true)
-  expect(await page.evaluate(() => window.__archiveEntryProbe.warmup.after)).toBeGreaterThan(0)
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.reload()
-  await expect(page).toHaveURL(/\/library$/)
-  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready')
-  await expect(page.locator('[data-album-information]')).toBeHidden()
-})
-
-test('专辑播放全部替换旧队列，从第一首开播并顺序切歌，不创建第二个音频实例', async ({ page }, info) => {
-  await page.addInitScript(() => { window.__archiveEntryProbe = { created: 0, frames: [] } })
-  const { writes } = await mockWorkspace(page)
-  let releaseAlbum
-  const albumGate = new Promise(resolve => { releaseAlbum = resolve })
-  await page.route('**/api/netease/album?**', async route => {
-    await albumGate
-    await route.fulfill({ json: { code: 200, songs: [
-      { id: 910001, name: '整专第一首', dt: 60000 }, { id: 910002, name: '整专第二首', dt: 60000 },
-    ] } })
-  })
-  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/album-all.wav' }] } }))
-  await page.route('https://e2e.music.126.net/album-all.wav', route => route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }))
-  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 })
-  const point = await page.evaluate(() => window.__archiveEntryProbe.scene.projectCard(0, 3.5))
-  await page.mouse.click(point[0], point[1])
-  await page.locator('[data-open-selected]').click()
-  await page.evaluate(() => { window.__archiveEntryProbe.animate = true })
-  const button = page.locator('[data-album-play-all]')
-  await expect(button).toBeVisible()
-  await page.evaluate(() => { window.__archiveEntryProbe.animate = false })
-  await expect(button).toBeDisabled()
-  releaseAlbum()
-  await expect(button).toBeEnabled()
-  const heading = page.locator('.detail-track-preview header')
-  const bounds = await button.boundingBox(), headerBounds = await heading.boundingBox()
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(headerBounds.x + headerBounds.width)
-  await page.screenshot({ path: info.outputPath('album-play-all.png') })
-  await button.click()
-  await expect(page.locator('[data-player-track] strong')).toHaveText('整专第一首')
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false)
-  await expect.poll(() => writes.at(-1)).toEqual([{ source: 'netease', sourceId: '910001' }, { source: 'netease', sourceId: '910002' }])
-  await showQueue(page)
-  await expect.poll(() => order(page)).toEqual(['netease:910001', 'netease:910002'])
-  await page.evaluate(() => window.__migrationAudios[0].dispatchEvent(new Event('ended')))
-  await expect(page.locator('[data-player-track] strong')).toHaveText('整专第二首')
-  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1)
-})
-
-test('Gooey 搜索就地展开，玻璃描边跟随悬停颜色，窄屏不越界', async ({ page }, info) => {
-  const requests = []
-  page.on('request', request => { if (request.url().includes('/api/') && request.url().includes('search')) requests.push(request.url()) })
-  await mockWorkspace(page)
-  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 })
-  const trigger = page.locator('[data-nav="search"]')
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await page.mouse.move(500, 200)
-  const library = page.locator('[data-nav="library"]')
-  await expect(trigger).toHaveCSS('color', await library.evaluate(el => getComputedStyle(el).color))
-  await library.hover()
-  const hoverColor = await library.evaluate(el => getComputedStyle(el).color)
-  await trigger.hover()
-  await expect(trigger).toHaveCSS('color', hoverColor)
-  await expect(trigger.locator('.ui-icon')).toHaveCSS('animation-name', 'ui-icon-bob')
-  const before = await page.locator('[data-nav="library"]').boundingBox()
-  await expect(page.locator('.gooey-search-field')).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)')
-  await expect(page.locator('.gooey-search-field')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(page.locator('.gooey-search-fluid')).toHaveCSS('opacity', '0')
-  await trigger.click()
-  const input = page.getByRole('searchbox', { name: '搜索音乐' })
-  await expect(input).toBeFocused()
-  await input.fill('晴天')
-  await input.press('Enter')
-  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive')
-  await expect(page.locator('[data-search-page]')).toHaveCount(0)
-  await expect.poll(() => page.locator('.gooey-search').evaluate(el => el.getBoundingClientRect().width)).toBeCloseTo(250, 0)
-  const after = await page.locator('[data-nav="library"]').boundingBox()
-  expect(after.x).toBeLessThan(before.x - 100)
-  const inline = await input.boundingBox(), nav = await page.locator('[data-archive-navigation]').boundingBox()
-  expect(inline.y).toBeGreaterThanOrEqual(nav.y)
-  expect(inline.y + inline.height).toBeLessThanOrEqual(nav.y + nav.height + 1)
-  await expect(page.locator('.gooey-search [data-ui-icon]')).toHaveCount(0)
-  const styles = await page.evaluate(() => ({ color: getComputedStyle(document.querySelector('[data-nav="search"]')).color, border: getComputedStyle(document.querySelector('.gooey-search-field')).borderTopColor, blur: getComputedStyle(document.querySelector('.gooey-search-field')).backdropFilter }))
-  expect(styles.border).toBe(hoverColor)
-  expect(styles.blur).toContain('blur')
-  await page.screenshot({ path: info.outputPath('gooey-search-desktop.png') })
-  await page.setViewportSize({ width: 390, height: 844 })
-  const bounds = await page.locator('[data-archive-navigation]').boundingBox()
-  expect(bounds.x).toBeGreaterThanOrEqual(0)
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390)
-  await input.press('Escape')
-  await expect(trigger).toHaveAttribute('aria-expanded', 'false')
-  await expect(trigger).toBeFocused()
-  expect(requests.length).toBeGreaterThan(0)
-  await expect(page.locator('[data-song-search-panel]')).toBeVisible()
-})
-
-test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真实队列，旧查询不覆盖新查询', async ({ page }, info) => {
- const {writes,tracks:originalQueue} = await mockWorkspace(page)
- const songs = id => ({id,name:`合并歌曲${id}`,ar:[{name:'歌手'}],al:{name:'专辑'},dt:60000})
- const saves=[]
- let releaseOld
- const oldGate=new Promise(resolve=>{releaseOld=resolve})
- await page.route('**/api/netease/search?**',async route=>{
-  const url=new URL(route.request().url()),type=url.searchParams.get('type'),old=url.searchParams.get('keywords')==='旧'
-  if(old)await oldGate
-  const result=type==='100'?{artists:[{id:101,name:'歌手'}]}:type==='10'?{albums:[{id:202,name:'专辑'}]}:{songs:[songs(url.searchParams.get('offset')==='0'?910001:910005),songs(910002)],songCount:31}
-  await route.fulfill({json:{code:200,result}}).catch(()=>{})
- })
- await page.route('**/api/netease/artist/songs?**',route=>route.fulfill({json:{code:200,songs:[songs(910001),songs(910003)],more:false}}))
- await page.route('**/api/netease/album?**',route=>route.fulfill({json:{code:200,songs:[songs(910004)]}}))
- await page.route('**/api/netease/song/url/v1?**',route=>route.fulfill({json:{code:200,data:[{url:'https://e2e.music.126.net/unified.wav'}]}}))
- await page.route('https://e2e.music.126.net/unified.wav',route=>route.fulfill({contentType:'audio/wav',body:require('./fixtures').wave()}))
- await page.route('**/api/me/playlists**',async route=>{
-  if(route.request().method()==='POST') {saves.push(route.request().postDataJSON());await route.fulfill({json:{success:true}})}
-  else await route.fulfill({json:{playlists:[{id:7,name:'测试歌单',trackCount:0}]}})
- })
- await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase','ready',{timeout:45000})
- await page.locator('[data-nav="search"]').click()
- const input=page.getByRole('searchbox',{name:'搜索音乐'})
- await expect(input).toBeFocused()
- await input.fill('旧');await input.press('Enter')
- await input.fill('新');await input.press('Enter')
- const panel=page.locator('[data-song-search-panel]')
- await expect(panel.locator('[data-queue-key]')).toHaveCount(4)
- releaseOld()
- await expect(panel.locator('[data-queue-key]')).toHaveCount(4)
- await expect(panel.locator('[data-queue-clear], [data-queue-remove], [data-queue-like]')).toHaveCount(0)
- const more=panel.getByRole('button',{name:'加载更多歌曲'})
- await expect(more).toHaveText('more')
- await expect(more).toHaveCSS('border-top-width','0px')
- await expect(more).toHaveCSS('background-color','rgba(0, 0, 0, 0)')
- await more.click()
- await expect(panel.locator('[data-queue-key]')).toHaveCount(5)
- const originalRefs=originalQueue.map(({source,sourceId})=>({source,sourceId}))
- for (const snapshot of writes) expect(snapshot).toEqual(originalRefs)
- await panel.locator('[data-queue-play="netease:910001"]').click()
- await expect(page.locator('[data-player-track] strong')).toHaveText('合并歌曲910001')
- await panel.locator('[data-queue-save="netease:910001"]').click()
- const dialog=page.locator('[data-collection-dialog]')
- await expect(dialog).toBeVisible()
- await dialog.locator('select').selectOption('7')
- await dialog.getByRole('button',{name:/保存到歌单/}).click()
- await expect.poll(()=>saves.length).toBe(1)
- expect(saves[0]).toEqual({source:'netease',sourceId:'910001'})
- await expect.poll(()=>writes.at(-1)).toEqual([...originalRefs,{source:'netease',sourceId:'910001'}])
- await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view','archive')
- await expect(page.locator('[data-search-page]')).toHaveCount(0)
- expect(await page.evaluate(()=>window.__migrationAudios.length)).toBe(1)
- await page.screenshot({path:info.outputPath('unified-song-search.png')})
- await page.emulateMedia({reducedMotion:'no-preference'})
- const close=panel.locator('[data-search-close]')
- await close.hover()
- await expect(close.locator('[data-ui-icon="close"]')).toHaveCSS('transform','matrix(0, 1, -1, 0, 0, 0)')
- await close.click()
- await expect(panel).toHaveCount(0)
-})
-
-test.describe('音频响应图形验收', () => {
-  test.use({ deviceScaleFactor: .25 })
-
-test('音乐响应阵列复用音频节点，跨来源切换及拖动、详情、减少动态效果平滑衔接', async ({ page }, info) => {
-  test.setTimeout(300000)
-  const errors = []
-  page.on('pageerror', e => errors.push(e.message))
-  await page.addInitScript(() => {
-    window.__archiveEntryProbe = { animate: false, frames: [], created: 0 }
-    const Original = window.AudioContext
-    window.__audioGraph = { contexts: 0, sources: 0, reads: 0, closed: 0 }
-    window.AudioContext = class extends Original {
-      constructor(...args) { super(...args); window.__audioGraph.contexts++ }
-      createMediaElementSource(...args) { window.__audioGraph.sources++; return super.createMediaElementSource(...args) }
-      createAnalyser() { const meter = super.createAnalyser(), read = meter.getFloatFrequencyData.bind(meter); meter.getFloatFrequencyData = data => { window.__audioGraph.reads++; return read(data) }; return meter }
-      close() { window.__audioGraph.closed++; return super.close() }
-    }
-  })
-  await mockWorkspace(page, 'user', [], true)
-  const tone = Buffer.alloc(44 + 8000 * 300 * 2)
-  require('./fixtures').wave().copy(tone, 0, 0, 44)
-  tone.writeUInt32LE(tone.length - 8, 4); tone.writeUInt32LE(tone.length - 44, 40)
-  for (let i = 44; i < tone.length; i += 2) tone.writeInt16LE(Math.round(12000 * Math.sin((i - 44) / 2 * Math.PI * 220 / 8000)), i)
-  const treble = Buffer.from(tone)
-  for (let i = 44; i < treble.length; i += 2) treble.writeInt16LE(Math.round(12000 * Math.sin((i - 44) / 2 * Math.PI * 5000 / 8000)), i)
-  await page.route('**/api/local/music/1/stream', route => route.fulfill({ contentType: 'audio/wav', body: tone }))
-  await page.route('https://e2e.music.126.net/reactive.wav', route => route.fulfill({ contentType: 'audio/wav', headers: { 'Access-Control-Allow-Origin': '*' }, body: treble }))
-  await page.route('**/api/netease/song/url/v1?**', route => route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/reactive.wav' }] } }))
-  await page.route('**/api/netease/search?**', route => route.fulfill({ json: { code: 200, result: { songs: [{ id: 991, name: '音乐响应测试', ar: [], al: {}, dt: 60000 }] } } }))
-  await page.locator('[data-nav="user"]').click()
-  await page.locator('[data-user-tab="uploads"]').click()
-  await page.locator('[data-user-play="local:1"]').click()
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false)
-  await page.locator('[data-nav="library"]').click()
-  await page.evaluate(() => { window.__archiveEntryProbe.animate = true })
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats())
-  await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(.1)
-  await expect.poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 }).toBeGreaterThan(.9)
-  const spectrumPeak = () => page.evaluate(() => { const values = [...window.__archiveEntryProbe.scene.audioBands.spectrum]; return values.indexOf(Math.max(...values)) })
-  expect(await spectrumPeak()).toBeLessThan(12)
-  await page.evaluate(() => { window.__archiveEntryProbe.scene.holdingArchive = true })
-  await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(.25)
-  await page.evaluate(() => { window.__archiveEntryProbe.scene.holdingArchive = false })
-  await expect.poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 }).toBeGreaterThan(.9)
-  await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('detail'))
-  await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(.01)
-  await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('archive'))
-  await expect.poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 }).toBeGreaterThan(.9)
-  await page.screenshot({ path: info.outputPath('audio-reactive-archive.png') })
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await expect.poll(async () => (await stats()).spectrumActivity).toBe(0)
-  const reads = await page.evaluate(() => window.__audioGraph.reads)
-  await page.waitForTimeout(250)
-  expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(reads)
-  await page.locator('[data-nav="search"]').click()
-  await page.getByRole('searchbox', { name: '搜索音乐' }).fill('音乐响应测试')
-  await page.getByRole('searchbox', { name: '搜索音乐' }).press('Enter')
-  await page.getByRole('button', { name: '播放 音乐响应测试', exact: true }).click()
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].src)).toContain('reactive.wav')
-  await page.locator('[data-search-close]').click()
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(.1)
-  await expect.poll(spectrumPeak).toBeGreaterThan(20)
-  expect(await page.evaluate(() => ({ contexts: window.__audioGraph.contexts, sources: window.__audioGraph.sources, audio: window.__migrationAudios.length, cors: window.__migrationAudios[0].crossOrigin }))).toEqual({ contexts: 1, sources: 1, audio: 1, cors: 'anonymous' })
-  await page.locator('[data-nav="user"]').click()
-  const hiddenReads = await page.evaluate(() => window.__audioGraph.reads)
-  await page.waitForTimeout(250)
-  expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(hiddenReads)
-  expect(await page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false)
-  expect(errors).toEqual([])
-})
-
-test('播放动效开关默认开启，关闭停采样但继续播放，键盘恢复并保存浏览器偏好', async ({ page }) => {
-  await page.addInitScript(() => {
-    const Original = window.AudioContext
-    window.__preferenceReads = 0
-    window.AudioContext = class extends Original {
-      createAnalyser() {
-        const meter = super.createAnalyser(), read = meter.getFloatFrequencyData.bind(meter)
-        meter.getFloatFrequencyData = data => { window.__preferenceReads++; return read(data) }
-        return meter
+      const code = route.request().postDataJSON().code;
+      attempts.push(code);
+      if (code === '000000') {
+        status = 401;
+        body = { message: '验证失败' };
+      } else {
+        verified = true;
       }
     }
-  })
-  await mockWorkspace(page, 'user', [], true)
-  const tone = require('./fixtures').wave()
-  for (let i = 44; i < tone.length; i += 2) tone.writeInt16LE(Math.round(12000 * Math.sin((i - 44) / 2 * Math.PI * 220 / 8000)), i)
-  await page.route('**/api/local/music/1/stream', route => route.fulfill({ contentType: 'audio/wav', body: tone }))
-  await page.locator('[data-nav="user"]').click()
-  await page.locator('[data-user-tab="uploads"]').click()
-  await page.locator('[data-user-play="local:1"]').click()
-  await page.locator('[data-nav="library"]').click()
-  await page.emulateMedia({ reducedMotion: 'no-preference' })
-  await expect.poll(() => page.evaluate(() => window.__preferenceReads)).toBeGreaterThan(0)
-  await page.locator('[data-nav="settings"]').click()
-  const toggle = page.getByRole('switch', { name: '播放动效', exact: true })
-  await expect(toggle).toHaveAttribute('aria-checked', 'true')
-  await expect(toggle).toHaveClass('squish-switch')
-  // 验证真实 CSS 变量解析、两套主题和开关状态，避免只更新样式哈希却改变配色。
-  const switchColors = () => toggle.evaluate(button => ({
-    track: getComputedStyle(button.querySelector('.squish-switch__track')).backgroundColor,
-    thumb: getComputedStyle(button.querySelector('.squish-switch__thumb')).backgroundColor,
-    width: getComputedStyle(button.querySelector('.squish-switch__track')).width,
-    height: getComputedStyle(button.querySelector('.squish-switch__track')).height,
-  }))
-  for (const [theme, active, inactive, thumb] of [
-    ['light', 'rgb(183, 121, 34)', 'rgba(32, 33, 30, 0.2)', 'rgb(239, 237, 231)'],
-    ['dark', 'rgb(217, 170, 107)', 'rgba(182, 193, 198, 0.24)', 'rgb(20, 27, 31)'],
-  ]) {
-    await page.locator(`button[data-theme-preference="${theme}"]`).click()
-    await expect.poll(switchColors).toEqual({ track: active, thumb, width: '64px', height: '32px' })
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-checked', 'false')
-    await expect.poll(switchColors).toEqual({ track: inactive, thumb, width: '64px', height: '32px' })
-    await toggle.click()
-    await expect(toggle).toHaveAttribute('aria-checked', 'true')
-  }
-  await page.locator('button[data-theme-preference="light"]').click()
-  await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-checked', 'false')
-  await page.locator('[data-settings-close]').click()
-  await expect(page.locator('[data-settings-dialog]')).not.toBeVisible()
-  const before = await page.evaluate(() => ({ reads: window.__preferenceReads, time: window.__migrationAudios[0].currentTime }))
-  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime)).toBeGreaterThan(before.time + .2)
-  expect(await page.evaluate(() => window.__preferenceReads)).toBe(before.reads)
-  await page.locator('[data-nav="settings"]').click()
-  await toggle.focus(); await page.keyboard.press('Space')
-  await expect(toggle).toHaveAttribute('aria-checked', 'true')
-  await page.locator('[data-settings-close]').click()
-  await expect.poll(() => page.evaluate(() => window.__preferenceReads)).toBeGreaterThan(before.reads)
-  await page.locator('[data-nav="settings"]').click()
-  await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-checked', 'false')
-  await page.reload()
-  await page.emulateMedia({ reducedMotion: 'reduce' })
-  await expect(page).toHaveURL(/\/library$/)
-  await expect(page.locator('[data-album-archive]')).toBeVisible()
-  await page.locator('[data-nav="settings"]').click()
-  await expect(toggle).toHaveAttribute('aria-checked', 'false')
-})
+    await route.fulfill({ status, json: body });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: /点击进入/ }).click();
+  await page.locator('#email').fill('isolated@example.test');
+  await page.locator('#password').fill('synthetic-password');
+  await page.locator('[data-login-form] [type="submit"]').click();
+  const dialog = page.locator('[data-login-factor-dialog]');
+  const input = dialog.getByLabel('验证码', { exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.code-slots__slot')).toHaveCount(6);
+  await expect(dialog.locator('.factor-confirm')).toHaveCount(0);
+  await input.fill('000000');
+  await expect(dialog.locator('[data-factor-feedback]')).toContainText('验证失败');
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0);
+  expect(attempts).toEqual(['000000']);
+  await dialog.locator('[name=recovery]').check();
+  await expect(dialog.getByLabel('恢复码', { exact: true })).toBeVisible();
+  await expect(dialog.locator('.factor-confirm')).toBeVisible();
+  await dialog.getByLabel('恢复码', { exact: true }).fill('synthetic-unused-code');
+  await dialog.locator('[name=recovery]').uncheck();
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0);
+  await input.fill('123');
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(3);
+  await expect(dialog.locator('.code-slots__digit').nth(2)).toHaveCSS('opacity', '1');
+  await expect(dialog.locator('.code-slots__fill').nth(2)).toHaveCSS(
+    'transform',
+    'matrix(1, 0, 0, 1, 0, 0)',
+  );
+  await page.screenshot({ path: info.outputPath('code-slots-light.png') });
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  const bounds = await dialog.boundingBox();
+  const slots = await dialog.locator('.code-slots').boundingBox();
+  expect(slots.x).toBeGreaterThanOrEqual(bounds.x);
+  expect(slots.x + slots.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+  await expect(dialog.locator('.code-slots__slot').nth(4)).toHaveCSS(
+    'background-color',
+    'rgba(24, 33, 38, 0.75)',
+  );
+  await page.screenshot({ path: info.outputPath('code-slots-dark-mobile.png') });
+  await dialog.locator('[data-login-factor-close]').click();
+  await expect(dialog).not.toBeVisible();
+});
 
-})
+test('展开播放器封面环境取色、交叉淡入、缓存与收藏正常，CORS失败不影响播放', async ({
+  page,
+}, info) => {
+  await mockWorkspace(page, 'user', []);
+  const errors = [],
+    extractions = [],
+    likes = [];
+  let ambientLiked = false;
+  page.on('pageerror', (error) => errors.push(error.message));
+  const colors = { 101: '#d62b49', 102: '#246ac2', 103: '#369963' };
+  await page.route('https://p.music.126.net/ambient-*.svg', async (route) => {
+    const id = Number(
+      route
+        .request()
+        .url()
+        .match(/ambient-(\d+)/)[1],
+    );
+    const headers = await route.request().allHeaders();
+    if (headers['sec-fetch-mode'] === 'cors' || headers.origin) extractions.push(id);
+    // 明确拒绝来源；Playwright 对缺省 CORS 头会自动放行，不能用空 headers 模拟失败。
+    await route.fulfill({
+      contentType: 'image/svg+xml',
+      headers: { 'Access-Control-Allow-Origin': id === 103 ? 'https://blocked.invalid' : '*' },
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${colors[id]}"/></svg>`,
+    });
+  });
+  await page.route('https://e2e.music.126.net/ambient.wav', (route) =>
+    route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }),
+  );
+  await page.route('**/api/netease/search?**', (route) =>
+    route.fulfill({
+      json: {
+        code: 200,
+        result: {
+          songs: [101, 102, 103].map((id) => ({
+            id,
+            name: `ambient ${id}`,
+            ar: [{ name: '隔离歌手' }],
+            al: { name: '环境背景测试', picUrl: `https://p.music.126.net/ambient-${id}.svg` },
+            dt: 60000,
+          })),
+        },
+      },
+    }),
+  );
+  await page.route('**/api/netease/song/url/v1?**', (route) =>
+    route.fulfill({
+      json: { code: 200, data: [{ url: 'https://e2e.music.126.net/ambient.wav' }] },
+    }),
+  );
+  await page.route('**/api/netease/lyric?**', (route) =>
+    route.fulfill({
+      json: {
+        code: 200,
+        lrc: {
+          lyric:
+            '[00:00.00]音乐让颜色缓慢流动\n[00:05.00]当这句很长的歌词缓缓唱起，愿每一个音符都能自然换行，留在恰好舒适的阅读位置\n[00:10.00]沿着时间的方向\n[00:15.00]听见远处的回响\n[00:20.00]让旋律继续流淌\n[00:30.00]保留原来的声音',
+        },
+      },
+    }),
+  );
+  await page.route('**/api/me/likes/netease/*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      likes.push(route.request().method());
+      ambientLiked = route.request().method() === 'PUT';
+    }
+    await route.fulfill({ json: { success: true, liked: ambientLiked } });
+  });
+  await page.locator('[data-nav="search"]').click();
+  await page.getByRole('searchbox', { name: '搜索音乐' }).fill('ambient');
+  await page.getByRole('searchbox', { name: '搜索音乐' }).press('Enter');
+  const play = async (id) => {
+    await page.getByRole('button', { name: `播放 ambient ${id}`, exact: true }).click();
+    await expect(page.locator('[data-expanded-title]')).toHaveText(`ambient ${id}`);
+  };
+  await play(101);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  const background = page.locator('[data-album-ambient]');
+  const palette = () =>
+    background
+      .locator('[data-front="true"]')
+      .evaluate((node) => node.style.getPropertyValue('--ambient-color-1'));
+  await expect.poll(palette).toBe('rgb(214 43 73)');
+  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1');
+  await expect(page.locator('[data-global-player]')).toHaveCSS('visibility', 'hidden');
+  await expect(page.locator('[data-global-player]')).toHaveAttribute('inert', '');
+  const columns = await page
+    .locator('.player-expanded-content')
+    .evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').length);
+  expect(columns).toBe(2);
+  await expect(page.locator('[data-expanded-queue]')).toHaveCount(0);
+  await expect(page.locator('[data-expanded-progress]')).toBeInViewport();
+  await page.locator('[data-expanded-toggle]').click();
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(true);
+  await page.locator('[data-expanded-toggle]').click();
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false);
+  await page.locator('[data-expanded-progress]').press('Home');
+  await expect
+    .poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime))
+    .toBeLessThan(2);
+  await expect(page.locator('[data-lyric-distance="3"]').first()).toHaveCSS('filter', 'blur(2px)');
+  const longLine = page.locator('[data-player-lyrics] p').nth(1);
+  expect(
+    await longLine.evaluate(
+      (node) => node.getBoundingClientRect().height > parseFloat(getComputedStyle(node).lineHeight),
+    ),
+  ).toBe(true);
+  await longLine.locator('button').click();
+  await expect(page.locator('[data-player-lyrics] .is-current')).toContainText('当这句很长的歌词');
+  await expect(longLine.locator('button')).toHaveCSS('color', 'rgb(247, 244, 239)');
+  await expect
+    .poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime))
+    .toBeGreaterThanOrEqual(5);
+  const volume = await page.evaluate(() => window.__migrationAudios[0].volume);
+  await page.locator('.expanded-player-volume [role="slider"]').press('ArrowLeft');
+  await expect
+    .poll(() => page.evaluate(() => window.__migrationAudios[0].volume))
+    .toBeCloseTo(volume - 0.01);
+  await page.screenshot({ path: info.outputPath('ambient-album-red-desktop.png') });
+  const audioCount = await page.evaluate(() => window.__migrationAudios.length);
+  await page.locator('[data-expanded-like]').click();
+  await expect(page.locator('[data-expanded-like]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-player-like]')).toHaveAttribute('aria-pressed', 'true');
+  expect(likes).toEqual(['PUT']);
+  await expect(page.locator('[data-expanded-more]')).toBeDisabled();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect(background.locator('[data-front="true"] .ambient-album-blob').first()).toHaveCSS(
+    'animation-play-state',
+    'running',
+  );
+  await page.locator('[data-player-close]').click();
+  await play(102);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect.poll(palette).toBe('rgb(36 106 194)');
+  await expect(background.locator('[data-ambient-layer]')).toHaveCount(2);
+  const previous = background.locator('[data-front="false"]');
+  await expect
+    .poll(() =>
+      previous.evaluate((node) => {
+        const opacity = Number(getComputedStyle(node).opacity);
+        return opacity > 0 && opacity < 1;
+      }),
+    )
+    .toBe(true);
+  await expect(previous).toHaveCSS('opacity', '0');
+  await page.screenshot({ path: info.outputPath('ambient-album-blue-desktop.png') });
+  await page.locator('[data-expanded-previous]').click();
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 101');
+  await page.locator('[data-expanded-next]').click();
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 102');
+  const layoutBefore = await page.locator('.player-expanded-track').boundingBox();
+  const outerScroll = () =>
+    page
+      .locator('.album-archive')
+      .evaluate((node) => ({ top: node.scrollTop, left: node.scrollLeft }));
+  const scrollBefore = await outerScroll();
+  await page.locator('[data-expanded-queue-toggle]').click();
+  const drawer = page.locator('[data-player-queue-panel]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toHaveCSS('opacity', '1');
+  await expect(drawer).toBeInViewport();
+  await expect(drawer).toHaveClass(/is-immersive/);
+  await expect(drawer.locator('[data-queue-key].is-active')).toHaveAttribute(
+    'data-queue-key',
+    'netease:102',
+  );
+  expect(await page.locator('.player-expanded-track').boundingBox()).toEqual(layoutBefore);
+  expect(await outerScroll()).toEqual(scrollBefore);
+  await expect(drawer.locator('[data-queue-close]')).toBeFocused();
+  await page.screenshot({ path: info.outputPath('immersive-queue-desktop.png') });
+  await page.locator('[data-queue-drag="netease:102"]').press('ArrowUp');
+  await expect.poll(() => order(page)).toEqual(['netease:102', 'netease:101']);
+  await page.locator('[data-queue-remove="netease:101"]').click();
+  await expect(drawer.locator('[data-queue-key]')).toHaveCount(1);
+  // 删除按钮的自动化点击可能先滚动页面；关闭只与关闭前的真实位置比较。
+  const layoutBeforeClose = await page.locator('.player-expanded-track').boundingBox();
+  const scrollBeforeClose = await outerScroll();
+  await page.locator('[data-queue-close]').press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('[data-expanded-queue-toggle]')).toBeFocused();
+  expect(await outerScroll()).toEqual(scrollBeforeClose);
+  expect(await page.locator('.player-expanded-track').boundingBox()).toEqual(layoutBeforeClose);
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/);
+  await page.locator('[data-player-close]').click();
+  await play(101);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect.poll(palette).toBe('rgb(214 43 73)');
+  expect(extractions.filter((id) => id === 101).length).toBe(1);
+  await page.locator('[data-player-close]').click();
+  await play(103);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect.poll(palette).toBe('rgb(109 74 88)');
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 103');
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(background.locator('.ambient-album-blob').first()).toHaveCSS(
+    'animation-name',
+    'none',
+  );
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('[data-expanded-like]')).toBeInViewport();
+  await expect(page.locator('[data-expanded-progress]')).toBeInViewport();
+  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport();
+  expect((await page.locator('[data-player-lyrics]').boundingBox()).height).toBeGreaterThan(100);
+  await page.screenshot({ path: info.outputPath('ambient-album-mobile-dark.png') });
+  await page.locator('[data-expanded-queue-toggle]').click();
+  await expect(page.locator('[data-queue-close]')).toBeInViewport();
+  await page.locator('[data-queue-close]').click();
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport();
+  await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('immersive-player-320.png') });
+  await page.locator('[data-player-close]').click();
+  await expect(page.locator('[data-global-player]')).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.locator('[data-player-open-compact]')).toBeFocused();
+  await page.locator('[data-player-open-compact]').press('Enter');
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount);
+  expect(errors).toEqual([]);
+});
+
+test('窄屏收起播放器后返回可见入口并可用键盘重开', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await mockWorkspace(page);
+  await page.mouse.move(120, 638);
+  await page.locator('[data-player-open-compact]').click();
+  await expect(page.locator('[data-player-close]')).toBeFocused();
+  await page.locator('[data-player-close]').click();
+  await expect(page.locator('[data-player-open-compact]')).toBeFocused();
+  await page.locator('[data-player-open-compact]').press('Enter');
+  await expect(page.locator('[data-player-close]')).toBeFocused();
+});
+
+test('长歌词自动定位和首尾滚轮只滚动歌词容器，播放器与外层页面保持原位', async ({ page }, info) => {
+  await mockWorkspace(page, 'user', []);
+  const lines = Array.from(
+    { length: 56 },
+    (_, i) =>
+      `[00:${String(i).padStart(2, '0')}.00]第 ${i} 句歌词，用长文本检查换行、跟随和滚动边界，播放器应始终保持原位`,
+  ).join('\n');
+  await page.route('**/api/netease/search?**', (route) =>
+    route.fulfill({
+      json: {
+        code: 200,
+        result: {
+          songs: [
+            {
+              id: 611,
+              name: '滚动隔离测试',
+              ar: [{ name: '隔离歌手' }],
+              al: { name: '隔离专辑' },
+              dt: 60000,
+            },
+          ],
+        },
+      },
+    }),
+  );
+  await page.route('**/api/netease/song/url/v1?**', (route) =>
+    route.fulfill({ json: { code: 200, data: [{ url: 'https://e2e.music.126.net/scroll.wav' }] } }),
+  );
+  const media = require('./fixtures').wave();
+  await page.route('https://e2e.music.126.net/scroll.wav', async (route) => {
+    // 模拟媒体也支持范围读取，保证跳转到后半段时使用真实 seek，而非被浏览器重置到零。
+    const range = route
+      .request()
+      .headers()
+      .range?.match(/^bytes=(\d+)-(\d*)$/);
+    const start = range ? Number(range[1]) : 0;
+    const end = range?.[2] ? Math.min(Number(range[2]), media.length - 1) : media.length - 1;
+    await route.fulfill({
+      status: range ? 206 : 200,
+      contentType: 'audio/wav',
+      headers: {
+        'Accept-Ranges': 'bytes',
+        ...(range ? { 'Content-Range': `bytes ${start}-${end}/${media.length}` } : {}),
+      },
+      body: media.subarray(start, end + 1),
+    });
+  });
+  await page.route('**/api/netease/lyric?**', (route) =>
+    route.fulfill({ json: { code: 200, lrc: { lyric: lines } } }),
+  );
+  await page.locator('[data-nav="search"]').click();
+  await page.getByRole('searchbox', { name: '搜索音乐' }).fill('滚动隔离');
+  await page.getByRole('searchbox', { name: '搜索音乐' }).press('Enter');
+  await page.getByRole('button', { name: '播放 滚动隔离测试', exact: true }).click();
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1');
+  await expect(page.locator('[data-player-lyrics] p')).toHaveCount(56);
+  await page.locator('[data-expanded-toggle]').click();
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const ranges = window.__migrationAudios[0].seekable;
+        return ranges.length ? ranges.end(ranges.length - 1) : 0;
+      }),
+    )
+    .toBeGreaterThan(55);
+  const outer = () =>
+    page.evaluate(() => {
+      const lyric = document.querySelector('[data-player-lyrics]');
+      const ancestors = [];
+      for (let node = lyric.parentElement; node; node = node.parentElement) {
+        ancestors.push({
+          name: node.className || node.tagName,
+          top: node.scrollTop,
+          left: node.scrollLeft,
+        });
+      }
+      return {
+        ancestors,
+        x: scrollX,
+        y: scrollY,
+        playerTop: document.querySelector('[data-player-expanded]').getBoundingClientRect().top,
+        coverTop: document.querySelector('[data-expanded-cover]').getBoundingClientRect().top,
+      };
+    });
+  const seek = async (second) => {
+    await page.evaluate((time) => {
+      const audio = window.__migrationAudios[0];
+      audio.currentTime = time + 0.05;
+    }, second);
+    await expect
+      .poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime))
+      .toBeCloseTo(second + 0.05, 1);
+    await expect(page.locator('[data-player-lyrics] .is-current')).toContainText(`第 ${second} 句`);
+  };
+  const lyrics = page.locator('[data-player-lyrics]');
+  for (const [width, height, reducedMotion] of [
+    [1440, 1000, 'no-preference'],
+    [390, 844, 'reduce'],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.emulateMedia({ reducedMotion });
+    const baseline = await outer();
+    expect(baseline.playerTop).toBe(0);
+    await seek(45);
+    await expect.poll(() => lyrics.evaluate((node) => node.scrollTop)).toBeGreaterThan(1000);
+    // 等真实平滑定位完成，再验证手动滚动，避免两次滚动在同一帧竞争。
+    await expect
+      .poll(() =>
+        lyrics.evaluate((node) => {
+          const line = node.querySelector('.is-current').getBoundingClientRect();
+          return Math.abs(
+            line.top +
+              line.height / 2 -
+              node.getBoundingClientRect().top -
+              node.clientTop -
+              node.clientHeight / 2,
+          );
+        }),
+      )
+      .toBeLessThan(2);
+    expect(await outer()).toEqual(baseline);
+    const box = await lyrics.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 100000);
+    await expect
+      .poll(() =>
+        lyrics.evaluate((node) => Math.abs(node.scrollHeight - node.clientHeight - node.scrollTop)),
+      )
+      .toBeLessThan(2);
+    await page.mouse.wheel(0, 1000);
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    expect(await outer()).toEqual(baseline);
+    // 连续滚轮输入覆盖滚动惯性和方向反转，并逐次检查外层未被带动。
+    for (let gesture = 0; gesture < 8; gesture++) {
+      await page.mouse.wheel(0, -5000);
+      await page.evaluate(
+        () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+      );
+      expect(await outer()).toEqual(baseline);
+    }
+    await expect.poll(() => lyrics.evaluate((node) => node.scrollTop)).toBe(0);
+    await page.mouse.wheel(0, -1000);
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    expect(await outer()).toEqual(baseline);
+    await seek(8);
+    await expect.poll(() => lyrics.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    await expect
+      .poll(() =>
+        lyrics.evaluate((node) => {
+          const line = node.querySelector('.is-current').getBoundingClientRect();
+          return Math.abs(
+            line.top +
+              line.height / 2 -
+              node.getBoundingClientRect().top -
+              node.clientTop -
+              node.clientHeight / 2,
+          );
+        }),
+      )
+      .toBeLessThan(2);
+    expect(await outer()).toEqual(baseline);
+    await page.screenshot({ path: info.outputPath(`lyrics-scroll-isolated-${width}.png`) });
+  }
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+});
+
+test.describe('完整播放器 Wake Slider', () => {
+  test.use({ hasTouch: true });
+  test('仅替换展开页音量，键盘鼠标触屏同步原音频，保留迷你播放器', async ({ page }, info) => {
+    await mockWorkspace(page);
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const initial = await page.evaluate(() => ({
+      count: window.__migrationAudios.length,
+      src: window.__migrationAudios[0].src,
+      paused: window.__migrationAudios[0].paused,
+    }));
+    await page.mouse.move(700, 998);
+    await page.locator('[data-player-open]').click();
+    const wake = page.locator('.expanded-player-volume .wake-slider');
+    const handle = wake.getByRole('slider', { name: '音量' });
+    const audioVolume = () => page.evaluate(() => window.__migrationAudios[0].volume);
+    await expect(wake).toBeVisible();
+    await expect(wake.locator('.wake-slider__bar')).toHaveCount(28);
+    await expect(page.locator('[data-global-player] .wake-slider')).toHaveCount(0);
+    await expect(page.locator('[data-player-volume-input]')).toHaveClass(
+      /player-volume-slider-thumb/,
+    );
+    await handle.press('Home');
+    await expect.poll(audioVolume).toBe(0);
+    await expect(wake.locator('[data-on="true"]')).toHaveCount(0);
+    await handle.press('End');
+    await expect.poll(audioVolume).toBe(1);
+    await expect(wake.locator('[data-on="true"]')).toHaveCount(28);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const track = wake.locator('.wake-slider__track');
+    const box = await track.boundingBox();
+    await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2, { steps: 6 });
+    const maxScale = () =>
+      wake
+        .locator('.wake-slider__bar')
+        .evaluateAll((bars) =>
+          Math.max(
+            ...bars.map((bar) => Number(bar.style.transform.match(/scaleY\(([^)]+)\)/)?.[1] ?? 0)),
+          ),
+        );
+    await expect.poll(maxScale, { intervals: [16, 32, 50], timeout: 3000 }).toBeGreaterThan(0.22);
+    await page.mouse.up();
+    await expect.poll(audioVolume).toBeCloseTo(0.8, 1);
+    await page.screenshot({ path: info.outputPath('wake-slider-desktop.png') });
+    await expect.poll(maxScale).toBeLessThan(0.18);
+    await page.locator('[data-player-close]').click();
+    const mini = page.locator('[data-player-volume-input]');
+    const before = await audioVolume();
+    await mini.press('ArrowLeft');
+    await expect.poll(audioVolume).toBeCloseTo(before - 0.01);
+    await page.locator('[data-player-open]').click();
+    await expect(handle).toHaveAttribute(
+      'aria-valuenow',
+      String(Math.round((before - 0.01) * 100)),
+    );
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    const touchBox = await track.boundingBox();
+    const session = await page.context().newCDPSession(page);
+    const point = (fraction) => ({
+      x: touchBox.x + touchBox.width * fraction,
+      y: touchBox.y + touchBox.height / 2,
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [point(0.15)],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [point(0.75)],
+    });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await session.detach();
+    await expect.poll(audioVolume).toBeCloseTo(0.75, 1);
+    await expect.poll(maxScale).toBeLessThan(0.18);
+    await expect(wake).toBeInViewport();
+    await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport();
+    await page.screenshot({ path: info.outputPath('wake-slider-mobile-dark.png') });
+    expect(
+      await page.evaluate(() => ({
+        count: window.__migrationAudios.length,
+        src: window.__migrationAudios[0].src,
+        paused: window.__migrationAudios[0].paused,
+      })),
+    ).toEqual(initial);
+    expect(errors).toEqual([]);
+  });
+});
+
+test('档案阵列入场不聚焦特定专辑，结束后点击才显示资料并保持原高度', async ({ page }, info) => {
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { created: 0, frames: [] };
+  });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page);
+  const root = page.locator('[data-album-archive]');
+  await expect(root).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 });
+  const cinema = await page.evaluate(() =>
+    window.__archiveEntryProbe.frames
+      .filter((frame) => frame.cinematic)
+      .map((frame) => frame.cinematic),
+  );
+  expect(cinema.length).toBeGreaterThanOrEqual(1);
+  expect(
+    await page.evaluate(() =>
+      window.__archiveEntryProbe.frames
+        .filter((frame) => frame.cinematic)
+        .every((frame) => frame.navigationInert && frame.informationHidden),
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        new Set(window.__archiveEntryProbe.frames.map((frame) => JSON.stringify(frame.camera)))
+          .size,
+    ),
+  ).toBeGreaterThan(1);
+  expect(cinema.every((frame) => frame.time < 25.05 && frame.lift === 0 && frame.zoom === 0)).toBe(
+    true,
+  );
+  const cameraFrames = await page.evaluate(() => window.__archiveEntryProbe.frames);
+  const first = cameraFrames.find((frame) => frame.cinematic);
+  const vector = first.camera.map((v, i) => v - first.aim[i]);
+  expect((Math.asin(vector[1] / Math.hypot(...vector)) * 180) / Math.PI).toBeGreaterThan(30);
+  const modelZ = cameraFrames.filter((frame) => frame.cinematic).map((frame) => frame.position[2]);
+  expect(Math.max(...modelZ) - Math.min(...modelZ)).toBeLessThan(0.001);
+  const settled = cameraFrames.find((frame) => frame.phase === 'settling');
+  const readyFrame = cameraFrames.filter((frame) => frame.phase === 'ready').at(-1);
+  expect(Math.hypot(...settled.camera.map((v, i) => v - readyFrame.camera[i]))).toBeLessThan(0.001);
+  expect(Math.abs(settled.fov - readyFrame.fov)).toBeLessThan(0.001);
+
+  await expect(page.locator('[data-album-detail]')).toBeHidden();
+  await expect(page.locator('[data-album-information]')).toBeHidden();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats());
+  // 用原波形和当前模拟状态计算未抬高的高度，排除波峰运动对测量的影响。
+  const {
+    archiveWave,
+    settlingWave,
+    columnStrength,
+    idleWave,
+  } = require('../../frontend/src/rhine/motion.ts');
+  const rise = async (subtractExtraction = false) => {
+    const state = await page.evaluate(() => {
+      const scene = window.__archiveEntryProbe.scene,
+        stats = scene.getStats();
+      return {
+        y: stats.modelPosition[1],
+        row: stats.selectedCell.row,
+        lane: stats.selectedCell.lane,
+        origin: stats.coordinateOrigin,
+        time: scene.clock,
+        scanTime: scene.scanTime,
+        scanBlend: scene.scanBlend,
+        shoulder: scene.shoulder.value,
+        focus: scene.laneFocus.value,
+        idle: scene.idleGain,
+        lift: scene.lift.value,
+      };
+    });
+    const { row, lane, origin } = state;
+    const original =
+      -4.6 +
+      archiveWave(row + origin.row, lane + origin.lane, state.scanTime) * state.scanBlend +
+      settlingWave(row - state.shoulder, 26.56) * columnStrength(lane, state.focus) +
+      idleWave(row + origin.row, lane + origin.lane, state.time) * state.idle;
+    return state.y - original - (subtractExtraction ? state.lift : 0);
+  };
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  const point = await page.evaluate(() => window.__archiveEntryProbe.scene.projectCard(0, 3.5));
+  await page.mouse.move(point[0], point[1]);
+  await expect.poll(() => rise()).toBeCloseTo(0.68, 2);
+  await expect(page.locator('[data-album-information]')).toBeHidden();
+  await page.mouse.move(1400, 50);
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  await page.mouse.click(point[0], point[1]);
+  await expect(page.locator('[data-album-information]')).toBeVisible();
+  // 原选中逻辑会清空悬停；点击后恢复原预览高度，不保留额外增量。
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  await page.mouse.move(1400, 50);
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  await expect(page.locator('[data-album-detail]')).toBeHidden();
+  await page.screenshot({ path: info.outputPath('archive-selected-information.png') });
+  await page.locator('[data-open-selected]').click();
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = true;
+  });
+  await expect(page.locator('[data-album-detail]')).toBeVisible();
+  const { INSPECTION_LIFT } = require('../../frontend/src/rhine/motion.ts');
+  await expect.poll(async () => (await stats()).extraction).toBeGreaterThan(3.9);
+  expect((await stats()).extraction).toBeLessThanOrEqual(INSPECTION_LIFT + 0.001);
+  // 原详情展示完成会停帧；精确核对实际抽出进度对应的原公式，没有新增偏移。
+  await expect.poll(() => rise(true)).toBeCloseTo(0, 2);
+  // 软件 GPU 只在观察动画时连续渲染，避免闲置重绘阻塞真实按钮输入。
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = false;
+  });
+  await page.locator('[data-back-to-archive]').click();
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = true;
+  });
+  await expect(page.locator('[data-album-detail]')).toBeHidden();
+  await expect.poll(() => rise(), { timeout: 45000 }).toBeCloseTo(0.4, 2);
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = false;
+  });
+  await page.locator('[data-nav="search"]').click();
+  await page.locator('[data-nav="library"]').click();
+  expect(
+    await page.evaluate(
+      () => window.__archiveEntryProbe.frames.filter((frame) => frame.cinematic).length,
+    ),
+  ).toBe(cinema.length);
+  expect(await page.evaluate(() => window.__archiveEntryProbe.created)).toBe(1);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+});
+
+test('ENTER SYSTEM 只跳过 SVG，阵列仍正常入场且没有独立跳过入口', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { created: 0, frames: [] };
+  });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page, 'user', [], true);
+  await expect(page.locator('[data-archive-entry] button')).toHaveCount(0);
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', {
+    timeout: 45000,
+  });
+  expect(
+    await page.evaluate(() => window.__archiveEntryProbe.frames.some((frame) => frame.cinematic)),
+  ).toBe(true);
+  expect(await page.evaluate(() => window.__archiveEntryProbe.warmup.after)).toBeGreaterThan(0);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready');
+  await expect(page.locator('[data-album-information]')).toBeHidden();
+});
+
+test('专辑播放全部替换旧队列，从第一首开播并顺序切歌，不创建第二个音频实例', async ({
+  page,
+}, info) => {
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { created: 0, frames: [] };
+  });
+  const { writes } = await mockWorkspace(page);
+  let releaseAlbum;
+  const albumGate = new Promise((resolve) => {
+    releaseAlbum = resolve;
+  });
+  await page.route('**/api/netease/album?**', async (route) => {
+    await albumGate;
+    await route.fulfill({
+      json: {
+        code: 200,
+        songs: [
+          { id: 910001, name: '整专第一首', dt: 60000 },
+          { id: 910002, name: '整专第二首', dt: 60000 },
+        ],
+      },
+    });
+  });
+  await page.route('**/api/netease/song/url/v1?**', (route) =>
+    route.fulfill({
+      json: { code: 200, data: [{ url: 'https://e2e.music.126.net/album-all.wav' }] },
+    }),
+  );
+  await page.route('https://e2e.music.126.net/album-all.wav', (route) =>
+    route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }),
+  );
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', {
+    timeout: 45000,
+  });
+  const point = await page.evaluate(() => window.__archiveEntryProbe.scene.projectCard(0, 3.5));
+  await page.mouse.click(point[0], point[1]);
+  await page.locator('[data-open-selected]').click();
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = true;
+  });
+  const button = page.locator('[data-album-play-all]');
+  await expect(button).toBeVisible();
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = false;
+  });
+  await expect(button).toBeDisabled();
+  releaseAlbum();
+  await expect(button).toBeEnabled();
+  const heading = page.locator('.detail-track-preview header');
+  const bounds = await button.boundingBox(),
+    headerBounds = await heading.boundingBox();
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(headerBounds.x + headerBounds.width);
+  await page.screenshot({ path: info.outputPath('album-play-all.png') });
+  await button.click();
+  await expect(page.locator('[data-player-track] strong')).toHaveText('整专第一首');
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false);
+  await expect
+    .poll(() => writes.at(-1))
+    .toEqual([
+      { source: 'netease', sourceId: '910001' },
+      { source: 'netease', sourceId: '910002' },
+    ]);
+  await showQueue(page);
+  await expect.poll(() => order(page)).toEqual(['netease:910001', 'netease:910002']);
+  await page.evaluate(() => window.__migrationAudios[0].dispatchEvent(new Event('ended')));
+  await expect(page.locator('[data-player-track] strong')).toHaveText('整专第二首');
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+});
+
+test('Gooey 搜索就地展开，玻璃描边跟随悬停颜色，窄屏不越界', async ({ page }, info) => {
+  const requests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/') && request.url().includes('search'))
+      requests.push(request.url());
+  });
+  await mockWorkspace(page);
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', {
+    timeout: 45000,
+  });
+  const trigger = page.locator('[data-nav="search"]');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.mouse.move(500, 200);
+  const library = page.locator('[data-nav="library"]');
+  await expect(trigger).toHaveCSS(
+    'color',
+    await library.evaluate((el) => getComputedStyle(el).color),
+  );
+  await library.hover();
+  const hoverColor = await library.evaluate((el) => getComputedStyle(el).color);
+  await trigger.hover();
+  await expect(trigger).toHaveCSS('color', hoverColor);
+  await expect(trigger.locator('.ui-icon')).toHaveCSS('animation-name', 'ui-icon-bob');
+  const before = await page.locator('[data-nav="library"]').boundingBox();
+  await expect(page.locator('.gooey-search-field')).toHaveCSS(
+    'border-top-color',
+    'rgba(0, 0, 0, 0)',
+  );
+  await expect(page.locator('.gooey-search-field')).toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)',
+  );
+  await expect(page.locator('.gooey-search-fluid')).toHaveCSS('opacity', '0');
+  await trigger.click();
+  const input = page.getByRole('searchbox', { name: '搜索音乐' });
+  await expect(input).toBeFocused();
+  await input.fill('晴天');
+  await input.press('Enter');
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive');
+  await expect(page.locator('[data-search-page]')).toHaveCount(0);
+  await expect
+    .poll(() => page.locator('.gooey-search').evaluate((el) => el.getBoundingClientRect().width))
+    .toBeCloseTo(250, 0);
+  const after = await page.locator('[data-nav="library"]').boundingBox();
+  expect(after.x).toBeLessThan(before.x - 100);
+  const inline = await input.boundingBox(),
+    nav = await page.locator('[data-archive-navigation]').boundingBox();
+  expect(inline.y).toBeGreaterThanOrEqual(nav.y);
+  expect(inline.y + inline.height).toBeLessThanOrEqual(nav.y + nav.height + 1);
+  await expect(page.locator('.gooey-search [data-ui-icon]')).toHaveCount(0);
+  const styles = await page.evaluate(() => ({
+    color: getComputedStyle(document.querySelector('[data-nav="search"]')).color,
+    border: getComputedStyle(document.querySelector('.gooey-search-field')).borderTopColor,
+    blur: getComputedStyle(document.querySelector('.gooey-search-field')).backdropFilter,
+  }));
+  expect(styles.border).toBe(hoverColor);
+  expect(styles.blur).toContain('blur');
+  await page.screenshot({ path: info.outputPath('gooey-search-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const bounds = await page.locator('[data-archive-navigation]').boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await input.press('Escape');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  expect(requests.length).toBeGreaterThan(0);
+  await expect(page.locator('[data-song-search-panel]')).toBeVisible();
+});
+
+test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真实队列，旧查询不覆盖新查询', async ({
+  page,
+}, info) => {
+  const { writes, tracks: originalQueue } = await mockWorkspace(page);
+  const songs = (id) => ({
+    id,
+    name: `合并歌曲${id}`,
+    ar: [{ name: '歌手' }],
+    al: { name: '专辑' },
+    dt: 60000,
+  });
+  const saves = [];
+  let releaseOld;
+  const oldGate = new Promise((resolve) => {
+    releaseOld = resolve;
+  });
+  await page.route('**/api/netease/search?**', async (route) => {
+    const url = new URL(route.request().url()),
+      type = url.searchParams.get('type'),
+      old = url.searchParams.get('keywords') === '旧';
+    if (old) await oldGate;
+    const result =
+      type === '100'
+        ? { artists: [{ id: 101, name: '歌手' }] }
+        : type === '10'
+          ? { albums: [{ id: 202, name: '专辑' }] }
+          : {
+              songs: [
+                songs(url.searchParams.get('offset') === '0' ? 910001 : 910005),
+                songs(910002),
+              ],
+              songCount: 31,
+            };
+    await route.fulfill({ json: { code: 200, result } }).catch(() => {});
+  });
+  await page.route('**/api/netease/artist/songs?**', (route) =>
+    route.fulfill({ json: { code: 200, songs: [songs(910001), songs(910003)], more: false } }),
+  );
+  await page.route('**/api/netease/album?**', (route) =>
+    route.fulfill({ json: { code: 200, songs: [songs(910004)] } }),
+  );
+  await page.route('**/api/netease/song/url/v1?**', (route) =>
+    route.fulfill({
+      json: { code: 200, data: [{ url: 'https://e2e.music.126.net/unified.wav' }] },
+    }),
+  );
+  await page.route('https://e2e.music.126.net/unified.wav', (route) =>
+    route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }),
+  );
+  await page.route('**/api/me/playlists**', async (route) => {
+    if (route.request().method() === 'POST') {
+      saves.push(route.request().postDataJSON());
+      await route.fulfill({ json: { success: true } });
+    } else
+      await route.fulfill({ json: { playlists: [{ id: 7, name: '测试歌单', trackCount: 0 }] } });
+  });
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', {
+    timeout: 45000,
+  });
+  await page.locator('[data-nav="search"]').click();
+  const input = page.getByRole('searchbox', { name: '搜索音乐' });
+  await expect(input).toBeFocused();
+  await input.fill('旧');
+  await input.press('Enter');
+  await input.fill('新');
+  await input.press('Enter');
+  const panel = page.locator('[data-song-search-panel]');
+  await expect(panel.locator('[data-queue-key]')).toHaveCount(4);
+  releaseOld();
+  await expect(panel.locator('[data-queue-key]')).toHaveCount(4);
+  await expect(
+    panel.locator('[data-queue-clear], [data-queue-remove], [data-queue-like]'),
+  ).toHaveCount(0);
+  const more = panel.getByRole('button', { name: '加载更多歌曲' });
+  await expect(more).toHaveText('more');
+  await expect(more).toHaveCSS('border-top-width', '0px');
+  await expect(more).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await more.click();
+  await expect(panel.locator('[data-queue-key]')).toHaveCount(5);
+  const originalRefs = originalQueue.map(({ source, sourceId }) => ({ source, sourceId }));
+  for (const snapshot of writes) expect(snapshot).toEqual(originalRefs);
+  await panel.locator('[data-queue-play="netease:910001"]').click();
+  await expect(page.locator('[data-player-track] strong')).toHaveText('合并歌曲910001');
+  await panel.locator('[data-queue-save="netease:910001"]').click();
+  const dialog = page.locator('[data-collection-dialog]');
+  await expect(dialog).toBeVisible();
+  await dialog.locator('select').selectOption('7');
+  await dialog.getByRole('button', { name: /保存到歌单/ }).click();
+  await expect.poll(() => saves.length).toBe(1);
+  expect(saves[0]).toEqual({ source: 'netease', sourceId: '910001' });
+  await expect
+    .poll(() => writes.at(-1))
+    .toEqual([...originalRefs, { source: 'netease', sourceId: '910001' }]);
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive');
+  await expect(page.locator('[data-search-page]')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+  await page.screenshot({ path: info.outputPath('unified-song-search.png') });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const close = panel.locator('[data-search-close]');
+  await close.hover();
+  await expect(close.locator('[data-ui-icon="close"]')).toHaveCSS(
+    'transform',
+    'matrix(0, 1, -1, 0, 0, 0)',
+  );
+  await close.click();
+  await expect(panel).toHaveCount(0);
+});
+
+test.describe('音频响应图形验收', () => {
+  test.use({ deviceScaleFactor: 0.25 });
+
+  test('音乐响应阵列复用音频节点，跨来源切换及拖动、详情、减少动态效果平滑衔接', async ({
+    page,
+  }, info) => {
+    test.setTimeout(300000);
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.addInitScript(() => {
+      window.__archiveEntryProbe = { animate: false, frames: [], created: 0 };
+      const Original = window.AudioContext;
+      window.__audioGraph = { contexts: 0, sources: 0, reads: 0, closed: 0 };
+      window.AudioContext = class extends Original {
+        constructor(...args) {
+          super(...args);
+          window.__audioGraph.contexts++;
+        }
+        createMediaElementSource(...args) {
+          window.__audioGraph.sources++;
+          return super.createMediaElementSource(...args);
+        }
+        createAnalyser() {
+          const meter = super.createAnalyser(),
+            read = meter.getFloatFrequencyData.bind(meter);
+          meter.getFloatFrequencyData = (data) => {
+            window.__audioGraph.reads++;
+            return read(data);
+          };
+          return meter;
+        }
+        close() {
+          window.__audioGraph.closed++;
+          return super.close();
+        }
+      };
+    });
+    await mockWorkspace(page, 'user', [], true);
+    const tone = Buffer.alloc(44 + 8000 * 300 * 2);
+    require('./fixtures').wave().copy(tone, 0, 0, 44);
+    tone.writeUInt32LE(tone.length - 8, 4);
+    tone.writeUInt32LE(tone.length - 44, 40);
+    for (let i = 44; i < tone.length; i += 2)
+      tone.writeInt16LE(Math.round(12000 * Math.sin((((i - 44) / 2) * Math.PI * 220) / 8000)), i);
+    const treble = Buffer.from(tone);
+    for (let i = 44; i < treble.length; i += 2)
+      treble.writeInt16LE(
+        Math.round(12000 * Math.sin((((i - 44) / 2) * Math.PI * 5000) / 8000)),
+        i,
+      );
+    await page.route('**/api/local/music/1/stream', (route) =>
+      route.fulfill({ contentType: 'audio/wav', body: tone }),
+    );
+    await page.route('https://e2e.music.126.net/reactive.wav', (route) =>
+      route.fulfill({
+        contentType: 'audio/wav',
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: treble,
+      }),
+    );
+    await page.route('**/api/netease/song/url/v1?**', (route) =>
+      route.fulfill({
+        json: { code: 200, data: [{ url: 'https://e2e.music.126.net/reactive.wav' }] },
+      }),
+    );
+    await page.route('**/api/netease/search?**', (route) =>
+      route.fulfill({
+        json: {
+          code: 200,
+          result: { songs: [{ id: 991, name: '音乐响应测试', ar: [], al: {}, dt: 60000 }] },
+        },
+      }),
+    );
+    await page.locator('[data-nav="user"]').click();
+    await page.locator('[data-user-tab="uploads"]').click();
+    await page.locator('[data-user-play="local:1"]').click();
+    await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false);
+    await page.locator('[data-nav="library"]').click();
+    await page.evaluate(() => {
+      window.__archiveEntryProbe.animate = true;
+    });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats());
+    await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(0.1);
+    await expect
+      .poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 })
+      .toBeGreaterThan(0.9);
+    const spectrumPeak = () =>
+      page.evaluate(() => {
+        const values = [...window.__archiveEntryProbe.scene.audioBands.spectrum];
+        return values.indexOf(Math.max(...values));
+      });
+    expect(await spectrumPeak()).toBeLessThan(12);
+    await page.evaluate(() => {
+      window.__archiveEntryProbe.scene.holdingArchive = true;
+    });
+    await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(0.25);
+    await page.evaluate(() => {
+      window.__archiveEntryProbe.scene.holdingArchive = false;
+    });
+    await expect
+      .poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 })
+      .toBeGreaterThan(0.9);
+    await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('detail'));
+    await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(0.01);
+    await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('archive'));
+    await expect
+      .poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 })
+      .toBeGreaterThan(0.9);
+    await page.screenshot({ path: info.outputPath('audio-reactive-archive.png') });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect.poll(async () => (await stats()).spectrumActivity).toBe(0);
+    const reads = await page.evaluate(() => window.__audioGraph.reads);
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(reads);
+    await page.locator('[data-nav="search"]').click();
+    await page.getByRole('searchbox', { name: '搜索音乐' }).fill('音乐响应测试');
+    await page.getByRole('searchbox', { name: '搜索音乐' }).press('Enter');
+    await page.getByRole('button', { name: '播放 音乐响应测试', exact: true }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.__migrationAudios[0].src))
+      .toContain('reactive.wav');
+    await page.locator('[data-search-close]').click();
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(0.1);
+    await expect.poll(spectrumPeak).toBeGreaterThan(20);
+    expect(
+      await page.evaluate(() => ({
+        contexts: window.__audioGraph.contexts,
+        sources: window.__audioGraph.sources,
+        audio: window.__migrationAudios.length,
+        cors: window.__migrationAudios[0].crossOrigin,
+      })),
+    ).toEqual({ contexts: 1, sources: 1, audio: 1, cors: 'anonymous' });
+    await page.locator('[data-nav="user"]').click();
+    const hiddenReads = await page.evaluate(() => window.__audioGraph.reads);
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(hiddenReads);
+    expect(await page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
+  test('播放动效开关默认开启，关闭停采样但继续播放，键盘恢复并保存浏览器偏好', async ({ page }) => {
+    await page.addInitScript(() => {
+      const Original = window.AudioContext;
+      window.__preferenceReads = 0;
+      window.AudioContext = class extends Original {
+        createAnalyser() {
+          const meter = super.createAnalyser(),
+            read = meter.getFloatFrequencyData.bind(meter);
+          meter.getFloatFrequencyData = (data) => {
+            window.__preferenceReads++;
+            return read(data);
+          };
+          return meter;
+        }
+      };
+    });
+    await mockWorkspace(page, 'user', [], true);
+    const tone = require('./fixtures').wave();
+    for (let i = 44; i < tone.length; i += 2)
+      tone.writeInt16LE(Math.round(12000 * Math.sin((((i - 44) / 2) * Math.PI * 220) / 8000)), i);
+    await page.route('**/api/local/music/1/stream', (route) =>
+      route.fulfill({ contentType: 'audio/wav', body: tone }),
+    );
+    await page.locator('[data-nav="user"]').click();
+    await page.locator('[data-user-tab="uploads"]').click();
+    await page.locator('[data-user-play="local:1"]').click();
+    await page.locator('[data-nav="library"]').click();
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect.poll(() => page.evaluate(() => window.__preferenceReads)).toBeGreaterThan(0);
+    await page.locator('[data-nav="settings"]').click();
+    const toggle = page.getByRole('switch', { name: '播放动效', exact: true });
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await expect(toggle).toHaveClass('squish-switch');
+    // 验证真实 CSS 变量解析、两套主题和开关状态，避免只更新样式哈希却改变配色。
+    const switchColors = () =>
+      toggle.evaluate((button) => ({
+        track: getComputedStyle(button.querySelector('.squish-switch__track')).backgroundColor,
+        thumb: getComputedStyle(button.querySelector('.squish-switch__thumb')).backgroundColor,
+        width: getComputedStyle(button.querySelector('.squish-switch__track')).width,
+        height: getComputedStyle(button.querySelector('.squish-switch__track')).height,
+      }));
+    for (const [theme, active, inactive, thumb] of [
+      ['light', 'rgb(183, 121, 34)', 'rgba(32, 33, 30, 0.2)', 'rgb(239, 237, 231)'],
+      ['dark', 'rgb(217, 170, 107)', 'rgba(182, 193, 198, 0.24)', 'rgb(20, 27, 31)'],
+    ]) {
+      await page.locator(`button[data-theme-preference="${theme}"]`).click();
+      await expect
+        .poll(switchColors)
+        .toEqual({ track: active, thumb, width: '64px', height: '32px' });
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-checked', 'false');
+      await expect
+        .poll(switchColors)
+        .toEqual({ track: inactive, thumb, width: '64px', height: '32px' });
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    }
+    await page.locator('button[data-theme-preference="light"]').click();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await page.locator('[data-settings-close]').click();
+    await expect(page.locator('[data-settings-dialog]')).not.toBeVisible();
+    const before = await page.evaluate(() => ({
+      reads: window.__preferenceReads,
+      time: window.__migrationAudios[0].currentTime,
+    }));
+    await expect
+      .poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime))
+      .toBeGreaterThan(before.time + 0.2);
+    expect(await page.evaluate(() => window.__preferenceReads)).toBe(before.reads);
+    await page.locator('[data-nav="settings"]').click();
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await page.locator('[data-settings-close]').click();
+    await expect
+      .poll(() => page.evaluate(() => window.__preferenceReads))
+      .toBeGreaterThan(before.reads);
+    await page.locator('[data-nav="settings"]').click();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await page.reload();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(page).toHaveURL(/\/library$/);
+    await expect(page.locator('[data-album-archive]')).toBeVisible();
+    await page.locator('[data-nav="settings"]').click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+});

@@ -4,10 +4,10 @@ module.exports = {
   hooks: {
     readPackage(pkg) {
       if (pkg.name === '@neteasecloudmusicapienhanced/api' && pkg.devDependencies) {
-        delete pkg.devDependencies.pkg
-        delete pkg.devDependencies.nodemon
+        delete pkg.devDependencies.pkg;
+        delete pkg.devDependencies.nodemon;
       }
-      return pkg
+      return pkg;
     },
   },
-}
+};

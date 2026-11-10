@@ -1,61 +1,65 @@
-const dotenv = require('dotenv')
-const http = require('node:http')
-const { createApp } = require('./app')
-const { createRedisInfrastructure } = require('./config/redis')
-const {
-  createNeteaseService,
-  initializeNeteaseRuntime,
-} = require('./services/netease.service')
-const { createNeteaseAuthConfig } = require('./config/netease')
-const { parsePositiveInteger } = require('./config/security')
+const dotenv = require('dotenv');
+const http = require('node:http');
+const { createApp } = require('./app');
+const { createRedisInfrastructure } = require('./config/redis');
+const { createNeteaseService, initializeNeteaseRuntime } = require('./services/netease.service');
+const { createNeteaseAuthConfig } = require('./config/netease');
+const { parsePositiveInteger } = require('./config/security');
 
-dotenv.config({ quiet: true })
+dotenv.config({ quiet: true });
 
 async function start() {
-  const neteaseAuth = createNeteaseAuthConfig()
-  const databasePath =
-    process.env.DATABASE_PATH || './data/open-music-club.sqlite'
-  const port = parsePositiveInteger(process.env.PORT, 'PORT', 3000)
-  if (port > 65_535) throw new Error('PORT 不能大于 65535')
-  const production = process.env.NODE_ENV === 'production'
-  const host = process.env.HOST || (production ? '127.0.0.1' : '0.0.0.0')
+  const neteaseAuth = createNeteaseAuthConfig();
+  const databasePath = process.env.DATABASE_PATH || './data/open-music-club.sqlite';
+  const port = parsePositiveInteger(process.env.PORT, 'PORT', 3000);
+  if (port > 65_535) throw new Error('PORT 不能大于 65535');
+  const production = process.env.NODE_ENV === 'production';
+  const host = process.env.HOST || (production ? '127.0.0.1' : '0.0.0.0');
   const requestTimeout = parsePositiveInteger(
     process.env.REQUEST_TIMEOUT_MS,
     'REQUEST_TIMEOUT_MS',
     30_000,
-  )
+  );
   const headersTimeout = parsePositiveInteger(
     process.env.HEADERS_TIMEOUT_MS,
     'HEADERS_TIMEOUT_MS',
     10_000,
-  )
+  );
   const keepAliveTimeout = parsePositiveInteger(
     process.env.KEEP_ALIVE_TIMEOUT_MS,
     'KEEP_ALIVE_TIMEOUT_MS',
     5_000,
-  )
+  );
   if (headersTimeout <= keepAliveTimeout) {
-    throw new Error('HEADERS_TIMEOUT_MS 必须大于 KEEP_ALIVE_TIMEOUT_MS')
+    throw new Error('HEADERS_TIMEOUT_MS 必须大于 KEEP_ALIVE_TIMEOUT_MS');
   }
 
   const infrastructure = await createRedisInfrastructure({
     redisUrl: process.env.REDIS_URL,
     production,
-  })
+  });
 
-  let initializationError
-  let runtimeCredentials
+  let initializationError;
+  let runtimeCredentials;
   try {
-    runtimeCredentials = await initializeNeteaseRuntime()
+    runtimeCredentials = await initializeNeteaseRuntime();
   } catch (error) {
-    initializationError = error
-    console.error('网易云运行时初始化失败，相关接口将返回 502')
+    initializationError = error;
+    console.error('网易云运行时初始化失败，相关接口将返回 502');
   }
 
-  const neteaseService = createNeteaseService({ initializationError, runtimeCredentials, auth: neteaseAuth })
-  try { if (neteaseAuth.mode !== 'qrcode') await neteaseService.initialize() } catch { console.error('网易云身份初始化未成功，相关接口将返回 502；请检查配置或上游验证要求') }
+  const neteaseService = createNeteaseService({
+    initializationError,
+    runtimeCredentials,
+    auth: neteaseAuth,
+  });
+  try {
+    if (neteaseAuth.mode !== 'qrcode') await neteaseService.initialize();
+  } catch {
+    console.error('网易云身份初始化未成功，相关接口将返回 502；请检查配置或上游验证要求');
+  }
 
-  let app
+  let app;
   try {
     app = createApp({
       databasePath,
@@ -69,42 +73,46 @@ async function start() {
         trustProxyHops: process.env.TRUST_PROXY_HOPS,
         sessionIdleTimeoutMinutes: process.env.SESSION_IDLE_TIMEOUT_MINUTES,
       },
-    })
+    });
   } catch (error) {
-    await neteaseService.close()
-    await infrastructure.close()
-    throw error
+    await neteaseService.close();
+    await infrastructure.close();
+    throw error;
   }
-  if (neteaseAuth.mode === 'qrcode') { try { await neteaseService.initialize() } catch { console.error('网易云扫码身份初始化未成功') } }
-  app.locals.redisClient = infrastructure.client
+  if (neteaseAuth.mode === 'qrcode') {
+    try {
+      await neteaseService.initialize();
+    } catch {
+      console.error('网易云扫码身份初始化未成功');
+    }
+  }
+  app.locals.redisClient = infrastructure.client;
 
-  const server = http.createServer(app)
-  app.locals.accessLifecycle.start()
-  server.requestTimeout = requestTimeout
-  server.headersTimeout = headersTimeout
-  server.keepAliveTimeout = keepAliveTimeout
+  const server = http.createServer(app);
+  app.locals.accessLifecycle.start();
+  server.requestTimeout = requestTimeout;
+  server.headersTimeout = headersTimeout;
+  server.keepAliveTimeout = keepAliveTimeout;
   server.listen(port, host, () => {
-    const visibleAddress = production
-      ? process.env.PUBLIC_ORIGIN
-      : `http://${host}:${port}`
-    console.log(`Open Music Club 已启动：${visibleAddress}`)
-  })
+    const visibleAddress = production ? process.env.PUBLIC_ORIGIN : `http://${host}:${port}`;
+    console.log(`Open Music Club 已启动：${visibleAddress}`);
+  });
   server.on('close', () => {
-    app.locals.neteaseQr.close()
-    neteaseService.close().catch(() => console.error('网易云请求资源关闭失败'))
-    app.locals.accessLifecycle.stop().catch(() => console.error('申请邮件任务停止失败'))
+    app.locals.neteaseQr.close();
+    neteaseService.close().catch(() => console.error('网易云请求资源关闭失败'));
+    app.locals.accessLifecycle.stop().catch(() => console.error('申请邮件任务停止失败'));
     infrastructure.close().catch(() => {
-      console.error('Redis 连接关闭失败')
-    })
-  })
-  return server
+      console.error('Redis 连接关闭失败');
+    });
+  });
+  return server;
 }
 
 if (require.main === module) {
   start().catch((error) => {
-    console.error(`Open Music Club 启动失败：${error.message}`)
-    process.exitCode = 1
-  })
+    console.error(`Open Music Club 启动失败：${error.message}`);
+    process.exitCode = 1;
+  });
 }
 
-module.exports = { start }
+module.exports = { start };

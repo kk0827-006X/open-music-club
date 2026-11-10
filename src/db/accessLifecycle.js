@@ -28,7 +28,7 @@ function initializeAccessLifecycleSchema(db) {
       SELECT a.id, CASE WHEN a.status != 'pending' THEN 0 ELSE NULL END,
         CASE WHEN a.status = 'approved' AND EXISTS(SELECT 1 FROM users u WHERE u.email=a.email) THEN 0 ELSE NULL END
       FROM access_requests a;
-  `)
+  `);
 }
 
-module.exports = { initializeAccessLifecycleSchema }
+module.exports = { initializeAccessLifecycleSchema };

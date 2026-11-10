@@ -1,7 +1,22 @@
 'use client';
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { cancelFrame, frame, useMotionValue, useMotionValueEvent, useSpring, useVelocity } from 'motion/react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
+import {
+  cancelFrame,
+  frame,
+  useMotionValue,
+  useMotionValueEvent,
+  useSpring,
+  useVelocity,
+} from 'motion/react';
 
 import { useReducedMotion } from '../hooks.ts';
 
@@ -40,7 +55,8 @@ export interface WakeSliderProps {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const smoothstep = (s: number) => s * s * (3 - 2 * s);
-const toPct = (v: number, min: number, max: number) => (max > min ? ((v - min) / (max - min)) * 100 : 0);
+const toPct = (v: number, min: number, max: number) =>
+  max > min ? ((v - min) / (max - min)) * 100 : 0;
 const snap = (v: number, min: number, max: number, step: number) => {
   if (!(max > min)) return min;
   if (!(step > 0)) return clamp(v, min, max);
@@ -72,7 +88,7 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
   formatValue,
   disabled = false,
   ariaLabel = 'Value',
-  className = ''
+  className = '',
 }) => {
   const [inner, setInner] = useState(defaultValue);
   const value = clamp(valueProp ?? inner, min, max);
@@ -131,8 +147,11 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
   useMotionValueEvent(speed, 'change', schedule);
   useLayoutEffect(() => {
     // 减少动态效果或视图隐藏时立即同步并停止弹簧，不让条形动画在后台继续运行。
-    if (reduce) { target.jump(pct); head.jump(pct); speed.jump(0); }
-    else target.set(pct);
+    if (reduce) {
+      target.jump(pct);
+      head.jump(pct);
+      speed.jump(0);
+    } else target.set(pct);
     paintRef.current(true);
   });
   useEffect(() => () => cancelFrame(run), [run]);
@@ -140,8 +159,11 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
     if (!disabled || pointerId.current === null) return;
     const id = pointerId.current;
     pointerId.current = null;
-    try { trackRef.current?.releasePointerCapture(id); }
-    catch { /* 关闭视图时指针可能已被浏览器释放。 */ }
+    try {
+      trackRef.current?.releasePointerCapture(id);
+    } catch {
+      /* 关闭视图时指针可能已被浏览器释放。 */
+    }
   }, [disabled]);
 
   const commit = (next: number) => {
@@ -165,7 +187,9 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
     pointerId.current = e.pointerId;
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
-    } catch { /* 指针捕获在取消或隐藏期间可能已经失效。 */ }
+    } catch {
+      /* 指针捕获在取消或隐藏期间可能已经失效。 */
+    }
     rootRef.current?.removeAttribute('data-instant');
     handleRef.current?.focus({ preventScroll: true });
     commitFromX(e.clientX);
@@ -177,7 +201,9 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
     if (e.pointerId !== pointerId.current) return;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch { /* 指针捕获在取消或隐藏期间可能已经失效。 */ }
+    } catch {
+      /* 指针捕获在取消或隐藏期间可能已经失效。 */
+    }
     pointerId.current = null;
   };
   const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
@@ -190,7 +216,7 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
       PageUp: value + step * 10,
       PageDown: value - step * 10,
       Home: min,
-      End: max
+      End: max,
     };
     if (!(e.key in jumps)) return;
     e.preventDefault();
@@ -209,14 +235,14 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
     return Array.from({ length: bars }, (_, i) => (
       <span
         key={i}
-        ref={el => {
+        ref={(el) => {
           barEls.current[i] = el;
         }}
         className="wake-slider__bar"
       >
         {crestColor ? (
           <span
-            ref={el => {
+            ref={(el) => {
               crestEls.current[i] = el;
             }}
             className="wake-slider__crest"
@@ -238,7 +264,7 @@ const WakeSlider: React.FC<WakeSliderProps> = ({
           '--ws-crest': crestColor || fillColor,
           '--ws-height': `${height}px`,
           '--ws-gap': `${gap}px`,
-          '--ws-rest': rest
+          '--ws-rest': rest,
         } as CSSProperties
       }
     >

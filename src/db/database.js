@@ -1,24 +1,24 @@
-const fs = require('node:fs')
-const path = require('node:path')
-const Database = require('better-sqlite3')
-const { initializeNeteaseSessionSchema } = require('./neteaseSession')
-const { initializeFootprintSchema } = require('./footprint')
-const { initializeApplicationNotificationSchema } = require('./applicationNotifications')
-const { initializeAccessLifecycleSchema } = require('./accessLifecycle')
+const fs = require('node:fs');
+const path = require('node:path');
+const Database = require('better-sqlite3');
+const { initializeNeteaseSessionSchema } = require('./neteaseSession');
+const { initializeFootprintSchema } = require('./footprint');
+const { initializeApplicationNotificationSchema } = require('./applicationNotifications');
+const { initializeAccessLifecycleSchema } = require('./accessLifecycle');
 
 function createDatabase(databasePath) {
   if (!databasePath) {
-    throw new Error('DATABASE_PATH 不能为空')
+    throw new Error('DATABASE_PATH 不能为空');
   }
 
   if (databasePath !== ':memory:') {
-    fs.mkdirSync(path.dirname(path.resolve(databasePath)), { recursive: true })
+    fs.mkdirSync(path.dirname(path.resolve(databasePath)), { recursive: true });
   }
 
-  const database = new Database(databasePath)
-  database.pragma('foreign_keys = ON')
-  database.pragma('journal_mode = WAL')
-  return database
+  const database = new Database(databasePath);
+  database.pragma('foreign_keys = ON');
+  database.pragma('journal_mode = WAL');
+  return database;
 }
 
 function initializeSchema(database) {
@@ -180,7 +180,7 @@ function initializeSchema(database) {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (user_id, code_hash)
     );
-  `)
+  `);
   database.exec(`CREATE TABLE IF NOT EXISTS password_reset_tokens (
     digest TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     version INTEGER NOT NULL, expires_at INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0
@@ -188,14 +188,14 @@ function initializeSchema(database) {
   CREATE INDEX IF NOT EXISTS password_reset_user ON password_reset_tokens(user_id);
   CREATE TABLE IF NOT EXISTS password_reset_requests (
     email_digest TEXT PRIMARY KEY, last_at INTEGER NOT NULL, day INTEGER NOT NULL, count INTEGER NOT NULL
-  );`)
-  initializeNeteaseSessionSchema(database)
-  initializeFootprintSchema(database)
-  initializeApplicationNotificationSchema(database)
-  initializeAccessLifecycleSchema(database)
+  );`);
+  initializeNeteaseSessionSchema(database);
+  initializeFootprintSchema(database);
+  initializeApplicationNotificationSchema(database);
+  initializeAccessLifecycleSchema(database);
 }
 
 module.exports = {
   createDatabase,
   initializeSchema,
-}
+};

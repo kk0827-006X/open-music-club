@@ -15,8 +15,7 @@ type Knot = readonly [number, number];
 export function sampleCurve(knots: readonly Knot[], time: number) {
   if (time <= knots[0][0]) return knots[0][1];
   if (time >= knots[knots.length - 1][0]) return knots[knots.length - 1][1];
-  const secant = (i: number) =>
-    (knots[i + 1][1] - knots[i][1]) / (knots[i + 1][0] - knots[i][0]);
+  const secant = (i: number) => (knots[i + 1][1] - knots[i][1]) / (knots[i + 1][0] - knots[i][0]);
   const slope = (i: number) => {
     if (i === 0 || i === knots.length - 1) return 0;
     const a = secant(i - 1),
@@ -91,8 +90,7 @@ export function decryptionFrame(time: number) {
     intervals.push([0, grow * 0.5], [1 - grow * 0.5, 1]);
   else if (time >= 36.04 && time < 38.84)
     intervals.push([0.5 - remaining * 0.5, 0.5 + remaining * 0.5]);
-  const markers =
-    smooth((time - 34.2) / 0.12) * (1 - smooth((time - 37.76) / 0.56));
+  const markers = smooth((time - 34.2) / 0.12) * (1 - smooth((time - 37.76) / 0.56));
   return {
     time,
     intervals,
@@ -103,16 +101,16 @@ export function decryptionFrame(time: number) {
     clarity: sampleCurve(REVEAL, time),
     phase:
       time < 34.24
-        ? "waiting"
+        ? 'waiting'
         : time < 36.04
-          ? "joining"
+          ? 'joining'
           : time < 37.72
-            ? "connected"
+            ? 'connected'
             : time < 38.84
-              ? "retracting"
+              ? 'retracting'
               : time < DECRYPTION_END
-                ? "revealing"
-                : "clear",
+                ? 'revealing'
+                : 'clear',
   };
 }
 export type DecryptionFrame = ReturnType<typeof decryptionFrame>;
@@ -126,9 +124,7 @@ export class DecryptionController {
   enter(alreadyClear = false) {
     if (this.active) return;
     this.active = true;
-    this.elapsed = alreadyClear
-      ? (DECRYPTION_END - DECRYPTION_START) / INTERACTIVE_RATE
-      : null;
+    this.elapsed = alreadyClear ? (DECRYPTION_END - DECRYPTION_START) / INTERACTIVE_RATE : null;
     if (alreadyClear) this.finish();
   }
   leave() {
@@ -152,9 +148,7 @@ export class DecryptionController {
       return;
     }
     if (!this.active) {
-      this.clarity = reduced
-        ? 0
-        : this.clarity * Math.exp(-Math.max(0, dt) * 9);
+      this.clarity = reduced ? 0 : this.clarity * Math.exp(-Math.max(0, dt) * 9);
       if (this.clarity < 0.0001) this.clarity = 0;
       this.frame = decryptionFrame(-1);
       return;
@@ -170,14 +164,12 @@ export class DecryptionController {
         (DECRYPTION_END - DECRYPTION_START) / INTERACTIVE_RATE,
       );
     if (this.elapsed !== null) {
-      this.frame = decryptionFrame(
-        DECRYPTION_START + this.elapsed * INTERACTIVE_RATE,
-      );
+      this.frame = decryptionFrame(DECRYPTION_START + this.elapsed * INTERACTIVE_RATE);
       // Re-entry during refrosting starts from the displayed material state.
       this.clarity =
         this.frame.clarity > this.clarity
           ? this.frame.clarity
-          : this.frame.phase === "clear"
+          : this.frame.phase === 'clear'
             ? 1
             : this.clarity * Math.exp(-Math.max(0, dt) * 9);
     }
