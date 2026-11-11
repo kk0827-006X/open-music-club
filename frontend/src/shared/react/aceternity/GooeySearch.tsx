@@ -1,5 +1,6 @@
 // 基于 Aceternity UI gooey-input-demo / gooey-input，适配项目 CSS 与独立导航入口。
 import { useEffect, useLayoutEffect, useId, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 // 官方组件自带的搜索图形，不使用站点图标组件。
 function SearchIcon({ layoutId }: { layoutId: string }) {
@@ -22,12 +23,19 @@ function SearchIcon({ layoutId }: { layoutId: string }) {
   );
 }
 
-export function GooeySearch({ onSearch }: { onSearch?: (query: string) => void }) {
+export function GooeySearch({
+  onSearch,
+  inputRef,
+}: {
+  onSearch?: (query: string) => void;
+  inputRef?: RefObject<HTMLInputElement | null>;
+}) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const root = useRef<HTMLSpanElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const localInput = useRef<HTMLInputElement>(null);
+  const input = inputRef ?? localInput;
   const id = useId().replace(/:/g, '');
   const reduced = useReducedMotion();
   const transition = reduced
@@ -48,7 +56,7 @@ export function GooeySearch({ onSearch }: { onSearch?: (query: string) => void }
     };
     focus();
     return () => cancelAnimationFrame(frame);
-  }, [open]);
+  }, [open, input]);
   useEffect(() => {
     if (!open) return;
     const outside = (event: PointerEvent) => {

@@ -2148,3 +2148,39 @@ test('用户页拆分后创建、重命名取消与保存、删除确认及头�
   expect(avatarUploads).toBe(1);
   expect(errors).toEqual([]);
 });
+
+test('工作区快捷键通过输入ref打开搜索，关闭结果恢复焦点，业务弹窗Escape不误切页', async ({
+  page,
+}) => {
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockWorkspace(page);
+  const archive = page.locator('[data-album-archive]');
+  await expect(archive).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 });
+  await page.keyboard.press('/');
+  const input = page.getByRole('searchbox', { name: '搜索音乐' });
+  await expect(input).toBeFocused();
+  await input.fill('迁移');
+  await input.press('Enter');
+  const panel = page.locator('[data-song-search-panel]');
+  await expect(panel).toBeVisible();
+  await panel.locator('[data-search-close]').click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('[data-nav="search"]')).toBeFocused();
+  await page.keyboard.press('/');
+  await expect(input).toBeFocused();
+  await input.press('Escape');
+  await expect(input).toHaveCount(0);
+  await expect(page.locator('[data-nav="search"]')).toBeFocused();
+  await expect(archive).toHaveAttribute('data-view', 'archive');
+  await page.locator('[data-nav="user"]').click();
+  await page.locator('[data-user-create]').click();
+  await expect(page.locator('#user-playlist-name')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-user-dialog]')).not.toBeVisible();
+  await expect(archive).toHaveAttribute('data-view', 'user');
+  await page.keyboard.press('Escape');
+  await expect(archive).toHaveAttribute('data-view', 'archive');
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+  expect(errors).toEqual([]);
+});

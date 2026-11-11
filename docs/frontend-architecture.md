@@ -36,7 +36,10 @@ frontend/src/
 ├─ main.ts
 ├─ app/
 │  ├─ App.tsx                 身份驱动阶段；退出、统一清理、足迹上报装配
-│  ├─ Workspace.tsx           页面切换、懒加载/visited、公开动作注入、全局快捷键
+│  ├─ Workspace.tsx           客户端、ref、状态与 playerCommands 装配
+│  ├─ WorkspaceView.tsx       原工作区 JSX、懒加载页面与共享导航
+│  ├─ types.ts                工作区属性、ref 与播放器命令契约
+│  ├─ hooks/                  工作区导航/visited、档案快捷键、场景生命周期
 │  └─ routes.ts               URL 路由和登录返回路径白名单
 ├─ shared/
 │  ├─ music.ts / state.ts     中立 Track/MusicActions 契约、统一回退封面、轻量实例状态
@@ -90,7 +93,7 @@ frontend/src/
 | React root | App、登录和认证会话 | HMR/unmount |
 | App | 身份代次、延迟授权计时、在途足迹上报 | 退出、阶段切换、卸载；迟到响应不能提升身份 |
 | SessionWorkspace | MusicQueue、唯一 PlayerController/Audio、足迹客户端 | 整个认证会话结束；不随普通切页销毁 |
-| Workspace | 当前页面、已访问页面、场景宿主、公开动作 | 工作区卸载；不销毁外部注入的 Audio |
+| Workspace 与其 hooks | 当前页面、已访问页面、场景宿主、公开动作 | 工作区卸载移除键盘监听并销毁场景宿主；不销毁外部注入的 Audio |
 | 各页面 | 表单、筛选、分页、请求序号、AbortController、Object URL | 组件卸载；隐藏与销毁不是同一件事 |
 | PlayerView 与其 hooks | 音频状态订阅、歌曲切换协调、歌词请求、队列持久化同步、浮层 | 各 hook 清理所属请求/监听/计时器；视图卸载不停止应用音频 |
 | UserPage 与其 hooks | 分类/歌单/分页、资料、写操作、弹窗、原队列播放动作 | 卸载作废数据与播放反馈；刷新隔离迟到响应，头像版本与重命名会话分别管理 |
@@ -101,6 +104,9 @@ frontend/src/
 
 - `features/user/UserPage.tsx` 保留 `refresh`、`hasOpenDialog` 与管理员审核装配入口；`use-personal-library-data` 负责 lists/tracks/section/pageIndex、过渡和最新请求，`use-playlist-mutations` 负责创建/重命名/删除与互斥状态，`use-profile` 负责昵称、头像校验和上传版本保护。读取与写入通过同一刷新入口协调，不复制数据状态或扩张跨 feature 白名单。
 - `UserSidebar`、`PlaylistDetail`、`PlaylistHeader`、`UserTrackRow`、`CreatePlaylistDialog`、`DeletePlaylistDialog` 呈现原有 DOM 与动作；不另建播放器或发起请求。个人页入口及各模块目标为 350 行以内，由行数测试约束；原有最近播放占位行为保留，不新增昵称编辑功能。
+
+- `Workspace` 入口不超过 100 行，统一创建稳定的播放器命令对象（play/enqueue/choosePlaylist/closeQueue/replaceAndPlay/syncLiked），调用时读取当前 PlayerView ref；`WorkspaceView` 沿用原页面 JSX、DOM 标记与懒加载保留策略。`use-workspace-navigation` 统一受控路由与本地导航、visited 和切页清除搜索；`use-archive-keyboard` 保留输入区、设置、入场、展开播放器、业务弹窗及档案详情的原按键优先级，并在卸载时移除监听。
+- `use-workspace-scene` 保留原 layout effect 的场景创建/销毁、减少动态效果、播放动效偏好和可见性同步，不改动场景算法。`GooeySearch` 的可选 inputRef 与内部聚焦共用真实输入元素，关闭/卸载由 React 清空；工作区快捷键与搜索面板关闭后的焦点归还通过 ref 定位输入，搜索入口按钮仍使用专用 data 标记回退。
 
 ### URL 路由
 

@@ -47,3 +47,8 @@ it('个人音乐页及拆出的 hook、展示组件均不超过 350 行', () => 
   for (const [name, lines] of files)
     assert.ok(lines <= 350, `${name} 为 ${lines} 行，超过 350 行目标`);
 });
+
+it('Workspace 入口不超过 100 行', () => {
+  const lines = frontendSizes()['app/Workspace.tsx'];
+  assert.ok(Number.isInteger(lines) && lines <= 100, `Workspace 为 ${lines} 行，超过 100 行目标`);
+});
