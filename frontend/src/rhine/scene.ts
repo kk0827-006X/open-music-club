@@ -70,6 +70,42 @@ const ease = (t: number) => {
   t = THREE.MathUtils.clamp(t, 0, 1);
   return t * t * t * (t * (t * 6 - 15) + 10);
 };
+type CinematicUpdate = { reveal: number; lift: number; zoom: number; time: number };
+type ArchivePlayfield = {
+  enabled: boolean;
+  bands: MusicBands;
+  strength: number;
+  flatten: number;
+  target: string | null;
+  breathing: boolean;
+};
+type MotionFrame = {
+  time: number;
+  dt: number;
+  cinematic: CinematicUpdate | undefined;
+  blend: number;
+  shot: number;
+  workspaceEntry: boolean;
+  referenceCinematic: boolean;
+  hoverLift: (cell: ArchiveCell) => number;
+  chosen: THREE.Vector3;
+  selectedRow: number;
+  selectedLane: number;
+  trackX: number;
+};
+type WaveFrame = MotionFrame & {
+  play: ArchivePlayfield;
+  activePlay: boolean;
+  rhythm: ReturnType<RhythmMotion['update']>;
+  indexDim: (lift: number) => number;
+};
+type SelectionFrame = WaveFrame & {
+  field: (row: number, lane: number) => number;
+  selectedBase: number;
+  detail: number;
+};
+type CameraFrame = { fog: THREE.Fog; responsiveOpening: boolean };
+
 export class ArchiveScene {
   private disposed = false;
   private inputEvents = new AbortController();
@@ -150,12 +186,12 @@ export class ArchiveScene {
   setTheme(dark: boolean, immediate = false) {
     this.theme.set(dark, performance.now() / 1000, this.selectedCell, immediate);
   }
-  private playfield = {
+  private playfield: ArchivePlayfield = {
     enabled: false,
     bands: quietBands(),
     strength: 1,
     flatten: 0,
-    target: null as string | null,
+    target: null,
     breathing: true,
   };
   private flatMix = 0;
@@ -1375,12 +1411,28 @@ export class ArchiveScene {
       signal: this.inputEvents.signal,
     });
   }
-  update(time: number, cinematic?: { reveal: number; lift: number; zoom: number; time: number }) {
+  update(time: number, cinematic?: CinematicUpdate) {
     const elapsed = Math.max(0, time - this.last || 0.016);
     const dt = Math.min(elapsed, 0.05);
     this.last = time;
     this.clock = time;
     if (!this.loaded) return;
+    // 顺序沿用原实现：波形闭包首次采样早于相机更新，实例裁剪晚于相机矩阵提交。
+    this.updateLighting(elapsed);
+    const motion = this.updateMotion(time, elapsed, dt, cinematic);
+    const wave = this.updateWaveAudio(motion);
+    this.updateRelay(wave);
+    const field = this.createWaveField(wave);
+    const frame = this.updateSelection(wave, field);
+    this.updateDecryption(frame);
+    const entryZ = this.updateCards(frame);
+    const camera = this.updateCamera(frame);
+    const matricesChanged = this.updateCardInstances(frame, entryZ, camera);
+    const bokehUniforms = this.updateInspection(frame);
+    this.renderFrame(frame, matricesChanged, camera.fog, bokehUniforms);
+  }
+
+  private updateLighting(elapsed: number) {
     const step = this.reduced ? 1 : Math.min(elapsed, 0.25) / 1.1;
     this.presence +=
       Math.sign(this.presenceTarget - this.presence) *
@@ -1390,6 +1442,14 @@ export class ArchiveScene {
     );
     this.theme.beginFrame();
     themeEnvironment(this.scene, this.renderer, this.themeAmount);
+  }
+
+  private updateMotion(
+    time: number,
+    elapsed: number,
+    dt: number,
+    cinematic?: CinematicUpdate,
+  ): MotionFrame {
     const blend = 1 - Math.exp(-dt * (this.reduced ? 35 : 2.8));
     this.reveal = cinematic
       ? cinematic.reveal
@@ -1472,6 +1532,24 @@ export class ArchiveScene {
     // Keep the illuminated set near the origin. Lateral navigation is a track
     // movement of the whole array, just like the existing front/back rail.
     const trackX = cinematic ? 0 : this.columnCamera.value;
+    return {
+      time,
+      dt,
+      cinematic,
+      blend,
+      shot,
+      workspaceEntry,
+      referenceCinematic,
+      hoverLift,
+      chosen,
+      selectedRow,
+      selectedLane,
+      trackX,
+    };
+  }
+
+  private updateWaveAudio(frame: MotionFrame): WaveFrame {
+    const { time, dt, cinematic } = frame;
     this.pulses = this.pulses.filter((p) => time - p.time < 3.2);
     const aligningCopy = this.outgoing.some((o) => o.returnY !== null);
     const idle =
@@ -1520,6 +1598,11 @@ export class ArchiveScene {
     this.subduedIndex.value = Math.max(Number(this.selectedIndexOnly), this.flatMix);
     const indexDim = (lift: number) =>
       this.selectedIndexOnly ? 1 - ease(lift / 0.4) * (1 - this.flatMix) : this.flatMix;
+    return { ...frame, play, activePlay, rhythm, indexDim };
+  }
+
+  private updateRelay(frame: WaveFrame) {
+    const { activePlay, play, dt } = frame;
     const gameTarget = activePlay ? play.target : null;
     if (gameTarget && !this.relayLifts.has(gameTarget)) this.relayLifts.set(gameTarget, 0);
     for (const [key, height] of this.relayLifts) {
@@ -1529,6 +1612,10 @@ export class ArchiveScene {
       if (next < 0.001 && key !== gameTarget) this.relayLifts.delete(key);
       else this.relayLifts.set(key, next);
     }
+  }
+
+  private createWaveField(frame: WaveFrame) {
+    const { time, cinematic, shot, trackX, activePlay, play, rhythm } = frame;
     const spectrumPoint = new THREE.Vector3();
     const screenX = (row: number, lane: number) => {
       spectrumPoint
@@ -1613,6 +1700,11 @@ export class ArchiveScene {
       fieldCache.set(key, result);
       return result;
     };
+    return field;
+  }
+
+  private updateSelection(wave: WaveFrame, field: SelectionFrame['field']): SelectionFrame {
+    const { chosen, selectedRow, selectedLane, cinematic, dt, blend } = wave;
     const selectedBase = chosen.y + field(selectedRow, selectedLane);
     if (!cinematic) {
       if (this.returnY !== null && this.rotation !== 0) {
@@ -1650,6 +1742,11 @@ export class ArchiveScene {
       ? cinematic.zoom
       : THREE.MathUtils.lerp(this.detail, cameraTarget, blend);
     const detail = this.detail;
+    return { ...wave, field, selectedBase, detail };
+  }
+
+  private updateDecryption(frame: SelectionFrame) {
+    const { dt, detail, cinematic, shot } = frame;
     this.decryption.update(
       dt,
       detail > 0.78 && this.lift.value > 3.3,
@@ -1658,6 +1755,25 @@ export class ArchiveScene {
     );
     this.appearance.apply(this.model, ease(this.lift.value / 0.4));
     this.appearance.setClarity(this.model, this.decryption.clarity);
+  }
+
+  private updateCards(frame: SelectionFrame) {
+    const {
+      time,
+      dt,
+      cinematic,
+      shot,
+      workspaceEntry,
+      trackX,
+      field,
+      hoverLift,
+      selectedBase,
+      selectedRow,
+      selectedLane,
+      detail,
+      indexDim,
+      chosen,
+    } = frame;
     // Reference 26.92–27.76: the array travels horizontally into a white field.
     const entry = cinematic ? ease((shot - 21.9) / 0.86) : this.reveal;
     const entranceTime = THREE.MathUtils.clamp((shot - 21.92) / 0.75, 0, 1);
@@ -1733,6 +1849,11 @@ export class ArchiveScene {
       cinematic ? 0 : this.rotation,
       0,
     );
+    return entryZ;
+  }
+
+  private updateCamera(frame: SelectionFrame): CameraFrame {
+    const { dt, cinematic, workspaceEntry, shot, referenceCinematic, detail } = frame;
     // Measured from frame 787: X edge (382,-204), adjacent row (78,38).
     // The label vertical edge constrains height; the file base is occluded.
     // Do not calibrate field of view from the visible fragment of a file.
@@ -1891,6 +2012,12 @@ export class ArchiveScene {
 
     this.camera.updateProjectionMatrix();
     this.camera.updateMatrixWorld();
+    return { fog, responsiveOpening };
+  }
+
+  private updateCardInstances(frame: SelectionFrame, entryZ: number, camera: CameraFrame) {
+    const { time, cinematic, trackX, field, hoverLift, detail, play } = frame;
+    const { fog, responsiveOpening } = camera;
     // Build and compact the instance set only after the actual damped camera
     // is final for this frame. Picking uses the same packed index-to-cell map.
     const fixed = (Boolean(cinematic) || !this.looping) && !responsiveOpening;
@@ -1949,6 +2076,11 @@ export class ArchiveScene {
     if (matricesChanged || countChanged || !this.instances[0].boundingSphere)
       this.instances[0].computeBoundingSphere();
     this.themeUpdates?.commit();
+    return matricesChanged;
+  }
+
+  private updateInspection(frame: SelectionFrame) {
+    const { selectedLane, selectedRow, field, cinematic, detail } = frame;
     let neighborTop = -Infinity;
     const lane = selectedLane,
       row = selectedRow;
@@ -1983,6 +2115,16 @@ export class ArchiveScene {
     bokehUniforms.focus.value = -focalPoint.z;
     bokehUniforms.aperture.value =
       (THREE.MathUtils.lerp(0.0003, 0.0008, detail) * this.quality.depthOfField) / 100;
+    return bokehUniforms;
+  }
+
+  private renderFrame(
+    frame: SelectionFrame,
+    matricesChanged: boolean,
+    fog: THREE.Fog,
+    bokehUniforms: Record<string, { value: number }>,
+  ) {
+    const { cinematic } = frame;
     this.renderer.info.reset();
     // Keep all simulation and picking current. Reuse the composited canvas only
     // when its actual inputs are identical, including late textures and materials.

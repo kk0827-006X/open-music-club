@@ -1474,8 +1474,15 @@ test('档案阵列入场不聚焦特定专辑，结束后点击才显示资料�
   expect((Math.asin(vector[1] / Math.hypot(...vector)) * 180) / Math.PI).toBeGreaterThan(30);
   const modelZ = cameraFrames.filter((frame) => frame.cinematic).map((frame) => frame.position[2]);
   expect(Math.max(...modelZ) - Math.min(...modelZ)).toBeLessThan(0.001);
-  const settled = cameraFrames.find((frame) => frame.phase === 'settling');
-  const readyFrame = cameraFrames.filter((frame) => frame.phase === 'ready').at(-1);
+  // settling 本身会插值相机；连续性交接应比较其末帧与 ready 首帧，不能跨整个过渡取样。
+  const settled = cameraFrames.filter((frame) => frame.phase === 'settling').at(-1);
+  const readyFrame = cameraFrames.find((frame) => frame.phase === 'ready');
+  expect(settled, '应采集到落定边界帧').toBeTruthy();
+  expect(readyFrame, '应采集到 ready 边界帧').toBeTruthy();
+  await info.attach('入场相机边界帧', {
+    body: JSON.stringify({ settled, readyFrame }),
+    contentType: 'application/json',
+  });
   expect(Math.hypot(...settled.camera.map((v, i) => v - readyFrame.camera[i]))).toBeLessThan(0.001);
   expect(Math.abs(settled.fov - readyFrame.fov)).toBeLessThan(0.001);
 
