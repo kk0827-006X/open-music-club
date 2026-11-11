@@ -14,15 +14,17 @@
 ## 目录与依赖方向
 
 ```text
-main.ts → App
-           ├─ EntryPage / LoginPage / AuthorizedSequence
-           └─ SessionWorkspace（认证会话的音频所有者）
-                └─ Workspace（页面、导航、场景、动作装配）
-                    ├─ LibraryView
-                    ├─ UserPage / UploadPage / FootprintPage（懒加载，访问后保留实例）
-                    ├─ GooeySearch → SongSearchPanel → QueuePanel（就地搜索）
-                    ├─ PlayerView → QueuePanel / QueueAddFlights
-                    └─ SettingsDialog → TwoFactorPanel
+main.ts → App（顶层路由、邮件凭证入口）
+           └─ SessionApp → use-auth-machine（身份阶段与原阶段视图）
+                ├─ EntryPage / LoginPage / AuthorizedSequence
+                ├─ AdminApplicationsPage（管理员独立入口）
+                └─ SessionWorkspace → use-playback-session（认证会话的音频所有者）
+                     └─ Workspace（页面、导航、场景、动作装配）
+                         ├─ LibraryView
+                         ├─ UserPage / UploadPage / FootprintPage（懒加载，访问后保留实例）
+                         ├─ GooeySearch → SongSearchPanel → QueuePanel（就地搜索）
+                         ├─ PlayerView → QueuePanel / QueueAddFlights
+                         └─ SettingsDialog → TwoFactorPanel
 
 features → services / shared
 app → features / graphics / services / shared
@@ -35,11 +37,13 @@ shared 不依赖 features / app / graphics
 frontend/src/
 ├─ main.ts
 ├─ app/
-│  ├─ App.tsx                 身份驱动阶段；退出、统一清理、足迹上报装配
+│  ├─ App.tsx                 顶层路由和邮件凭证入口
+│  ├─ SessionApp.tsx          原认证阶段视图和管理员独立入口
+│  ├─ SessionWorkspace.tsx    播放会话与 Workspace 装配
 │  ├─ Workspace.tsx           客户端、ref、状态与 playerCommands 装配
 │  ├─ WorkspaceView.tsx       原工作区 JSX、懒加载页面与共享导航
 │  ├─ types.ts                工作区属性、ref 与播放器命令契约
-│  ├─ hooks/                  工作区导航/visited、档案快捷键、场景生命周期
+│  ├─ hooks/                  认证状态机、播放会话、工作区导航/visited、档案快捷键和场景生命周期
 │  └─ routes.ts               URL 路由和登录返回路径白名单
 ├─ shared/
 │  ├─ music.ts / state.ts     中立 Track/MusicActions 契约、统一回退封面、轻量实例状态
@@ -91,8 +95,8 @@ frontend/src/
 | 所有者 | 创建/持有 | 清理边界 |
 | --- | --- | --- |
 | React root | App、登录和认证会话 | HMR/unmount |
-| App | 身份代次、延迟授权计时、在途足迹上报 | 退出、阶段切换、卸载；迟到响应不能提升身份 |
-| SessionWorkspace | MusicQueue、唯一 PlayerController/Audio、足迹客户端 | 整个认证会话结束；不随普通切页销毁 |
+| SessionApp / use-auth-machine | 身份阶段、角色、身份代次、路由位置和延迟授权计时 | 退出、路由位置变化、卸载；迟到认证响应和旧计时器不能提升身份 |
+| SessionWorkspace / use-playback-session | MusicQueue、唯一 PlayerController/Audio、足迹客户端、在途足迹上报 | 整个认证会话结束时中止上报并销毁音频；不随普通切页销毁 |
 | Workspace 与其 hooks | 当前页面、已访问页面、场景宿主、公开动作 | 工作区卸载移除键盘监听并销毁场景宿主；不销毁外部注入的 Audio |
 | 各页面 | 表单、筛选、分页、请求序号、AbortController、Object URL | 组件卸载；隐藏与销毁不是同一件事 |
 | PlayerView 与其 hooks | 音频状态订阅、歌曲切换协调、歌词请求、队列持久化同步、浮层 | 各 hook 清理所属请求/监听/计时器；视图卸载不停止应用音频 |
@@ -107,6 +111,9 @@ frontend/src/
 
 - `Workspace` 入口不超过 100 行，统一创建稳定的播放器命令对象（play/enqueue/choosePlaylist/closeQueue/replaceAndPlay/syncLiked），调用时读取当前 PlayerView ref；`WorkspaceView` 沿用原页面 JSX、DOM 标记与懒加载保留策略。`use-workspace-navigation` 统一受控路由与本地导航、visited 和切页清除搜索；`use-archive-keyboard` 保留输入区、设置、入场、展开播放器、业务弹窗及档案详情的原按键优先级，并在卸载时移除监听。
 - `use-workspace-scene` 保留原 layout effect 的场景创建/销毁、减少动态效果、播放动效偏好和可见性同步，不改动场景算法。`GooeySearch` 的可选 inputRef 与内部聚焦共用真实输入元素，关闭/卸载由 React 清空；工作区快捷键与搜索面板关闭后的焦点归还通过 ref 定位输入，搜索入口按钮仍使用专用 data 标记回退。
+
+- `App` 顶层入口不超过 80 行，保留 BrowserRouter、重置密码及激活/验证邮件路由和 fragment 凭证即时清除；原认证阶段视图由 `SessionApp` 呈现。`use-auth-machine` 保留 stage/role、身份代次、卸载标记、1150ms 计时器，以及恢复、密码认证、验证完成和退出的原时序，路由位置变化同样作废迟到结果；退出请求失败时保留当前阶段。
+- `SessionWorkspace` 只装配 `use-playback-session` 和工作区。播放 hook 在 effect 中创建唯一 Audio 会话、队列及足迹客户端，成功上报后推进足迹版本；卸载中止全部在途上报并销毁播放器，旧响应不能修改下一会话。来源、播放地址和 CSRF 协议保持原样。
 
 ### URL 路由
 

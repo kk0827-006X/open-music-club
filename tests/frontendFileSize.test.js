@@ -52,3 +52,8 @@ it('Workspace 入口不超过 100 行', () => {
   const lines = frontendSizes()['app/Workspace.tsx'];
   assert.ok(Number.isInteger(lines) && lines <= 100, `Workspace 为 ${lines} 行，超过 100 行目标`);
 });
+
+it('App 顶层入口不超过 80 行', () => {
+  const lines = frontendSizes()['app/App.tsx'];
+  assert.ok(Number.isInteger(lines) && lines <= 80, `App 为 ${lines} 行，超过 80 行目标`);
+});
