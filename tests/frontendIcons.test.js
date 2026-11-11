@@ -36,7 +36,11 @@ describe('全站共享图标与动画', () => {
   it('各页面和播放器复用图标组件，不在页面内重复定义图形或按钮图标文字', () => {
     for (const file of [
       'features/player/PlayerView.tsx',
-      'features/user/UserPage.tsx',
+      'features/user/PlaylistHeader.tsx',
+      'features/user/UserTrackRow.tsx',
+      'features/user/PlaylistDetail.tsx',
+      'features/user/CreatePlaylistDialog.tsx',
+      'features/user/DeletePlaylistDialog.tsx',
       'features/upload/UploadPage.tsx',
       'features/auth/LoginPage.tsx',
       'features/auth/EntryPage.tsx',
@@ -52,13 +56,15 @@ describe('全站共享图标与动画', () => {
     await withReactHarness(async (h) => {
       const [
         { PlayerView },
-        { PlaylistHeader, UserPage },
+        { UserPage },
+        { PlaylistHeader },
         { UploadPage },
         { MusicQueue },
         { createPlayerController },
       ] = await Promise.all([
         import('../frontend/src/features/player/PlayerView.tsx'),
         import('../frontend/src/features/user/UserPage.tsx'),
+        import('../frontend/src/features/user/PlaylistHeader.tsx'),
         import('../frontend/src/features/upload/UploadPage.tsx'),
         import('../frontend/src/features/queue/model.ts'),
         import('../frontend/src/features/player/player-core.ts'),

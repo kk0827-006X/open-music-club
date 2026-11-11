@@ -38,3 +38,12 @@ it('ratchet 阻止新增超限文件、提高上限和保留已达标例外', ()
   );
   assert.deepEqual(sizeViolations({ 'app/old.tsx': 400 }, {}, { 'app/old.tsx': 500 }), []);
 });
+
+it('个人音乐页及拆出的 hook、展示组件均不超过 350 行', () => {
+  const files = Object.entries(frontendSizes()).filter(([name]) =>
+    name.startsWith('features/user/'),
+  );
+  assert.ok(files.length > 0);
+  for (const [name, lines] of files)
+    assert.ok(lines <= 350, `${name} 为 ${lines} 行，超过 350 行目标`);
+});

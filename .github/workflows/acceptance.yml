@@ -15,7 +15,8 @@ concurrency:
 jobs:
   acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 完整 e2e 已耗时约 20.4 分钟，另需安装、构建、测试、覆盖率和产物上传。
+    timeout-minutes: 60
     env:
       RATCHET_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD^' }}
     steps:

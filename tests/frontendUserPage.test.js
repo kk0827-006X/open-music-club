@@ -69,7 +69,7 @@ describe('用户页面真实数据界面', () => {
 
   it('头像仅接受不超过 5 MB 的 JPG、PNG 和 WebP 图片', async () => {
     const { validateAvatarFile } = await import(
-      pathToFileURL(frontend('features/user/UserPage.tsx')).href
+      pathToFileURL(frontend('features/user/hooks/use-profile.ts')).href
     );
     for (const type of ['image/jpeg', 'image/png', 'image/webp']) {
       assert.equal(validateAvatarFile({ type, size: 5 * 1024 * 1024 }), null);
@@ -81,7 +81,7 @@ describe('用户页面真实数据界面', () => {
 
   it('歌单名称原位编辑，标题右侧只有播放和 × 删除', async () => {
     await withReactHarness(async (h) => {
-      const { PlaylistHeader } = await import('../frontend/src/features/user/UserPage.tsx');
+      const { PlaylistHeader } = await import('../frontend/src/features/user/PlaylistHeader.tsx');
       await h.render(
         h.React.createElement(PlaylistHeader, {
           list: { id: 1, name: '夜晚 <歌单>' },
@@ -114,7 +114,7 @@ describe('用户页面真实数据界面', () => {
 
   it('歌曲行仅保留统一播放图标、＋、爱心和 ×，不显示时长或加歌单', async () => {
     await withReactHarness(async (h) => {
-      const { UserTrackRow } = await import('../frontend/src/features/user/UserPage.tsx');
+      const { UserTrackRow } = await import('../frontend/src/features/user/UserTrackRow.tsx');
       const track = {
         source: 'local',
         sourceId: '3',
@@ -223,7 +223,7 @@ describe('用户页面真实数据界面', () => {
 
   it('播放歌单包含全部页的可用曲目，按顺序加入原队列并播放第一首', async () => {
     const { playPlaylistTracks } = await import(
-      pathToFileURL(frontend('features/user/UserPage.tsx')).href
+      pathToFileURL(frontend('features/user/hooks/use-personal-library-data.ts')).href
     );
     const tracks = Array.from({ length: 7 }, (_, index) => ({
       source: 'local',

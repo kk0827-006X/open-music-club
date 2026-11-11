@@ -5,6 +5,5 @@
   "features/music-library/LibraryView.tsx": 598,
   "features/queue/QueuePanel.tsx": 703,
   "features/settings/SettingsDialog.tsx": 452,
-  "features/upload/UploadPage.tsx": 528,
-  "features/user/UserPage.tsx": 1090
+  "features/upload/UploadPage.tsx": 528
 }

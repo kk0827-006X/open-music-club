@@ -56,7 +56,9 @@ frontend/src/
 │  ├─ music-library/          专辑选择、详情、曲目转换与共享视图
 │  ├─ player/                 唯一 Audio 控制器、底栏/展开播放器、默认曲目预览
 │  ├─ queue/                  队列模型、持久化、拖拽/键盘排序、加号飞行动画
-│  ├─ search/ user/ upload/   搜索、个人音乐库、上传与元数据解析
+│  ├─ search/ upload/         搜索、上传与元数据解析
+│  ├─ user/                   个人音乐库入口、侧栏、歌单详情及创建/删除弹窗
+│  │  └─ hooks/              数据刷新与分页、歌单写操作、头像与昵称状态
 │  ├─ settings/               设置与 2FA 面板
 │  └─ footprint/              音乐足迹时间轴、卡片、分享与评论
 ├─ services/
@@ -91,10 +93,14 @@ frontend/src/
 | Workspace | 当前页面、已访问页面、场景宿主、公开动作 | 工作区卸载；不销毁外部注入的 Audio |
 | 各页面 | 表单、筛选、分页、请求序号、AbortController、Object URL | 组件卸载；隐藏与销毁不是同一件事 |
 | PlayerView 与其 hooks | 音频状态订阅、歌曲切换协调、歌词请求、队列持久化同步、浮层 | 各 hook 清理所属请求/监听/计时器；视图卸载不停止应用音频 |
+| UserPage 与其 hooks | 分类/歌单/分页、资料、写操作、弹窗、原队列播放动作 | 卸载作废数据与播放反馈；刷新隔离迟到响应，头像版本与重命名会话分别管理 |
 | 场景宿主 | 唯一档案 RAF、resize/visibility、主题订阅 | 隐藏暂停；退出释放含迟到加载的场景 |
 
 - `features/player/PlayerView.tsx` 保留原对外 ref 接口与队列装配入口；按依赖调用 `usePlayerCollection`、`usePlayerVisibility`、`usePlayerQueue`、`usePlayerLikes`、`usePlayerLyrics`。队列及持久化工厂通过能力参数传入 hook，既有跨 feature 精确引用白名单不扩张。
 - `CompactPlayer` 与 `ExpandedPlayer` 只呈现状态和转交动作，不持有音频、网络请求或焦点生命周期。可见性 hook 负责展开/收起的焦点归还与重试取消；歌词 hook 负责请求序号、中止和容器内滚动；队列 hook 保留删除/清空、版本快照及串行持久化的原行为。
+
+- `features/user/UserPage.tsx` 保留 `refresh`、`hasOpenDialog` 与管理员审核装配入口；`use-personal-library-data` 负责 lists/tracks/section/pageIndex、过渡和最新请求，`use-playlist-mutations` 负责创建/重命名/删除与互斥状态，`use-profile` 负责昵称、头像校验和上传版本保护。读取与写入通过同一刷新入口协调，不复制数据状态或扩张跨 feature 白名单。
+- `UserSidebar`、`PlaylistDetail`、`PlaylistHeader`、`UserTrackRow`、`CreatePlaylistDialog`、`DeletePlaylistDialog` 呈现原有 DOM 与动作；不另建播放器或发起请求。个人页入口及各模块目标为 350 行以内，由行数测试约束；原有最近播放占位行为保留，不新增昵称编辑功能。
 
 ### URL 路由
 

@@ -67,10 +67,15 @@ it('离开足迹取消待切换动作，不在隐藏后切换分类；重新进�
 });
 
 it('用户页与足迹引用同一过渡实现及主题背景，不保留第二份切换计时器', () => {
-  for (const file of ['user/UserPage.tsx', 'footprint/FootprintPage.tsx']) {
+  for (const [file, transitionFile] of [
+    ['user/UserPage.tsx', 'user/hooks/use-personal-library-data.ts'],
+    ['footprint/FootprintPage.tsx', 'footprint/FootprintPage.tsx'],
+  ]) {
     const text = fs.readFileSync(`frontend/src/features/${file}`, 'utf8');
     assert.match(text, /usePageMotion\(active\)/);
-    assert.match(text, /useSectionTransition\(active\)/);
+    const transition = fs.readFileSync(`frontend/src/features/${transitionFile}`, 'utf8');
+    assert.match(transition, /useSectionTransition\(active\)/);
+    assert.doesNotMatch(transition, /tabTimerRef/);
     assert.doesNotMatch(text, /tabTimerRef/);
   }
   const css = fs.readFileSync('frontend/src/styles/member-sidebar.css', 'utf8');

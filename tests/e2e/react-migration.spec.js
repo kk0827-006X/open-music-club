@@ -2064,3 +2064,87 @@ test.describe('音频响应图形验收', () => {
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
   });
 });
+
+test('用户页拆分后创建、重命名取消与保存、删除确认及头像上传保持原行为', async ({ page }) => {
+  await mockWorkspace(page);
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  let lists = [];
+  let profile = { id: 1, nickname: '隔离成员', avatarUrl: null };
+  const writes = [];
+  await page.route('**/api/me/profile', (route) => route.fulfill({ json: { profile } }));
+  await page.route('**/api/me/playlists**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (request.method() === 'GET') {
+      return route.fulfill({
+        json:
+          url.pathname === '/api/me/playlists'
+            ? { playlists: lists }
+            : { playlist: lists[0], tracks: [] },
+      });
+    }
+    writes.push(request.method());
+    expect(request.headers()['x-csrf-token']).toBe('isolated-csrf');
+    if (request.method() === 'POST')
+      lists = [{ id: 1, name: request.postDataJSON().name, trackCount: 0 }];
+    if (request.method() === 'PATCH') lists[0].name = request.postDataJSON().name;
+    if (request.method() === 'DELETE') lists = [];
+    return route.fulfill({ json: { success: true, playlist: lists[0] } });
+  });
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jSocAAAAASUVORK5CYII=',
+    'base64',
+  );
+  let avatarUploads = 0;
+  await page.route('**/api/me/avatar**', (route) => {
+    if (route.request().method() === 'GET')
+      return route.fulfill({ contentType: 'image/png', body: png });
+    avatarUploads++;
+    profile = { ...profile, avatarUrl: '/api/me/avatar?v=saved-avatar' };
+    return route.fulfill({ json: { profile } });
+  });
+  await page.locator('[data-nav="user"]').click();
+  await page.locator('[data-user-create]').click();
+  await expect(page.locator('#user-playlist-name')).toBeFocused();
+  await page.locator('#user-playlist-name').fill('新声音档案');
+  await page.locator('[data-user-create-form] button[type="submit"]').click();
+  await expect(page.locator('[data-user-dialog]')).not.toBeVisible();
+  await page.locator('[data-user-list="1"]').click();
+  const rename = page.locator('[aria-label="歌单名称"]');
+  await page.locator('[data-user-rename="1"]').click();
+  await expect(rename).toBeFocused();
+  await rename.fill('取消的名字');
+  await rename.press('Escape');
+  await expect(page.locator('[data-user-rename="1"]')).toBeFocused();
+  expect(writes).toEqual(['POST']);
+  await page.locator('[data-user-rename="1"]').click();
+  await rename.fill('保存的名字');
+  await rename.press('Enter');
+  await expect(page.locator('[data-user-rename="1"]')).toHaveText('保存的名字');
+  await expect(page.locator('[data-user-feedback]')).toContainText('歌单名称已保存');
+  await page.locator('[data-user-delete="1"]').click();
+  await expect(page.locator('[data-user-delete-dialog]')).toContainText('不会删除音乐文件');
+  await page.locator('[data-user-delete-dialog] button[data-user-delete-cancel]').last().click();
+  await expect(page.locator('[data-user-delete="1"]')).toBeVisible();
+  await page.locator('[data-user-delete="1"]').click();
+  await page.locator('[data-user-delete-confirm]').click();
+  await expect(page.locator('[data-user-list]')).toHaveCount(0);
+  await expect(page.locator('[data-user-create]')).toBeVisible();
+  expect(writes).toEqual(['POST', 'PATCH', 'DELETE']);
+  await page
+    .locator('[data-user-avatar-file]')
+    .setInputFiles({ name: 'bad.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg/>') });
+  await expect(page.locator('[data-user-avatar-feedback]')).toContainText('JPG、PNG 或 WebP');
+  expect(avatarUploads).toBe(0);
+  await page
+    .locator('[data-user-avatar-file]')
+    .setInputFiles({ name: 'avatar.png', mimeType: 'image/png', buffer: png });
+  await expect(page.locator('[data-user-avatar-feedback]')).toContainText('头像已保存');
+  await expect(page.locator('[data-user-avatar-image]')).toHaveAttribute(
+    'src',
+    '/api/me/avatar?v=saved-avatar',
+  );
+  expect(avatarUploads).toBe(1);
+  expect(errors).toEqual([]);
+});
