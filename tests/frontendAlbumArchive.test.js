@@ -168,8 +168,8 @@ describe('三维专辑档案 UI', () => {
 
   it('三维档案模型先完成加载，远程封面只作为随后更新的贴图', () => {
     const fs = require('node:fs');
-    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts'));
-    const ready = scene.indexOf('this.loaded = true;');
+    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene-assets.ts'));
+    const ready = scene.indexOf('this.context.markLoaded();');
     const coverStart = scene.indexOf('this.startCoverLoading();');
 
     assert.ok(ready > 0 && coverStart > ready, '档案墙必须先可渲染，再请求远程封面');
@@ -180,7 +180,7 @@ describe('三维专辑档案 UI', () => {
 
   it('每张档案的封面平面位于实体正面，不会被原模型遮住', () => {
     const fs = require('node:fs');
-    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts'));
+    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene-assets.ts'));
     const model = fs.readFileSync(
       path.join(projectRoot, 'frontend/public/assets/archive-cassette.glb'),
     );
@@ -193,12 +193,15 @@ describe('三维专辑档案 UI', () => {
     const coverDepth = Number(scene.match(/coverGeometry\.translate\(0, 1\.85, ([\d.]+)\)/)?.[1]);
 
     assert.ok(coverDepth > front, '封面应在档案正面几何体之前');
-    assert.match(scene, /this\.coverInstances\[albumIndex\]\.setMatrixAt/);
+    assert.match(
+      readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts')),
+      /this\.coverInstances\[albumIndex\]\.setMatrixAt/,
+    );
   });
 
   it('选中档案的封面保持原色，不被档案场景的主题着色覆盖', () => {
     const fs = require('node:fs');
-    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts'));
+    const scene = readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene-assets.ts'));
     const appearance = readFrontendSource(
       path.join(projectRoot, 'frontend/src/rhine/appearance.ts'),
     );

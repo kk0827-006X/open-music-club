@@ -22,7 +22,7 @@ it('返回档案只释放独有标签与材质，不释放仍被选中档案共�
 });
 it('Graphics 不导入具体专辑业务目录，封面通过宿主输入', () => {
   const fs = require('node:fs');
-  for (const file of ['scene.ts', 'data.ts'])
+  for (const file of ['scene.ts', 'scene-assets.ts', 'renderer-setup.ts', 'data.ts'])
     assert.doesNotMatch(
       fs.readFileSync(`frontend/src/rhine/${file}`, 'utf8'),
       /from ['"]\.\.\/album-data/,
