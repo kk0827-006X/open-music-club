@@ -28,48 +28,99 @@
 .blind-box-heading h2 span { color: var(--color-accent-10); font-weight: 300; }
 .blind-box-heading > small { display: block; margin-top: 6px; color: var(--color-text-32); font-size: .64rem; letter-spacing: .06em; }
 
-/* 风格标签与数量 */
-.blind-box-controls { grid-column: 1; grid-row: 2; display: flex; gap: 16px 22px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--color-border-27); }
-.blind-box-styles { display: flex; flex-wrap: wrap; gap: 5px; }
-.blind-box-styles button { display: inline-flex; gap: 7px; align-items: baseline; padding: 7px 11px; border: 1px solid var(--color-border-23); background: var(--color-highlight-05); color: var(--color-text-37); font-size: .66rem; cursor: pointer; transition: background 160ms ease, border-color 160ms ease; }
-.blind-box-styles button:hover { border-color: var(--color-border-24); }
-.blind-box-styles button i { color: var(--color-text-43); font-size: .49rem; font-style: normal; letter-spacing: .1em; }
-.blind-box-styles button b { color: var(--color-text-30); font-size: .53rem; font-weight: 600; }
-.blind-box-styles button[aria-pressed="true"] { border-color: var(--color-border-24); background: var(--color-surface-24); }
-.blind-box-styles button[aria-pressed="true"] b { color: var(--color-accent-10); }
-.blind-box-count { display: flex; gap: 4px; align-items: center; color: var(--color-text-36); font-size: .63rem; }
+/* ===== 抽取区：深色舞台 + 双缎带封面轨道 ===== */
+.blind-box-stage {
+  position: relative; grid-column: 1; grid-row: 2;
+  display: flex; flex-direction: column;
+  margin-top: 14px; padding: 14px clamp(12px, 1.6vw, 20px) 10px;
+  border: 1px solid #241a38;
+  background:
+    radial-gradient(560px 280px at 50% 6%, rgba(147, 51, 234, .22), transparent 66%),
+    radial-gradient(680px 340px at 50% 110%, rgba(219, 39, 119, .12), transparent 72%),
+    #0f0b18;
+  overflow: hidden;
+}
+.blind-box-stage::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, .55);
+}
+.blind-box-stage-head { position: relative; z-index: 4; display: flex; align-items: baseline; justify-content: space-between; color: rgba(246, 239, 223, .55); font-size: .52rem; letter-spacing: .22em; }
+.blind-box-stage-head b { color: #f6efdf; font-size: .68rem; letter-spacing: .1em; }
+
+.blind-box-orbit { position: relative; z-index: 1; height: clamp(200px, 27vh, 280px); margin: 2px 0 0; }
+.blind-box-orbit-cover {
+  position: absolute; top: 0; left: 0;
+  width: 74px; height: 74px; border-radius: 15px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .22);
+  will-change: transform, filter, opacity;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* 封面上的圆形母题，和 demo 里的圆环元素呼应 */
+.blind-box-orbit-cover::before {
+  content: ""; position: absolute; inset: 20% 24% 32% 16%; border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, .3), rgba(255, 255, 255, .05) 60%, transparent 64%);
+}
+.blind-box-orbit-cover::after {
+  content: ""; position: absolute; inset: 44% 48% 26% 22%; border-radius: 50%;
+  background: radial-gradient(circle at 46% 40%, rgba(20, 10, 30, .4), rgba(20, 10, 30, .12) 70%, transparent);
+  mix-blend-mode: multiply;
+}
+
+/* 抽中聚焦：封面从轨道位置拉到正中央 */
+.blind-box-focus {
+  position: absolute; left: 50%; top: 50%; z-index: 60;
+  width: 168px; margin: -84px 0 0 -84px;
+  animation: blind-box-focus-pull 700ms cubic-bezier(.2, .9, .2, 1) both;
+  pointer-events: none;
+}
+.blind-box-focus img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 16px; box-shadow: 0 20px 46px rgba(0, 0, 0, .6); background: #1c1526; }
+.blind-box-focus p { display: flex; flex-direction: column; gap: 2px; margin: 10px 0 0; color: #f6efdf; font-size: .7rem; letter-spacing: .04em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blind-box-focus p span { color: rgba(246, 239, 223, .55); font-size: .55rem; }
+@keyframes blind-box-focus-pull {
+  from { opacity: 0; transform: scale(.42) translateY(-10px); filter: blur(9px); }
+  to { opacity: 1; transform: scale(1); filter: none; }
+}
+
+/* 中央抽取按钮 */
+.blind-box-draw {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 50;
+  display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center;
+  width: clamp(78px, 12vw, 96px); aspect-ratio: 1; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer;
+  background: radial-gradient(circle at 34% 30%, #3a2f4d, #171021 68%);
+  color: #f6efdf;
+  box-shadow: 0 0 0 6px rgba(246, 239, 223, .08), 0 0 38px rgba(147, 51, 234, .35), 0 14px 32px rgba(0, 0, 0, .5);
+  transition: opacity 260ms ease, box-shadow 260ms ease, transform 260ms ease;
+}
+.blind-box-draw span { font-size: .8rem; letter-spacing: .28em; margin-left: .28em; }
+.blind-box-draw i { font-size: .46rem; font-style: normal; letter-spacing: .26em; color: rgba(246, 239, 223, .6); }
+.blind-box-draw:hover { transform: translate(-50%, -50%) scale(1.045); box-shadow: 0 0 0 6px rgba(246, 239, 223, .14), 0 0 52px rgba(219, 39, 119, .5), 0 14px 32px rgba(0, 0, 0, .5); }
+.blind-box-draw:disabled { cursor: progress; transform: translate(-50%, -50%); }
+/* 聚焦时按钮让位给封面 */
+.blind-box-stage.is-focusing .blind-box-draw { opacity: 0; pointer-events: none; }
+
+.blind-box-stage-foot { position: relative; z-index: 4; display: flex; gap: 12px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 6px; padding-top: 9px; border-top: 1px dashed rgba(246, 239, 223, .16); }
+.blind-box-count { display: flex; gap: 4px; align-items: center; color: rgba(246, 239, 223, .7); font-size: .62rem; }
 .blind-box-count > span:last-child { margin-left: 3px; }
-.blind-box-count button { min-width: 27px; height: 27px; padding: 0 6px; border: 1px solid var(--color-border-23); background: transparent; color: var(--color-text-37); font-size: .62rem; cursor: pointer; }
-.blind-box-count button[aria-pressed="true"] { border-color: var(--color-border-34); background: var(--color-action-06); color: var(--color-inverse-03); }
+.blind-box-count button { min-width: 27px; height: 27px; padding: 0 6px; border: 1px solid rgba(246, 239, 223, .26); background: transparent; color: rgba(246, 239, 223, .72); font-size: .62rem; cursor: pointer; }
+.blind-box-count button[aria-pressed="true"] { border-color: #f6efdf; background: #f6efdf; color: #171021; }
+.blind-box-count button:disabled { opacity: .5; cursor: progress; }
+.blind-box-hint { flex: 1 1 260px; margin: 0; color: rgba(246, 239, 223, .5); font-size: .6rem; line-height: 1.6; text-align: right; letter-spacing: .03em; }
+.blind-box-inline-link { margin-left: 4px; padding: 0; border: 0; border-bottom: 1px solid rgba(246, 239, 223, .35); background: transparent; color: #f0c78a; font-size: .6rem; cursor: pointer; }
 
-/* 抽取区：虚线箱子，空态、摇盒、结果三种状态共用一块区域 */
-.blind-box-stage { position: relative; grid-column: 1; grid-row: 3; display: flex; align-items: center; justify-content: center; min-height: 0; margin-top: 14px; padding: clamp(12px, 1.8vw, 22px); border: 1px dashed var(--color-border-25); background: linear-gradient(158deg, var(--color-highlight-05), transparent 58%); overflow: hidden; }
-.blind-box-stage-idle { display: flex; flex-direction: column; gap: 15px; align-items: center; text-align: center; }
-.blind-box-kicker { margin: 0; color: var(--color-text-43); font-size: .52rem; letter-spacing: .34em; }
-.blind-box-reels { display: flex; gap: 6px; }
-.blind-box-reels span { min-width: 62px; padding: 10px 7px; border: 1px solid var(--color-border-27); background: var(--color-surface-29); color: var(--color-text-40); font-size: .55rem; letter-spacing: .16em; text-align: center; }
-.blind-box-hint { max-width: 34em; margin: 0; color: var(--color-text-47); font-size: .69rem; line-height: 1.6; }
-.blind-box-draw { display: inline-flex; gap: 10px; align-items: center; height: 44px; padding: 0 20px; border: 1px solid var(--color-border-34); background: var(--color-action-06); color: var(--color-inverse-03); font-size: .7rem; letter-spacing: .05em; cursor: pointer; transition: letter-spacing 220ms ease; }
-.blind-box-draw:hover { letter-spacing: .1em; }
-.blind-box-draw i { font-size: .48rem; font-style: normal; letter-spacing: .16em; opacity: .62; }
-.blind-box-draw:disabled { opacity: .55; cursor: progress; }
-.blind-box-inline-link { margin-left: 4px; padding: 0; border: 0; border-bottom: 1px solid var(--color-border-24); background: transparent; color: var(--color-accent-10); font-size: .69rem; cursor: pointer; }
-
-.blind-box-stage-drawing { display: flex; flex-direction: column; gap: 16px; align-items: center; color: var(--color-text-43); font-size: .62rem; letter-spacing: .12em; }
-.blind-box-stage-drawing p { margin: 0; }
-.blind-box-stage-drawing .blind-box-reels span { animation: blind-box-reel 420ms cubic-bezier(.3, .9, .2, 1) infinite alternate; }
-.blind-box-stage-drawing .blind-box-reels span:nth-child(2) { animation-delay: 70ms; }
-.blind-box-stage-drawing .blind-box-reels span:nth-child(3) { animation-delay: 140ms; }
-.blind-box-stage-drawing .blind-box-reels span:nth-child(4) { animation-delay: 210ms; }
-@keyframes blind-box-reel { from { opacity: .45; transform: translateY(-3px); } to { opacity: 1; transform: translateY(3px); } }
-
-/* 抽取结果：唱片卡 */
-.blind-box-stage-result { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
-.blind-box-result-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding-bottom: 9px; border-bottom: 1px solid var(--color-border-27); }
+/* ===== 抽中结果：固定每行三张 ===== */
+.blind-box-results { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; min-height: 0; margin-top: 12px; }
+.blind-box-results[hidden] { display: none; }
+.blind-box-result-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--color-border-27); }
 .blind-box-result-head p { margin: 0; color: var(--color-text-43); font-size: .52rem; letter-spacing: .2em; }
-.blind-box-result-head strong { font-size: .82rem; }
+.blind-box-result-head strong { font-size: .78rem; }
 .blind-box-result-head span { color: var(--color-text-36); font-size: .55rem; }
-.blind-box-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(126px, 1fr)); gap: 11px; align-content: start; margin-top: 13px; padding-bottom: 2px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-border-26) transparent; }
+.blind-box-cards {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px;
+  align-content: start; min-height: 0; margin-top: 12px; padding-bottom: 2px;
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-border-26) transparent;
+}
 .blind-box-card { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 9px; border: 1px solid var(--color-border-31); background: var(--color-surface-29); animation: blind-box-deal 420ms cubic-bezier(.2, .9, .2, 1) backwards; animation-delay: var(--card-delay, 0ms); }
 @keyframes blind-box-deal { from { opacity: 0; transform: translateY(11px) rotate(-1.6deg); } to { opacity: 1; transform: none; } }
 .blind-box-card-cover { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--color-border-31); background: var(--color-surface-27); }
@@ -90,6 +141,7 @@
 .blind-box-actions[hidden] { display: none; }
 .blind-box-actions button { display: inline-flex; gap: 7px; align-items: center; height: 33px; padding: 0 13px; border: 1px solid var(--color-border-33); background: transparent; color: var(--color-text-41); font-size: .63rem; cursor: pointer; }
 .blind-box-actions button[aria-pressed="true"] { border-color: var(--color-border-24); background: var(--color-surface-24); }
+.blind-box-actions button:disabled { opacity: .55; cursor: progress; }
 .blind-box-actions p { flex: 1 1 140px; margin: 0 0 0 auto; color: var(--color-text-43); font-size: .57rem; letter-spacing: .04em; text-align: right; }
 
 /* 右侧面板：收藏盲盒与榜单 */
@@ -103,7 +155,6 @@
 .blind-box-metric button[aria-pressed="true"] { border-color: var(--color-border-24); background: var(--color-surface-24); }
 .blind-box-panel-body { flex: 1; min-height: 0; padding-top: 11px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-border-26) transparent; }
 .blind-box-panel footer { display: flex; gap: 10px; justify-content: space-between; margin-top: 8px; padding-top: 9px; border-top: 1px solid var(--color-border-27); color: var(--color-text-43); font-size: .5rem; letter-spacing: .08em; }
-.blind-box-panel-foot { margin: 9px 0 0; color: var(--color-text-43); font-size: .51rem; letter-spacing: .04em; }
 .blind-box-empty { margin: 0; padding: 34px 6px; color: var(--color-text-49); font-size: .7rem; line-height: 1.75; text-align: center; }
 .blind-box-empty span { color: var(--color-text-43); font-size: .61rem; }
 
@@ -136,9 +187,19 @@
 .blind-box-rank-figures small { color: var(--color-text-43); font-size: .5rem; }
 .blind-box-ranking li > button { width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--color-text-41); font-size: .8rem; cursor: pointer; }
 
+/* 轨道封面配色：梅紫缎带，和 demo 的鲜艳色块一致 */
+.blind-box-tone-g1 { background: radial-gradient(circle at 72% 28%, rgba(255, 184, 107, .9), transparent 44%), linear-gradient(135deg, #ff4d6d, #d926a9 60%, #7b2ff7); }
+.blind-box-tone-g2 { background: radial-gradient(circle at 28% 72%, rgba(255, 209, 102, .85), transparent 46%), linear-gradient(135deg, #c026d3, #7c3aed); }
+.blind-box-tone-g3 { background: linear-gradient(135deg, #f43f5e, #a21caf 68%, #4c1d95); }
+.blind-box-tone-g4 { background: radial-gradient(circle at 62% 62%, rgba(251, 113, 133, .85), transparent 52%), linear-gradient(135deg, #8b5cf6, #d946ef); }
+.blind-box-tone-g5 { background: linear-gradient(135deg, #ec4899, #f97316); }
+.blind-box-tone-g6 { background: radial-gradient(circle at 40% 28%, rgba(253, 164, 175, .85), transparent 46%), linear-gradient(160deg, #6d28d9, #db2777); }
+.blind-box-tone-g7 { background: linear-gradient(135deg, #f59e0b, #ef4444 55%, #9333ea); }
+.blind-box-tone-g8 { background: radial-gradient(circle at 66% 34%, rgba(244, 114, 182, .85), transparent 44%), linear-gradient(135deg, #4f46e5, #c026d3); }
+
 @media (prefers-reduced-motion: reduce) {
   .blind-box-page, .blind-box-card { transition: none; animation: none; }
-  .blind-box-stage-drawing .blind-box-reels span { animation: none; }
+  .blind-box-focus { animation: none; }
   .blind-box-draw { transition: none; }
 }
 
@@ -146,16 +207,17 @@
   .blind-box-page { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto; padding: 78px 4% 118px; }
   .blind-box-heading > small { display: none; }
   .blind-box-panel { grid-column: 1; grid-row: 5; max-height: 210px; margin-top: 12px; padding: 10px 0 0; border-top: 1px solid var(--color-border-30); border-left: 0; }
-  .blind-box-cards { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); }
+  .blind-box-orbit { height: clamp(200px, 30vh, 280px); }
 }
 
 @media (max-width: 720px) {
   .blind-box-page { padding: 74px 16px 112px; }
-  .blind-box-controls { gap: 8px; }
-  .blind-box-styles button { padding: 6px 9px; font-size: .6rem; }
-  .blind-box-styles button i { display: none; }
-  .blind-box-stage { padding: 12px; }
-  .blind-box-reels span { min-width: 48px; font-size: .48rem; }
+  .blind-box-stage { padding: 12px 12px 9px; }
+  .blind-box-orbit { height: 210px; }
+  .blind-box-orbit-cover { width: 58px; height: 58px; border-radius: 12px; }
+  .blind-box-focus { width: 132px; margin: -66px 0 0 -66px; }
+  .blind-box-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .blind-box-hint { text-align: left; }
   .blind-box-actions p { flex-basis: 100%; margin: 4px 0 0; text-align: left; }
   .blind-box-panel { max-height: 176px; }
 }

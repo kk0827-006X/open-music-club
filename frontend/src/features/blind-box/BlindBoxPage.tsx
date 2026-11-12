@@ -7,7 +7,6 @@ import {
   toBlindBoxSong,
   type BlindBox,
   type BlindBoxClient,
-  type BlindBoxStyle,
   type BlindBoxSummary,
   type BlindBoxTrack,
   type RankingEntry,
@@ -15,21 +14,14 @@ import {
 } from '../../services/music/blind-box.ts'
 
 const COUNT_OPTIONS = [1, 3, 5] as const
-// 首屏先用静态风格表渲染，接口返回后再用服务端标签与曲库数量覆盖。
-const STYLE_CHIPS: BlindBoxStyle[] = [
-  { key: 'all', label: '全部', count: 0 },
-  { key: 'pop', label: '流行', count: 0 },
-  { key: 'jazz', label: '爵士', count: 0 },
-  { key: 'rock', label: '摇滚', count: 0 },
-  { key: 'electronic', label: '电子', count: 0 },
-  { key: 'folk', label: '民谣', count: 0 },
-  { key: 'classical', label: '古典', count: 0 },
-  { key: 'hiphop', label: '说唱', count: 0 },
-  { key: 'rnb', label: 'R&B', count: 0 },
-  { key: 'other', label: '综合', count: 0 },
-]
-const REEL_TOKENS = ['ALBUM', 'ARTIST', 'STYLE', 'BPM', 'MOOD', 'SIDE A', 'VINYL', 'TRACK']
 const FALLBACK_COVER = '/images/album-placeholder-01.svg'
+// 封面轨道只用渐变唱片，不依赖外链图片；抽中后才显示真实封面。
+const ORBIT_TILES = 18
+const ORBIT_GRADIENTS = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8']
+const IDLE_SPEED = 0.24
+const SPIN_SPEED = 7.5
+// 轨道覆盖整个曲库风格，抽取时不再按分类过滤（分类条上的数量长期为 0，已移除）。
+const DRAW_STYLE = 'all'
 
 function two(value: number) {
   return String(value).padStart(2, '0')
@@ -43,6 +35,14 @@ export function formatStamp(value: string | undefined): string {
   if (Number.isNaN(date.getTime())) return value
   return `${two(date.getMonth() + 1)}.${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}`
 }
+
+const ORBIT = Array.from({ length: ORBIT_TILES }, (_, index) => ({
+  key: `tile-${index}`,
+  gradient: ORBIT_GRADIENTS[index % ORBIT_GRADIENTS.length],
+  ribbon: index % 2,
+  tilt: ((index * 37) % 15) - 7,
+  angle: (index / ORBIT_TILES) * Math.PI * 2 + (index % 2) * 0.22,
+}))
 
 export interface BlindBoxPageProps {
   active?: boolean
@@ -64,12 +64,11 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
   const visible = usePageVisibility(active, 280)
   const reduced = useReducedMotion()
   const client = useMemo(() => injectedClient ?? createBlindBoxClient(), [injectedClient])
-  const [styles, setStyles] = useState<BlindBoxStyle[]>(() => STYLE_CHIPS.map((style) => ({ ...style })))
-  const [stylesLoaded, setStylesLoaded] = useState(false)
-  const [style, setStyle] = useState('pop')
   const [count, setCount] = useState(3)
   const [box, setBox] = useState<BlindBox | null>(null)
+  const [revealed, setRevealed] = useState(0)
   const [busy, setBusy] = useState(false)
+  const [focusTrack, setFocusTrack] = useState<BlindBoxTrack | null>(null)
   const [status, setStatus] = useState('')
   const [hint, setHint] = useState('')
   const [uploadHint, setUploadHint] = useState(false)
@@ -82,9 +81,6 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
   const serialRef = useRef(0)
   const disposedRef = useRef(false)
 
-  const styleLabel = useCallback((key: string) =>
-    styles.find((entry) => entry.key === key)?.label ?? '综合', [styles])
-
   // 榜单请求序号：只有仍对应当前筛选的最新响应才能写入，迟到的旧结果直接丢弃。
   const rankingSerialRef = useRef(0)
   // tab 用 ref 读取，避免过期闭包里旧 tab 判断出错。
@@ -92,10 +88,10 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
 
   useEffect(() => { tabRef.current = tab }, [tab])
 
-  const loadRanking = useCallback(async (nextStyle: string, nextMetric: RankingMetric) => {
+  const loadRanking = useCallback(async (nextMetric: RankingMetric) => {
     const serial = ++rankingSerialRef.current
     try {
-      const data = await client.ranking(nextMetric, nextStyle)
+      const data = await client.ranking(nextMetric, DRAW_STYLE)
       if (disposedRef.current || serial !== rankingSerialRef.current) return
       setRanking(data.entries)
     } catch (error) {
@@ -124,8 +120,6 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
       try {
         const data = await client.styles()
         if (disposedRef.current) return
-        setStyles(data.styles.length ? data.styles : styles)
-        setStylesLoaded(true)
         setPoolTotal(data.total)
       } catch (error) {
         if (disposedRef.current) return
@@ -138,16 +132,62 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client])
 
-  // 抽取中的老虎机字牌：reduced-motion 用户保持静止。
-  const [reels, setReels] = useState<string[]>(() => REEL_TOKENS.slice(0, 4))
+  // ===== 封面轨道：一帧一帧算位置，别走 React state，避免每帧重渲染 =====
+  const orbitRef = useRef<HTMLDivElement | null>(null)
+  const coverRefs = useRef<Array<HTMLSpanElement | null>>([])
+  const anglesRef = useRef<number[]>(ORBIT.map((tile) => tile.angle))
+  const speedRef = useRef(IDLE_SPEED)
+  const targetSpeedRef = useRef(IDLE_SPEED)
+
   useEffect(() => {
-    if (!busy || reduced) return
-    setReels(REEL_TOKENS.slice(0, 4))
-    const ticker = window.setInterval(() => {
-      setReels(Array.from({ length: 4 }, () => REEL_TOKENS[Math.floor(Math.random() * REEL_TOKENS.length)]))
-    }, 90)
-    return () => window.clearInterval(ticker)
-  }, [busy, reduced])
+    const host = orbitRef.current
+    if (!host) return
+    const paint = (dt: number) => {
+      const width = host.clientWidth || 640
+      const height = host.clientHeight || 320
+      const cx = width / 2
+      const cy = height / 2
+      ORBIT.forEach((tile, index) => {
+        const el = coverRefs.current[index]
+        if (!el) return
+        const ribbon = tile.ribbon === 0
+          ? { rx: 0.44, squash: 0.34, dir: 1 }
+          : { rx: 0.27, squash: 0.28, dir: -1 }
+        anglesRef.current[index] += dt * speedRef.current * ribbon.dir
+        const angle = anglesRef.current[index]
+        const depth = (Math.sin(angle) + 1) / 2
+        const x = Math.cos(angle) * ribbon.rx * width
+        const y = Math.sin(angle) * ribbon.rx * width * ribbon.squash
+        const scale = 0.6 + 0.45 * depth
+        const blur = (1 - depth) * 4
+        el.style.transform = `translate(${(cx + x - 37).toFixed(1)}px, ${(cy + y - 37).toFixed(1)}px) scale(${scale.toFixed(3)}) rotate(${tile.tilt}deg)`
+        el.style.filter = blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : 'none'
+        el.style.opacity = (0.5 + 0.5 * depth).toFixed(2)
+        el.style.zIndex = String(10 + Math.round(depth * 40))
+      })
+    }
+
+    if (reduced) {
+      paint(0)
+      return
+    }
+    let raf = 0
+    let last = performance.now()
+    const tick = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      speedRef.current += (targetSpeedRef.current - speedRef.current) * Math.min(1, dt * 2.4)
+      paint(dt)
+      raf = window.requestAnimationFrame(tick)
+    }
+    raf = window.requestAnimationFrame(tick)
+    return () => window.cancelAnimationFrame(raf)
+  }, [reduced])
+
+  useEffect(() => {
+    // 离开页面时把轨道停回待机速度，回来不会一直在飞。
+    if (!active) targetSpeedRef.current = IDLE_SPEED
+  }, [active])
 
   const draw = useCallback(async () => {
     if (busy) return
@@ -156,28 +196,51 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
     setStatus('正在抽取…')
     setHint('')
     setUploadHint(false)
+    setRevealed(0)
+    setFocusTrack(null)
+    targetSpeedRef.current = SPIN_SPEED
     const startedAt = Date.now()
     try {
-      const next = await client.draw(style, count)
+      const next = await client.draw(DRAW_STYLE, count)
       if (disposedRef.current || current !== serialRef.current) return
       // 动效至少留出可感知的时长，但没有结果时不做无意义等待。
-      const remaining = reduced ? 0 : Math.max(0, 620 - (Date.now() - startedAt))
+      const remaining = reduced ? 0 : Math.max(0, 1100 - (Date.now() - startedAt))
       if (remaining) await new Promise((resolve) => window.setTimeout(resolve, remaining))
       if (disposedRef.current || current !== serialRef.current) return
+      // 减速：轨道从飞转回到待机，再把每首依次拉到正中央聚焦。
+      targetSpeedRef.current = IDLE_SPEED
       setBox(next)
+      if (reduced) {
+        setRevealed(next.tracks.length)
+      } else {
+        for (let index = 0; index < next.tracks.length; index += 1) {
+          if (disposedRef.current || current !== serialRef.current) return
+          setFocusTrack(next.tracks[index])
+          await new Promise((resolve) => window.setTimeout(resolve, 820))
+          if (disposedRef.current || current !== serialRef.current) return
+          setRevealed(index + 1)
+          await new Promise((resolve) => window.setTimeout(resolve, 240))
+        }
+        if (disposedRef.current || current !== serialRef.current) return
+        setFocusTrack(null)
+      }
       setBusy(false)
-      setStatus(`已抽到 ${next.tracks.length} 首 · 风格「${next.styleLabel}」`)
-      void loadRanking(style, metric)
+      const styles = [...new Set(next.tracks.map((track) => track.styleLabel))]
+      setStatus(`已抽到 ${next.tracks.length} 首 · 风格「${styles.join('/')}」`)
+      void loadRanking(metric)
     } catch (error) {
       if (disposedRef.current || current !== serialRef.current) return
+      targetSpeedRef.current = IDLE_SPEED
       setBusy(false)
       setBox(null)
+      setRevealed(0)
+      setFocusTrack(null)
       const message = error instanceof Error ? error.message : '抽取失败，请稍后重试'
       setStatus(message)
       setHint(message)
       setUploadHint(Boolean(onNavigateUpload))
     }
-  }, [busy, client, style, count, reduced, loadRanking, metric, onNavigateUpload])
+  }, [busy, client, count, reduced, loadRanking, metric, onNavigateUpload])
 
   const toggleFavorite = useCallback(async (id: number, next: boolean) => {
     try {
@@ -185,18 +248,19 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
       if (disposedRef.current) return
       setBox((previous) => previous?.id === updated.id ? updated : previous)
       setStatus(next ? '已收藏这个盲盒' : '已取消收藏')
-      await Promise.all([loadFavorites(), loadRanking(style, metric)])
+      await Promise.all([loadFavorites(), loadRanking(metric)])
     } catch (error) {
       if (disposedRef.current) return
       setStatus(error instanceof Error ? error.message : '收藏失败，请稍后重试')
     }
-  }, [client, loadFavorites, loadRanking, style, metric])
+  }, [client, loadFavorites, loadRanking, metric])
 
   const openBox = useCallback(async (id: number) => {
     try {
       const opened = await client.box(id)
       if (disposedRef.current) return
       setBox(opened)
+      setRevealed(opened.tracks.length)
       setStatus(`已打开收藏的盲盒 #${id}`)
     } catch (error) {
       if (disposedRef.current) return
@@ -226,109 +290,102 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
       if (disposedRef.current) return
       void client.styles().then((data) => {
         if (disposedRef.current) return
-        setStyles(data.styles.length ? data.styles : styles)
         setPoolTotal(data.total)
       }).catch(() => undefined)
       void loadFavorites()
-      void loadRanking(style, metric)
+      void loadRanking(metric)
     },
   }))
 
-  const switchStyle = useCallback((next: string) => {
-    setStyle(next)
-    setStatus(`已切换到「${styleLabel(next)}」`)
-    // 筛选变化即刷新榜单：切回榜单面板时数据一定与当前筛选一致，不会出现页脚与列表错位。
-    void loadRanking(next, metric)
-  }, [styleLabel, metric, loadRanking])
-
   const switchMetric = useCallback((next: RankingMetric) => {
     setMetric(next)
-    void loadRanking(style, next)
-  }, [style, loadRanking])
+    void loadRanking(next)
+  }, [loadRanking])
+
+  const hintText = busy
+    ? '封面轨道正在飞转，马上揭晓…'
+    : `点一下抽取，封面轨道会把这箱 ${count} 首依次拉到正中央。`
 
   return (
     <section className="blind-box-page" data-blind-box-page hidden={!visible} inert={!active} aria-label="音乐盲盒">
       <header className="blind-box-heading">
-        <p>BLIND BOX / RANDOM DRAW 001</p>
+        <p>BLIND BOX / LUCKY SPIN 001</p>
         <h2>BLIND BOX <span>/</span> 音乐盲盒</h2>
-        <small>不知道听什么的时候，选一个风格，让系统替你从曲库里抽一箱。</small>
+        <small>不知道听什么的时候，点一下抽取——封面轨道飞转，停在哪张就抽中哪首。</small>
       </header>
-      <div className="blind-box-controls">
-        <div className="blind-box-styles" role="group" aria-label="风格筛选" data-blind-box-styles>
-          {styles.map((entry, index) => (
-            <button key={entry.key} type="button" data-blind-box-style={entry.key}
-              aria-pressed={entry.key === style} onClick={() => switchStyle(entry.key)}>
-              <i>{two(index + 1)}</i>{entry.label}<b data-style-count={entry.key}>{stylesLoaded ? entry.count : '—'}</b>
-            </button>
-          ))}
+
+      <section className={`blind-box-stage${busy ? ' is-busy' : ''}${focusTrack ? ' is-focusing' : ''}`}
+        data-blind-box-stage aria-label="抽取区">
+        <div className="blind-box-stage-head">
+          <span>SPIN SHUTTER / 封面轨道</span>
+          <b data-blind-box-number>{box ? `BOX #${two(box.id)}` : 'BOX #—'}</b>
         </div>
-        <div className="blind-box-count" role="group" aria-label="每箱歌曲数量"><span>每箱</span>
-          {COUNT_OPTIONS.map((value) => (
-            <button key={value} type="button" data-blind-box-count={value}
-              aria-pressed={value === count} onClick={() => setCount(value)}>{value}</button>
+        <div className="blind-box-orbit" ref={orbitRef} data-blind-box-orbit>
+          {ORBIT.map((tile, index) => (
+            <span key={tile.key} ref={(el) => { coverRefs.current[index] = el }}
+              className={`blind-box-orbit-cover blind-box-tone-${tile.gradient}`} aria-hidden="true" />
           ))}
-          <span>首</span>
+          {focusTrack && (
+            <div key={focusTrack.key} className="blind-box-focus" data-blind-box-focus aria-live="polite">
+              <img src={focusTrack.coverUrl || FALLBACK_COVER} alt="" />
+              <p>{focusTrack.title}<span>{focusTrack.artist}</span></p>
+            </div>
+          )}
+          <button type="button" className="blind-box-draw" data-blind-box-draw disabled={busy} onClick={() => void draw()}>
+            <span>抽取</span><i>SPIN IT</i>
+          </button>
         </div>
-      </div>
-      <section className={`blind-box-stage${busy ? ' is-busy' : ''}`} data-blind-box-stage aria-label="抽取区">
-        {!box && !busy && (
-          <div className="blind-box-stage-idle" data-blind-box-idle>
-            <p className="blind-box-kicker">READY TO DRAW</p>
-            <div className="blind-box-reels" aria-hidden="true">
-              {['ALBUM', 'ARTIST', 'STYLE', 'VINYL'].map((token) => <span key={token} data-reel>{token}</span>)}
-            </div>
-            <p className="blind-box-hint" data-blind-box-hint>
-              {hint
-                ? <>{hint}{uploadHint && <button type="button" className="blind-box-inline-link" data-blind-box-upload onClick={onNavigateUpload}>去上传音乐</button>}</>
-                : <>当前风格「{styleLabel(style)}」，点一下抽取，系统会随机取出 {count} 首。</>}
-            </p>
-            <button type="button" className="blind-box-draw" data-blind-box-draw onClick={() => void draw()}>
-              <Icon name="play" /><span>抽取盲盒</span><i>PRESS / DRAW</i>
-            </button>
+        <div className="blind-box-stage-foot">
+          <div className="blind-box-count" role="group" aria-label="每箱歌曲数量"><span>每箱</span>
+            {COUNT_OPTIONS.map((value) => (
+              <button key={value} type="button" data-blind-box-count={value} disabled={busy}
+                aria-pressed={value === count} onClick={() => setCount(value)}>{value}</button>
+            ))}
+            <span>首</span>
           </div>
-        )}
-        {busy && (
-          <div className="blind-box-stage-drawing" data-blind-box-drawing>
-            <div className="blind-box-reels" aria-hidden="true">
-              {reels.map((token, index) => <span key={`${token}-${index}`} data-reel>{token}</span>)}
-            </div>
-            <p>正在从曲库里抽取…</p>
-          </div>
-        )}
-        {box && !busy && (
-          <div className="blind-box-stage-result" data-blind-box-result aria-live="polite">
-            <div className="blind-box-result-head">
-              <p>BOX #{two(box.id)} / {box.styleLabel}</p>
-              <strong>本次抽到 {box.tracks.length} 首</strong>
-              <span>{formatStamp(box.createdAt)}</span>
-            </div>
-            <div className="blind-box-cards">
-              {box.tracks.map((track, index) => (
-                <article key={track.key} className="blind-box-card is-revealed" data-blind-box-card={track.key} style={{ '--card-delay': `${index * 70}ms` } as CSSProperties}>
-                  <div className="blind-box-card-cover">
-                    <img src={track.coverUrl || FALLBACK_COVER} alt={`${track.title} 封面`} loading="lazy" />
-                    <b>{two(index + 1)}</b>
-                  </div>
-                  <p className="blind-box-card-style"><i data-style={track.style}>{track.styleLabel}</i><time>{track.duration}</time></p>
-                  <h3>{track.title}</h3>
-                  <p className="blind-box-card-artist">{track.artist}<span>{track.album}</span></p>
-                  <div className="blind-box-card-actions">
-                    <button type="button" data-blind-box-play={track.key} aria-label={`播放 ${track.title}`} onClick={() => void playTrack(track)}>
-                      <Icon name="play" /><span>播放</span>
-                    </button>
-                    <button type="button" data-blind-box-enqueue={track.key} aria-label={`将 ${track.title} 加入队列`}
-                      onClick={() => { if (enqueue) { enqueue(toBlindBoxSong(track)); setStatus(`已加入队列：${track.title}`) } }}>
-                      <Icon name="plus" /><span>队列</span>
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        )}
+          <p className="blind-box-hint" data-blind-box-hint aria-live="polite">
+            {hint
+              ? <>{hint}{uploadHint && onNavigateUpload && (
+                <button type="button" className="blind-box-inline-link" data-blind-box-upload onClick={onNavigateUpload}>去上传音乐</button>
+              )}</>
+              : hintText}
+          </p>
+        </div>
       </section>
+
+      <section className="blind-box-results" data-blind-box-result hidden={!box} aria-label="本次抽到">
+        <div className="blind-box-result-head">
+          <p>RESULT / 本次抽到</p>
+          <strong>{box ? `本次抽到 ${box.tracks.length} 首` : '等待抽取'}</strong>
+          <span>{box ? `${box.styleLabel} · ${formatStamp(box.createdAt)}` : ''}</span>
+        </div>
+        <div className="blind-box-cards">
+          {box?.tracks.slice(0, revealed).map((track, index) => (
+            <article key={track.key} className="blind-box-card is-revealed" data-blind-box-card={track.key}
+              style={{ '--card-delay': `${index * 60}ms` } as CSSProperties}>
+              <div className="blind-box-card-cover">
+                <img src={track.coverUrl || FALLBACK_COVER} alt={`${track.title} 封面`} loading="lazy" />
+                <b>{two(index + 1)}</b>
+              </div>
+              <p className="blind-box-card-style"><i data-style={track.style}>{track.styleLabel}</i><time>{track.duration}</time></p>
+              <h3>{track.title}</h3>
+              <p className="blind-box-card-artist">{track.artist}<span>{track.album}</span></p>
+              <div className="blind-box-card-actions">
+                <button type="button" data-blind-box-play={track.key} aria-label={`播放 ${track.title}`} onClick={() => void playTrack(track)}>
+                  <Icon name="play" /><span>播放</span>
+                </button>
+                <button type="button" data-blind-box-enqueue={track.key} aria-label={`将 ${track.title} 加入队列`}
+                  onClick={() => { if (enqueue) { enqueue(toBlindBoxSong(track)); setStatus(`已加入队列：${track.title}`) } }}>
+                  <Icon name="plus" /><span>队列</span>
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <div className="blind-box-actions" data-blind-box-actions hidden={!box}>
-        <button type="button" data-blind-box-again onClick={() => void draw()}><Icon name="dice" /><span>再抽一箱</span></button>
+        <button type="button" data-blind-box-again disabled={busy} onClick={() => void draw()}><Icon name="dice" /><span>再抽一箱</span></button>
         <button type="button" data-blind-box-queue-all onClick={queueAll}><Icon name="plus" /><span>全部入队</span></button>
         <button type="button" data-blind-box-save aria-pressed={Boolean(box?.favorited)}
           onClick={() => { if (box) void toggleFavorite(box.id, !box.favorited) }}>
@@ -336,12 +393,13 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
         </button>
         <p data-blind-box-status role="status">{status}</p>
       </div>
+
       <aside className="blind-box-panel" aria-label="盲盒收藏与榜单">
         <div className="blind-box-tabs" role="tablist" aria-label="盲盒面板">
           <button type="button" role="tab" data-blind-box-tab="favorites" aria-selected={tab === 'favorites'}
             onClick={() => setTab('favorites')}>我的盲盒</button>
           <button type="button" role="tab" data-blind-box-tab="ranking" aria-selected={tab === 'ranking'}
-            onClick={() => { setTab('ranking'); void loadRanking(style, metric) }}>盲盒榜单</button>
+            onClick={() => { setTab('ranking'); void loadRanking(metric) }}>盲盒榜单</button>
         </div>
         <div className="blind-box-metric" role="group" aria-label="榜单排序" data-blind-box-metric-bar hidden={tab !== 'ranking'}>
           <button type="button" data-blind-box-metric="favorite" aria-pressed={metric === 'favorite'} onClick={() => switchMetric('favorite')}>被收藏</button>
@@ -401,13 +459,13 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
                 ))}
               </ol>
             ) : (
-              <p className="blind-box-empty">榜单还没有数据。<br /><span>{styleLabel(style)}盲盒被抽取和收藏后，这里会排出值得听的歌。</span></p>
+              <p className="blind-box-empty">榜单还没有数据。<br /><span>盲盒被抽取和收藏后，这里会排出值得听的歌。</span></p>
             )
           )}
         </div>
         <footer>
           <span data-blind-box-pool>{poolTotal === null ? '曲库 —' : `曲库 ${poolTotal} 首`}</span>
-          <span>OMC / BLIND BOX</span>
+          <span>{favoritesTotal > 0 ? `收藏 ${favoritesTotal} 箱` : 'OMC / BLIND BOX'}</span>
         </footer>
       </aside>
     </section>
