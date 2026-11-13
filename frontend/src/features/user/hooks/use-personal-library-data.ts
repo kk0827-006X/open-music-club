@@ -124,6 +124,7 @@ export function usePersonalLibraryData({
       profile.acceptProfile(nextProfile, profileRevision);
       if (sectionRef.current === 'playlists') {
         const nextLists = await api.playlists();
+        if (unmountedRef.current || current !== requestRef.current) return false;
         const detail = selectedIdRef.current ? await api.playlist(selectedIdRef.current) : null;
         if (unmountedRef.current || current !== requestRef.current) return false;
         setLists(nextLists);

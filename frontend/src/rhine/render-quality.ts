@@ -57,13 +57,6 @@ export const qualityPresets = {
     anisotropy: 16,
   },
 } as const satisfies Record<string, RenderQuality>;
-export type QualityPreset = keyof typeof qualityPresets;
-export const presetLabels: Record<QualityPreset, string> = {
-  performance: '性能',
-  original: '原始',
-  high: '高',
-  ultra: '极高',
-};
 
 const member = <T>(value: unknown, choices: readonly T[], fallback: T): T =>
   choices.includes(value as T) ? (value as T) : fallback;
@@ -88,16 +81,6 @@ export function normalizeQuality(value: unknown, legacyHigh = true): RenderQuali
     transmission: member(v.transmission, [0.25, 0.5, 0.75, 1], fallback.transmission),
     anisotropy: member(v.anisotropy, [1, 2, 4, 8, 16], fallback.anisotropy),
   };
-}
-
-export function matchingPreset(quality: RenderQuality): QualityPreset | 'custom' {
-  return (
-    (Object.keys(qualityPresets) as QualityPreset[]).find((key) =>
-      Object.entries(qualityPresets[key]).every(
-        ([field, value]) => quality[field as keyof RenderQuality] === value,
-      ),
-    ) ?? 'custom'
-  );
 }
 
 export function renderDimensions(

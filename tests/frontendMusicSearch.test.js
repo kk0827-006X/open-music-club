@@ -9,9 +9,7 @@ function frontendModule(relativePath) {
 
 describe('真实音乐搜索数据转换', () => {
   it('本地歌曲按专辑和歌手归组，仍保留来源与歌曲身份', async () => {
-    const { toLocalSearchItems, filterSearchItems } = await import(
-      frontendModule('services/music/search.ts')
-    );
+    const { toLocalSearchItems } = await import(frontendModule('services/music/search.ts'));
     const tracks = [
       {
         trackKey: 'local:1',
@@ -48,10 +46,9 @@ describe('真实音乐搜索数据转换', () => {
     ];
     const items = toLocalSearchItems(tracks);
 
-    assert.equal(filterSearchItems(items, '夜航', 'local', 'song').length, 2);
-    assert.equal(filterSearchItems(items, '夜航', 'local', 'album').length, 1);
-    assert.equal(filterSearchItems(items, '测试歌手', 'local', 'artist').length, 1);
-    assert.equal(filterSearchItems(items, '', 'local', 'album').length, 1);
+    assert.equal(items.filter((item) => item.kind === 'song').length, 3);
+    assert.equal(items.filter((item) => item.kind === 'album').length, 1);
+    assert.equal(items.filter((item) => item.kind === 'artist').length, 2);
     assert.equal(items.find((item) => item.key === 'local:1').duration, '1:03');
     assert.equal(items.find((item) => item.key === 'local:1').coverUrl, '/api/local/music/1/cover');
     assert.equal(items.find((item) => item.key === 'local:1').source, 'local');

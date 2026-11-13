@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { SearchItem } from '../../../shared/music.ts';
 import type { createPersonalLibraryClient } from '../../../services/music/personal-library.ts';
@@ -37,6 +37,23 @@ export function usePlayerLikes({
   queueLikesRef.current = queueLikes;
   const queueRef = useRef(queue);
   queueRef.current = queue;
+  // 只合并同一客户端、同一来源歌曲的在途读取；完成即移除，不缓存服务端状态。
+  const likeReads = useMemo(() => new Map<string, Promise<boolean>>(), [personalLibrary]);
+  const readLike = useCallback(
+    (track: SearchItem) => {
+      const key = `${track.source}:${track.sourceId}`;
+      const existing = likeReads.get(key);
+      if (existing) return existing;
+      const pending = Promise.resolve().then(() => personalLibrary.isLiked(track));
+      likeReads.set(key, pending);
+      const remove = () => {
+        if (likeReads.get(key) === pending) likeReads.delete(key);
+      };
+      void pending.then(remove, remove);
+      return pending;
+    },
+    [likeReads, personalLibrary],
+  );
   // 收藏状态请求带请求序号，歌曲切换后旧的响应不会再写入当前按钮。
   const syncLikedFor = useCallback(
     async (track: SearchItem | null) => {
@@ -48,7 +65,7 @@ export function usePlayerLikes({
         return;
       }
       try {
-        const value = await personalLibrary.isLiked(track);
+        const value = await readLike(track);
         if (disposedRef.current || current !== likeRequestRef.current) return;
         setLiked(value);
         setLikePending(false);
@@ -59,7 +76,7 @@ export function usePlayerLikes({
         }
       }
     },
-    [collectionNotice, personalLibrary],
+    [collectionNotice, readLike],
   );
 
   const addPendingLike = useCallback((key: string) => {
@@ -91,8 +108,7 @@ export function usePlayerLikes({
         if (pendingLikesRef.current.has(item.key)) continue;
         if (!refresh && queueLikesRef.current.has(item.key)) continue;
         addPendingLike(item.key);
-        void personalLibrary
-          .isLiked(item)
+        void readLike(item)
           .then((value) => {
             if (!disposedRef.current) setQueueLike(item.key, value);
           })
@@ -105,7 +121,7 @@ export function usePlayerLikes({
           });
       }
     },
-    [addPendingLike, collectionNotice, personalLibrary, removePendingLike, setQueueLike],
+    [addPendingLike, collectionNotice, readLike, removePendingLike, setQueueLike],
   );
 
   const toggleLike = useCallback(
@@ -113,10 +129,12 @@ export function usePlayerLikes({
       if (disposedRef.current || pendingLikesRef.current.has(track.key)) return;
       addPendingLike(track.key);
       try {
-        const currentlyLiked = await personalLibrary.isLiked(track);
+        const currentlyLiked = await readLike(track);
         if (disposedRef.current) return;
         await personalLibrary.setLiked(track, !currentlyLiked);
         if (disposedRef.current) return;
+        // 写入后重新读取，不能复用写入期间发起的旧状态请求。
+        likeReads.delete(`${track.source}:${track.sourceId}`);
         setQueueLike(track.key, !currentlyLiked);
         if (stateRef.current.track?.key === track.key) setLiked(!currentlyLiked);
         collectionNotice(currentlyLiked ? '已取消喜爱' : '已保存到喜爱');
@@ -135,6 +153,8 @@ export function usePlayerLikes({
       addPendingLike,
       collectionNotice,
       personalLibrary,
+      likeReads,
+      readLike,
       removePendingLike,
       setQueueLike,
       syncLikedFor,

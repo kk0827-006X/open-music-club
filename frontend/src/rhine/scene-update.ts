@@ -22,6 +22,7 @@ import { archiveFraming } from './viewport-layout';
 import { type DragAxis, type DragPosition } from './archive-drag';
 import {
   archiveWave,
+  smooth as ease,
   extraction,
   rippleEnvelope,
   settlingWave,
@@ -35,10 +36,6 @@ import {
 import { ArchiveSceneRuntime } from './scene-runtime';
 import type { ArchivePlayfield } from './scene-state';
 
-const ease = (t: number) => {
-  t = THREE.MathUtils.clamp(t, 0, 1);
-  return t * t * t * (t * (t * 6 - 15) + 10);
-};
 export type CinematicUpdate = { reveal: number; lift: number; zoom: number; time: number };
 
 type MotionFrame = {
@@ -107,7 +104,7 @@ export class ArchiveSceneUpdate {
     if (!lifecycle.loaded) return;
     // 顺序沿用原实现：波形闭包首次采样早于相机更新，实例裁剪晚于相机矩阵提交。
     this.updateLighting(elapsed);
-    const motion = this.updateMotion(time, elapsed, dt, cinematic);
+    const motion = this.updateMotion(time, dt, cinematic);
     const wave = this.updateWaveAudio(motion);
     this.updateRelay(wave);
     const field = this.createWaveField(wave);
@@ -133,12 +130,7 @@ export class ArchiveSceneUpdate {
     presentation.theme.beginFrame();
     themeEnvironment(scene, rendering.renderer, this.runtime.themeAmount);
   }
-  private updateMotion(
-    time: number,
-    elapsed: number,
-    dt: number,
-    cinematic?: CinematicUpdate,
-  ): MotionFrame {
+  private updateMotion(time: number, dt: number, cinematic?: CinematicUpdate): MotionFrame {
     const { presentation, selection, opening, interaction, navigation } = this.state;
     const { options, cancelPointer } = this.runtime;
 

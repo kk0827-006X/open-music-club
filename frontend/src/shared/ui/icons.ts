@@ -43,19 +43,3 @@ export const paths = {
 } as const;
 
 export type UiIconName = keyof typeof glyphs | keyof typeof paths;
-
-export function uiIcon(name: UiIconName, filled = false): string {
-  if (name in glyphs)
-    return `<span class="ui-icon" data-ui-icon="${name}" aria-hidden="true">${glyphs[name as keyof typeof glyphs]}</span>`;
-  return `<svg class="ui-icon" data-ui-icon="${name}" data-filled="${filled}" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths[name as keyof typeof paths]}</svg>`;
-}
-
-// 静态图标在模块加载时生成，列表重绘无需反复拼接 SVG。
-export const uiIcons = Object.freeze(
-  Object.fromEntries(
-    [...Object.keys(glyphs), ...Object.keys(paths)].map((name) => [
-      name,
-      uiIcon(name as UiIconName),
-    ]),
-  ) as Record<UiIconName, string>,
-);

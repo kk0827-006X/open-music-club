@@ -17,15 +17,11 @@ import {
 import { type DragAxis, type DragProjection, type DragPosition } from './archive-drag';
 import { assetUrl as publicAsset } from './asset-url';
 import { bindArchiveInteractions } from './interaction-bindings';
-import { extraction, baselineSelectionWave } from './motion';
+import { smooth as ease, baselineSelectionWave } from './motion';
 import { ArchiveSceneUpdate, type CinematicUpdate } from './scene-update';
 import { ArchiveSceneRuntime } from './scene-runtime';
 import type { SceneState } from './scene-state';
 
-const ease = (t: number) => {
-  t = THREE.MathUtils.clamp(t, 0, 1);
-  return t * t * t * (t * (t * 6 - 15) + 10);
-};
 export class ArchiveScene {
   private readonly runtime: ArchiveSceneRuntime;
   private readonly frame: ArchiveSceneUpdate;

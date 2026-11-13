@@ -1113,7 +1113,12 @@ test('展开播放器封面环境取色、交叉淡入、缓存与收藏正常�
   // 删除按钮的自动化点击可能先滚动页面；关闭只与关闭前的真实位置比较。
   const layoutBeforeClose = await page.locator('.player-expanded-track').boundingBox();
   const scrollBeforeClose = await outerScroll();
-  await page.locator('[data-queue-close]').press('Escape');
+  // locator.press 会先用默认 focus 聚焦，可能自行滚动外层；明确准备焦点后只发送按键。
+  const queueClose = drawer.locator('[data-queue-close]');
+  await queueClose.evaluate((button) => button.focus({ preventScroll: true }));
+  await expect(queueClose).toBeFocused();
+  expect(await outerScroll()).toEqual(scrollBeforeClose);
+  await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
   await expect(page.locator('[data-expanded-queue-toggle]')).toBeFocused();
   expect(await outerScroll()).toEqual(scrollBeforeClose);

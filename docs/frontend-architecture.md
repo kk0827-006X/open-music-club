@@ -107,6 +107,7 @@ frontend/src/
 - `CompactPlayer` 与 `ExpandedPlayer` 只呈现状态和转交动作，不持有音频、网络请求或焦点生命周期。可见性 hook 负责展开/收起的焦点归还与重试取消；歌词 hook 负责请求序号、中止和容器内滚动；队列 hook 保留删除/清空、版本快照及串行持久化的原行为。
 
 - `features/user/UserPage.tsx` 保留 `refresh`、`hasOpenDialog` 与管理员审核装配入口；`use-personal-library-data` 负责 lists/tracks/section/pageIndex、过渡和最新请求，`use-playlist-mutations` 负责创建/重命名/删除与互斥状态，`use-profile` 负责昵称、头像校验和上传版本保护。头像上传绑定资料代次与身份，401 清理及身份切换会作废迟到的成功/失败响应；首次资料加载与同身份上传可正常交错，原身份 A→B→A 后的旧上传也不能恢复。读取与写入通过同一刷新入口协调，不复制数据状态或扩张跨 feature 白名单。
+- `usePlayerLikes` 按客户端及 `source:sourceId` 合并当前曲与队列的在途收藏读取，完成或失败后立即移除，不缓存已完成结果；写入成功后主动使写入期间的读取失效，再同步最新状态。队列打开的刷新语义及不同音乐来源隔离保持不变。个人库读取每个异步阶段都检查当前请求，已被新刷新取代或卸载的列表响应不再续发歌单详情请求。
 - `UserSidebar`、`PlaylistDetail`、`PlaylistHeader`、`UserTrackRow`、`CreatePlaylistDialog`、`DeletePlaylistDialog` 呈现原有 DOM 与动作；不另建播放器或发起请求。个人页入口及各模块目标为 350 行以内，由行数测试约束；原有最近播放占位行为保留，不新增昵称编辑功能。
 
 - `Workspace` 入口不超过 100 行，统一创建稳定的播放器命令对象（play/enqueue/choosePlaylist/closeQueue/replaceAndPlay/syncLiked），调用时读取当前 PlayerView ref；`WorkspaceView` 沿用原页面 JSX、DOM 标记与懒加载保留策略。`use-workspace-navigation` 统一受控路由与本地导航、visited 和切页清除搜索；`use-archive-keyboard` 保留输入区、设置、入场、展开播放器、业务弹窗及档案详情的原按键优先级，并在卸载时移除监听。
@@ -119,6 +120,7 @@ frontend/src/
 - `rhine/scene-state.ts` 通过工厂创建每个实例独立的生命周期、呈现、音频、relay、渲染缓存、导航、选中、交互、计时、入场和回调状态；不依赖 DOM，不创建模型、相机、renderer 或后处理资源，不消耗随机种子。
 - `rhine/scene-runtime.ts` 连接状态与资源所有者，持有场景/相机、模型资源、渲染配置、可见性计算、拾取临时对象与监听信号；资源上下文延迟读取当前状态及业务回调；公开回调与自定义 selectionPulse 经入口委托调用，保留普通函数的场景接收者，封面通知读取最新回调。Three.js 场景、相机、裁剪相机、模型、临时 Object3D 和后处理的分配次序保持原样，最终销毁仍由场景入口编排。
 - `scene-update.ts` 的 `update()` 按原顺序调度私有方法：环境/呈现、运动、音频波形、relay 抬升、波形闭包、选中抬升、解密、选中/返回卡片、相机、实例矩阵、检查/景深与最终合成。更新器只调度帧计算，通过显式 runtime 读取状态和资源，并通过窄 controls 接口调用导航与悬停等控制；帧上下文只传递原局部值；波形首次采样仍早于本帧相机更新，实例裁剪与矩阵写入仍晚于相机投影及世界矩阵更新，渲染缓存命中仍在最终合成阶段提前返回。公式、常量和运算次序保持原样。
+- 场景控制与帧更新统一复用 `motion.smooth` 缓动，不复制同一公式；`motion.ts` 的受保护算法与实验对照函数保持原样。已移除无调用的旧图形辅助导出与字符串图标入口，GLSL、当前 React Icon 和现有后处理流水线保持；未来排序预留明确保留。搜索匹配断言直接覆盖当前 `createSongSearch`，旧 `filterSearchItems` 入口及专属类型已清理。
 - 场景更新拆分采用固定随机种子/时间/视口的真实模型、材质与后处理画面对照，并比较相机、实例/封面/返回卡片矩阵和关键状态；基线留在隔离测试产物中，不写入业务资源或通过更新基线接受差异。普通业务低画质夹具用于交互回归，不能单独作为材质和画面等价证明。 `tests/e2e/scene-update.spec.js` 使用可选的测试参数 `OMC_SCENE_BASELINE_DIR` 指向原版快照；仅在修改前采集时设置 `OMC_SCENE_CAPTURE_BASELINE=1`，后续对照不更新基线。未指定基线的常规 CI 仍检查真实画面、矩阵有效性和场景状态。
 
 - `rhine/interaction-bindings.ts` 通过显式 `ArchiveInteractionContext` 绑定原指针和滚轮事件，返回取消动作供场景模式切换和销毁使用；监听仍共用场景的 AbortSignal。场景以实时 getter/setter 连接可变状态，业务回调通过闭包读取最新处理器，不传入整个 ArchiveScene 或对私有成员做类型断言。命中测试、投影、轨道换算、渲染更新和最终销毁编排仍在 scene.ts；绑定模块只持有单次绑定的指针、累计滚轮等事件局部状态。

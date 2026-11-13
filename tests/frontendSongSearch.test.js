@@ -344,3 +344,37 @@ for (const stage of ['响应', 'JSON']) {
     await assert.rejects(pending, (error) => error.name === 'AbortError');
   });
 }
+
+for (const [query, expected] of [
+  ['夜航', ['local:1', 'local:2']],
+  ['测试歌手', ['local:1', 'local:2']],
+  ['ALPHA', ['local:3']],
+  ['无匹配', []],
+]) {
+  it(`当前统一搜索按本地歌曲标题、歌手和专辑匹配：${query}`, async () => {
+    const { createSongSearch } = await import('../frontend/src/services/music/song-search.ts');
+    const fixture = coverSearchFixture({
+      local: [
+        {
+          sourceId: '1',
+          title: '第一首',
+          artists: [{ name: '测试歌手' }],
+          album: { name: '夜航' },
+        },
+        {
+          sourceId: '2',
+          title: '第二首',
+          artists: [{ name: '测试歌手' }],
+          album: { name: '夜航' },
+        },
+        { sourceId: '3', title: 'alpha', artists: [{ name: '其他歌手' }], album: { name: null } },
+      ],
+    });
+    const result = await createSongSearch(query, fixture.fetcher).next();
+    assert.deepEqual(
+      result.items.map((item) => item.key),
+      expected,
+    );
+    assert.ok(result.items.every((item) => item.kind === 'song' && item.source === 'local'));
+  });
+}

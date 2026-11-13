@@ -2,7 +2,6 @@ export type MusicSource = 'local' | 'netease';
 export type TrackReference = { source: MusicSource; sourceId: string };
 export type SearchKind = 'song' | 'album' | 'artist';
 export type SearchSource = MusicSource;
-export type SourceFilter = MusicSource | 'all';
 
 // 保留现有 key 与时间显示契约，本轮不改变去重规则或 API 返回结构。
 export interface MusicItem extends TrackReference {

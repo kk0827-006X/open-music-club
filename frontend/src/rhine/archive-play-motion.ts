@@ -8,50 +8,6 @@ export type MusicBands = {
   spectrum?: Float32Array;
 };
 export const quietBands = (): MusicBands => ({ low: 0, mid: 0, high: 0, activity: 0 });
-export class SpectrumEnvelope {
-  bands = quietBands();
-  private target = quietBands();
-  private received = -Infinity;
-  private audible = -Infinity;
-  private localSoundUntil = -Infinity;
-  ignoreLocalSound(until: number) {
-    if (Number.isFinite(until)) this.localSoundUntil = Math.max(this.localSoundUntil, until);
-  }
-  ingest(samples: ArrayLike<number>, time: number) {
-    if (samples.length !== 128) return;
-    // WE captures the wallpaper's own interaction sounds too. They cannot
-    // start music mode from silence; already-established music keeps flowing.
-    if (time <= this.localSoundUntil && this.bands.activity < 0.1) return;
-    const band = (start: number, end: number) => {
-      let energy = 0;
-      for (let i = start; i < end; i++) {
-        const l = Number.isFinite(samples[i]) ? clamp(samples[i]) : 0;
-        const r = Number.isFinite(samples[i + 64]) ? clamp(samples[i + 64]) : 0;
-        energy += (l * l + r * r) / 2;
-      }
-      return Math.sqrt(energy / (end - start));
-    };
-    this.target = { low: band(0, 8), mid: band(8, 32), high: band(32, 64), activity: 0 };
-    this.received = time;
-    if (Math.max(this.target.low, this.target.mid, this.target.high) > 0.012) this.audible = time;
-  }
-  update(dt: number, time: number, enabled: boolean): MusicBands {
-    const fresh = enabled && time - this.received < 0.5;
-    for (const key of ['low', 'mid', 'high'] as const) {
-      const target = fresh ? this.target[key] : 0;
-      const rate = target > this.bands[key] ? 16 : 3.2;
-      this.bands[key] = approach(this.bands[key], target, rate, Math.min(dt, 0.1));
-    }
-    const active = fresh && time - this.audible < 1.5 ? 1 : 0;
-    this.bands.activity = approach(
-      this.bands.activity,
-      active,
-      active ? 3 : 1.5,
-      Math.min(dt, 0.1),
-    );
-    return { ...this.bands };
-  }
-}
 export function musicDisplacement(
   row: number,
   lane: number,
@@ -64,55 +20,6 @@ export function musicDisplacement(
   const treble =
     bands.high * 0.18 * Math.pow(Math.max(0, Math.sin(row * 1.7 - lane * 2.2 - time * 6.4)), 4);
   return clamp((bass + middle + treble) * clamp(strength, 0, 2), 0, 1.8);
-}
-export type RelayStatus = 'idle' | 'preparing' | 'playing' | 'over';
-export class RelayRound {
-  status: RelayStatus = 'idle';
-  score = 0;
-  target: string | null = null;
-  remaining = 0;
-  total = 0;
-  reason = '';
-  start() {
-    this.status = 'preparing';
-    this.score = 0;
-    this.target = null;
-    this.remaining = 0.8;
-    this.reason = '';
-  }
-  stop() {
-    this.status = 'idle';
-    this.target = null;
-    this.remaining = 0;
-  }
-  aim(target: string, pace: 'gentle' | 'normal' | 'quick') {
-    this.target = target;
-    this.status = 'playing';
-    const base = pace === 'gentle' ? 8 : pace === 'quick' ? 4 : 6;
-    this.total = this.remaining = Math.max(base * 0.55, base - this.score * 0.12);
-  }
-  tick(dt: number, paused: boolean) {
-    if (paused || (this.status !== 'playing' && this.status !== 'preparing')) return;
-    this.remaining = Math.max(0, this.remaining - Math.max(0, dt));
-    if (this.status === 'playing' && this.remaining === 0) this.finish('这道波纹停下了');
-  }
-  hit(target: string | null) {
-    if (this.status !== 'playing') return false;
-    if (target !== this.target) {
-      this.finish('接力结束');
-      return false;
-    }
-    this.score++;
-    this.status = 'preparing';
-    this.target = null;
-    this.remaining = 0.28;
-    return true;
-  }
-  finish(reason: string) {
-    this.status = 'over';
-    this.target = null;
-    this.reason = reason;
-  }
 }
 
 export type RhythmStyle = 'legacy' | 'wave' | 'lift';

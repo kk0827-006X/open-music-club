@@ -53,13 +53,6 @@ export function poolCell(index: number): ArchiveCell {
   };
 }
 
-export function visibleCell(index: number, center: ArchiveCell): ArchiveCell {
-  return {
-    lane: nearestOccurrence(POOL_LANES[Math.floor(index / LOOP_ROWS)], center.lane, LOOP_COLUMNS),
-    row: nearestOccurrence(index % LOOP_ROWS, center.row, LOOP_ROWS),
-  };
-}
-
 export function cellKey(cell: ArchiveCell) {
   return `${cell.lane}:${cell.row}`;
 }

@@ -689,3 +689,146 @@ it('整张专辑替换旧队列并从第一首开始，复用音频、保留音�
     }
   });
 });
+
+it('当前曲与打开的队列共享在途收藏读取，完成后重新打开仍读取最新状态', async () => {
+  await withPlayerHarness(async (h) => {
+    const calls = [],
+      pending = [];
+    const { view, player } = await mountPlayerView(h, {
+      personalLibrary: stubPersonalLibrary({
+        isLiked: (track) => {
+          calls.push(track.key);
+          return new Promise((resolve) => pending.push(resolve));
+        },
+      }),
+    });
+    try {
+      await h.click('[data-player-queue-toggle]');
+      await h.React.act(async () => view.current.play(song(42)));
+      assert.deepEqual(calls, ['local:42']);
+      await h.React.act(async () => pending[0](true));
+      assert.equal(h.require('[data-player-like]').getAttribute('aria-pressed'), 'true');
+      assert.equal(h.require('[data-queue-like="local:42"]').getAttribute('aria-pressed'), 'true');
+      await h.React.act(async () => view.current.closeQueue());
+      await h.click('[data-player-queue-toggle]');
+      assert.deepEqual(calls, ['local:42', 'local:42']);
+      await h.React.act(async () => pending[1](false));
+      assert.equal(h.require('[data-queue-like="local:42"]').getAttribute('aria-pressed'), 'false');
+    } finally {
+      await h.unmount();
+      player.destroy();
+    }
+  });
+});
+
+it('相同数字 ID 的本地和网易云收藏读取仍然独立', async () => {
+  await withPlayerHarness(async (h) => {
+    const calls = [],
+      pending = [];
+    const { view, player } = await mountPlayerView(h, {
+      personalLibrary: stubPersonalLibrary({
+        isLiked: (track) => {
+          calls.push(track.key);
+          return new Promise((resolve) => pending.push(resolve));
+        },
+      }),
+    });
+    try {
+      await h.click('[data-player-queue-toggle]');
+      await h.React.act(async () => {
+        view.current.enqueue(song(1));
+        view.current.enqueue(song(1, 'netease'));
+      });
+      assert.deepEqual(calls, ['local:1', 'netease:1']);
+      await h.React.act(async () => {
+        pending[0](true);
+        pending[1](false);
+      });
+      assert.equal(h.require('[data-queue-like="local:1"]').getAttribute('aria-pressed'), 'true');
+      assert.equal(
+        h.require('[data-queue-like="netease:1"]').getAttribute('aria-pressed'),
+        'false',
+      );
+    } finally {
+      await h.unmount();
+      player.destroy();
+    }
+  });
+});
+
+it('收藏读取失败后允许重试，不把失败 Promise 留成缓存', async () => {
+  await withPlayerHarness(async (h) => {
+    let calls = 0;
+    const { view, player } = await mountPlayerView(h, {
+      personalLibrary: stubPersonalLibrary({
+        isLiked: async () => {
+          if (++calls === 1) throw new Error('隔离读取失败');
+          return true;
+        },
+      }),
+    });
+    try {
+      await h.React.act(async () => view.current.play(song(1)));
+      await h.until(
+        () => calls === 1 && !h.require('[data-player-like]').disabled,
+        '失败读取应结束等待状态',
+      );
+      await h.React.act(async () => view.current.syncLiked());
+      assert.equal(calls, 2);
+      assert.equal(h.require('[data-player-like]').getAttribute('aria-pressed'), 'true');
+    } finally {
+      await h.unmount();
+      player.destroy();
+    }
+  });
+});
+
+it('收藏写入后的刷新不复用写入期间的旧读取，迟到旧值不能覆盖新图标', async () => {
+  await withPlayerHarness(async (h) => {
+    let calls = 0,
+      writing = false,
+      liked = false,
+      finishWrite,
+      finishOld;
+    const write = new Promise((resolve) => {
+      finishWrite = resolve;
+    });
+    const oldRead = new Promise((resolve) => {
+      finishOld = resolve;
+    });
+    const { view, player } = await mountPlayerView(h, {
+      personalLibrary: stubPersonalLibrary({
+        isLiked: () => (++calls === 3 ? oldRead : Promise.resolve(liked)),
+        setLiked: async (_track, value) => {
+          writing = true;
+          await write;
+          liked = value;
+        },
+      }),
+    });
+    try {
+      await h.React.act(async () => view.current.play(song(1)));
+      await h.click('[data-player-like]');
+      await h.until(() => writing, '应开始真实收藏写入');
+      let stale;
+      await h.React.act(async () => {
+        stale = view.current.syncLiked();
+      });
+      assert.equal(calls, 3);
+      await h.React.act(async () => finishWrite());
+      await h.until(
+        () =>
+          calls === 4 && h.require('[data-player-like]').getAttribute('aria-pressed') === 'true',
+        '写入后应重新读取最新状态',
+      );
+      await h.React.act(async () => {
+        finishOld(false);
+        await stale;
+      });
+      assert.equal(h.require('[data-player-like]').getAttribute('aria-pressed'), 'true');
+    } finally {
+      await h.unmount();
+      player.destroy();
+    }
+  });
+});

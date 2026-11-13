@@ -1,8 +1,8 @@
 import { safeCoverUrl, FALLBACK_COVER } from '../../shared/music.ts';
 import { formatDurationMs } from '../../shared/format.ts';
-import type { SearchItem, SearchKind, SourceFilter } from '../../shared/music.ts';
+import type { SearchItem, SearchKind } from '../../shared/music.ts';
 export { safeCoverUrl } from '../../shared/music.ts';
-export type { SearchItem, SearchKind, SearchSource, SourceFilter } from '../../shared/music.ts';
+export type { SearchItem, SearchKind, SearchSource } from '../../shared/music.ts';
 
 type SearchResponse = { ok: boolean; status: number; json(): Promise<unknown> };
 export type SearchFetcher = (
@@ -41,24 +41,6 @@ function releaseYear(value: unknown): string {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return '—';
   const year = new Date(value).getUTCFullYear();
   return year >= 1900 && year <= 2100 ? String(year) : '—';
-}
-
-export function filterSearchItems(
-  items: SearchItem[],
-  query: string,
-  source: SourceFilter,
-  kind: SearchKind,
-): SearchItem[] {
-  const needle = query.trim().toLocaleLowerCase();
-  return items.filter(
-    (item) =>
-      item.kind === kind &&
-      (source === 'all' || item.source === source) &&
-      (!needle ||
-        [item.title, item.artist, item.album].some((value) =>
-          value.toLocaleLowerCase().includes(needle),
-        )),
-  );
 }
 
 export function toLocalSearchItems(tracks: unknown): SearchItem[] {

@@ -509,3 +509,49 @@ it('删除失败保留确认框和当前歌单，成功重试后退出详情', a
     assert.equal(h.query('[data-user-back]'), null);
   });
 });
+
+for (const outcome of ['新刷新取代', '卸载']) {
+  it(`歌单列表响应迟到且已被${outcome}时，不再续发详情请求`, async () => {
+    await withReactHarness(async (h) => {
+      const old = deferred();
+      let held = false,
+        waiting = false,
+        details = 0;
+      const ref = await mount(
+        h,
+        client({
+          playlists: () => {
+            if (held) {
+              waiting = true;
+              return old.promise;
+            }
+            return Promise.resolve([list]);
+          },
+          playlist: async () => {
+            details++;
+            return { playlist: list, tracks: [track(1)] };
+          },
+        }),
+      );
+      await h.click('[data-user-list="1"]');
+      const initial = details;
+      held = true;
+      let obsolete;
+      await h.React.act(async () => {
+        obsolete = ref.current.refresh();
+      });
+      await h.until(() => waiting, '旧刷新应等待歌单列表');
+      if (outcome === '新刷新取代') {
+        held = false;
+        await h.React.act(async () => assert.equal(await ref.current.refresh(), true));
+      } else await h.unmount();
+      const before = details;
+      assert.equal(before, initial + (outcome === '新刷新取代' ? 1 : 0));
+      await h.React.act(async () => {
+        old.resolve([list]);
+        assert.equal(await obsolete, false);
+      });
+      assert.equal(details, before, '作废的列表结果不能再触发详情 GET');
+    });
+  });
+}

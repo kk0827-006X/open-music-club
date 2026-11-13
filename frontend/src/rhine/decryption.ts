@@ -71,17 +71,6 @@ const RETRACT: readonly Knot[] = [
   [38.84, 0],
 ];
 
-// Endpoints measured on the face at 37 seconds. Every moving endpoint is on
-// this ONE diagonal in model space; projection carries it with the camera.
-export const SCAN_FROM = [-1.6, 0.5] as const;
-export const SCAN_TO = [1.98, 3.24] as const;
-export const SCAN_CORNERS = [
-  [-1.88, 3.2],
-  [2.14, 3.36],
-  [-1.77, 0.36],
-  [2.17, 0.65],
-] as const;
-
 export function decryptionFrame(time: number) {
   const grow = sampleCurve(GROW, time);
   const remaining = sampleCurve(RETRACT, time);
