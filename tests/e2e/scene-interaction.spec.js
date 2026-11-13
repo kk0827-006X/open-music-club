@@ -51,7 +51,7 @@ test('档案真实指针绑定：点击、双轴拖动、滚轮、详情旋转�
         } finally {
           scene.renderer.render = render;
         }
-        scene.renderState.invalidate();
+        scene.state.render.renderState.invalidate();
         scene.update((time += 0.05));
       },
     };

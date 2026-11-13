@@ -61,16 +61,16 @@ for (const viewport of [
       };
       const advance = (count) => {
         // 中间帧仍运行完整模拟与矩阵更新，只省略 GPU 合成；每个取样帧真实合成全部通道。
-        const render = scene.composer.render;
-        scene.composer.render = () => {};
+        const render = scene.runtime.rendering.composer.render;
+        scene.runtime.rendering.composer.render = () => {};
         try {
           for (let i = 0; i < count; i++) update();
         } finally {
-          scene.composer.render = render;
+          scene.runtime.rendering.composer.render = render;
         }
       };
       const capture = (name, cinematic) => {
-        scene.renderState.invalidate();
+        scene.state.render.renderState.invalidate();
         update(cinematic);
         const stats = scene.getStats();
         frames.push({
@@ -78,24 +78,30 @@ for (const viewport of [
           image: scene.renderer.domElement.toDataURL('image/png'),
           state: {
             camera: scene.camera.position.toArray(),
-            aim: scene.cameraAim.toArray(),
+            aim: scene.state.navigation.cameraAim.toArray(),
             projection: scene.camera.projectionMatrix.toArray(),
             inverse: scene.camera.matrixWorldInverse.toArray(),
-            model: scene.model.matrixWorld.toArray(),
+            model: scene.runtime.assets.model.matrixWorld.toArray(),
             instances: Array.from(
-              scene.instances[0].instanceMatrix.array.slice(0, scene.instances[0].count * 16),
+              scene.runtime.assets.instances[0].instanceMatrix.array.slice(
+                0,
+                scene.runtime.assets.instances[0].count * 16,
+              ),
             ),
-            covers: scene.coverInstances.map((mesh) => ({
+            covers: scene.runtime.assets.coverInstances.map((mesh) => ({
               count: mesh.count,
               matrix: Array.from(mesh.instanceMatrix.array.slice(0, mesh.count * 16)),
             })),
-            outgoing: scene.outgoing.map((item) => ({
+            outgoing: scene.state.selection.outgoing.map((item) => ({
               cell: { ...item.cell },
               matrix: item.group.matrixWorld.toArray(),
               lift: { ...item.lift },
               clarity: item.clarity,
             })),
-            relay: [...scene.relayPoints].map(([key, item]) => [key, item.point.toArray()]),
+            relay: [...scene.state.relay.relayPoints].map(([key, item]) => [
+              key,
+              item.point.toArray(),
+            ]),
             decryption: stats.decryption,
             fov: stats.fieldOfView,
             selectedCell: stats.selectedCell,
@@ -106,7 +112,7 @@ for (const viewport of [
             archiveCount: stats.archiveCount,
             theme: scene.themeAmount,
             opacity: scene.renderer.domElement.style.opacity,
-            composer: scene.composer.passes.map((pass) => ({
+            composer: scene.runtime.rendering.composer.passes.map((pass) => ({
               enabled: pass.enabled,
             })),
           },
@@ -122,7 +128,7 @@ for (const viewport of [
       scene.finishOpening(true);
       advance(30);
       capture('04-preview');
-      scene.setHover(scene.selectedCell);
+      scene.setHover(scene.state.navigation.selectedCell);
       advance(8);
       capture('05-hover');
       scene.select(8);
@@ -132,7 +138,7 @@ for (const viewport of [
       advance(80);
       capture('07-detail-decryption');
       advance(80);
-      scene.targetRotation = 0.7;
+      scene.state.selection.targetRotation = 0.7;
       advance(20);
       capture('08-detail-turn');
       scene.setMode('archive');
@@ -155,7 +161,7 @@ for (const viewport of [
         { low: 0.7, mid: 0.5, high: 0.4, activity: 1, spectrum: new Float32Array(64).fill(0.7) },
         1,
         0.4,
-        `${scene.selectedCell.lane}:${scene.selectedCell.row}`,
+        `${scene.state.navigation.selectedCell.lane}:${scene.state.navigation.selectedCell.row}`,
       );
       scene.setRelayActive(true);
       advance(15);

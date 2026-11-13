@@ -1,157 +1,124 @@
 import * as THREE from 'three';
-import { ArchiveVisibility } from './archive-visibility';
-import { archiveEntryCamera } from './archive-entry-camera';
-import { InstanceUpdates } from './instance-updates';
-import { RenderState } from './render-state';
 import { disposeThreeTree } from './three-resources';
-import { ThemeWave } from './theme-motion';
-import { themeEnvironment } from './theme-material';
-import {
-  audioWave,
-  interactionGain,
-  RhythmMotion,
-  rhythmDisplacement,
-  quietBands,
-  type MusicBands,
-  type RhythmStyle,
-} from './archive-play-motion';
+import { type MusicBands, type RhythmStyle } from './archive-play-motion';
 import type { LightingLook } from './archive-lighting';
-import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import type { RenderQuality } from './render-quality';
-import { DecryptionController } from './decryption';
-import { fileAtSlot, fileLocation, records } from './data';
+import { fileAtSlot, fileLocation } from './data';
 import {
   cellKey,
   sameCell,
   selectionCell,
   fileAtCell,
-  poolCell,
   COLUMN_SPACING,
   ROW_SPACING,
   type ArchiveCell,
   type ArchiveNavigation,
 } from './archive-loop';
-import { archiveFraming } from './viewport-layout';
-import {
-  ArchiveDrag,
-  ArchivePlaneMomentum,
-  type DragAxis,
-  type DragProjection,
-  type DragPosition,
-} from './archive-drag';
+import { type DragAxis, type DragProjection, type DragPosition } from './archive-drag';
 import { assetUrl as publicAsset } from './asset-url';
 import { bindArchiveInteractions } from './interaction-bindings';
-import { ArchiveSceneAssets } from './scene-assets';
-import { ArchiveRendererSetup } from './renderer-setup';
-import {
-  archiveWave,
-  extraction,
-  baselineSelectionWave,
-  rippleEnvelope,
-  settlingWave,
-  damp,
-  columnStrength,
-  idleWave,
-  cinematicField,
-  INSPECTION_LIFT,
-  returnStep,
-} from './motion';
+import { extraction, baselineSelectionWave } from './motion';
+import { ArchiveSceneUpdate, type CinematicUpdate } from './scene-update';
+import { ArchiveSceneRuntime } from './scene-runtime';
+import type { SceneState } from './scene-state';
 
 const ease = (t: number) => {
   t = THREE.MathUtils.clamp(t, 0, 1);
   return t * t * t * (t * (t * 6 - 15) + 10);
 };
-type CinematicUpdate = { reveal: number; lift: number; zoom: number; time: number };
-type ArchivePlayfield = {
-  enabled: boolean;
-  bands: MusicBands;
-  strength: number;
-  flatten: number;
-  target: string | null;
-  breathing: boolean;
-};
-type MotionFrame = {
-  time: number;
-  dt: number;
-  cinematic: CinematicUpdate | undefined;
-  blend: number;
-  shot: number;
-  workspaceEntry: boolean;
-  referenceCinematic: boolean;
-  hoverLift: (cell: ArchiveCell) => number;
-  chosen: THREE.Vector3;
-  selectedRow: number;
-  selectedLane: number;
-  trackX: number;
-};
-type WaveFrame = MotionFrame & {
-  play: ArchivePlayfield;
-  activePlay: boolean;
-  rhythm: ReturnType<RhythmMotion['update']>;
-  indexDim: (lift: number) => number;
-};
-type SelectionFrame = WaveFrame & {
-  field: (row: number, lane: number) => number;
-  selectedBase: number;
-  detail: number;
-};
-type CameraFrame = { fog: THREE.Fog; responsiveOpening: boolean };
-
 export class ArchiveScene {
-  private disposed = false;
-  private inputEvents = new AbortController();
-  private presence = 1;
-  private presenceTarget = 1;
+  private readonly runtime: ArchiveSceneRuntime;
+  private readonly frame: ArchiveSceneUpdate;
+  private get state() {
+    return this.runtime.state;
+  }
+  get scene() {
+    return this.runtime.scene;
+  }
+  get camera() {
+    return this.runtime.camera;
+  }
+  get renderer() {
+    return this.runtime.rendering.renderer;
+  }
+  get themeAmount() {
+    return this.runtime.themeAmount;
+  }
+  get uiOnlyParallax() {
+    return this.state.presentation.uiOnlyParallax;
+  }
+  set uiOnlyParallax(value: SceneState['presentation']['uiOnlyParallax']) {
+    this.state.presentation.uiOnlyParallax = value;
+  }
+  get onRelayPick() {
+    return this.state.callbacks.onRelayPick;
+  }
+  set onRelayPick(value: SceneState['callbacks']['onRelayPick']) {
+    this.state.callbacks.onRelayPick = value;
+  }
+  get onCoverUpdate() {
+    return this.state.callbacks.onCoverUpdate;
+  }
+  set onCoverUpdate(value: SceneState['callbacks']['onCoverUpdate']) {
+    this.state.callbacks.onCoverUpdate = value;
+  }
+  get onSelect() {
+    return this.state.callbacks.onSelect;
+  }
+  set onSelect(value: SceneState['callbacks']['onSelect']) {
+    this.state.callbacks.onSelect = value;
+  }
+  get onHover() {
+    return this.state.callbacks.onHover;
+  }
+  set onHover(value: SceneState['callbacks']['onHover']) {
+    this.state.callbacks.onHover = value;
+  }
+  get onNavigate() {
+    return this.state.callbacks.onNavigate;
+  }
+  set onNavigate(value: SceneState['callbacks']['onNavigate']) {
+    this.state.callbacks.onNavigate = value;
+  }
+  update(time: number, cinematic?: CinematicUpdate) {
+    this.frame.update(time, cinematic);
+  }
   setPresentationVisible(visible: boolean, immediate = false) {
-    this.presenceTarget = Number(visible);
-    if (immediate) this.presence = this.presenceTarget;
-    if (!visible) this.cancelPointer();
+    this.state.presentation.presenceTarget = Number(visible);
+    if (immediate) this.state.presentation.presence = this.state.presentation.presenceTarget;
+    if (!visible) this.runtime.cancelPointer();
   }
   get presentationHidden() {
-    return this.presenceTarget === 0 && this.presence === 0;
-  }
-  private presentationDrop(cell: ArchiveCell) {
-    const delay =
-      0.15 *
-      (1 +
-        Math.tanh(
-          (cell.row - this.selectedCell.row) * 0.1 + (cell.lane - this.selectedCell.lane) * 0.25,
-        ));
-    return 35 * Math.pow(THREE.MathUtils.clamp((1 - this.presence - delay) / 0.7, 0, 1), 2);
+    return this.state.presentation.presenceTarget === 0 && this.state.presentation.presence === 0;
   }
   revealImmediately() {
-    this.reveal = this.targetReveal;
+    this.state.presentation.reveal = this.state.presentation.targetReveal;
   }
   dispose() {
-    if (this.disposed) return;
-    this.disposed = true;
-    this.inputEvents.abort();
-    this.cancelPointer();
-    disposeThreeTree(this.scene);
-    this.appearance.disposeSources();
-    this.model.clear();
-    this.outgoing = [];
-    this.instances = [];
-    this.light.shadow.map?.dispose();
-    for (const pass of this.composer.passes) pass.dispose();
-    this.composer.dispose();
-    this.renderer.dispose();
-    this.renderer.forceContextLoss();
-    this.renderer.domElement.remove();
-    this.loaded = false;
-    this.fallbackCover?.dispose();
-    this.coverTextures = [];
-    this.coverInstances = [];
+    if (this.state.lifecycle.disposed) return;
+    this.state.lifecycle.disposed = true;
+    this.runtime.inputEvents.abort();
+    this.runtime.cancelPointer();
+    disposeThreeTree(this.runtime.scene);
+    this.runtime.assets.appearance.disposeSources();
+    this.runtime.assets.model.clear();
+    this.state.selection.outgoing = [];
+    this.runtime.assets.instances = [];
+    this.runtime.rendering.light.shadow.map?.dispose();
+    for (const pass of this.runtime.rendering.composer.passes) pass.dispose();
+    this.runtime.rendering.composer.dispose();
+    this.runtime.rendering.renderer.dispose();
+    this.runtime.rendering.renderer.forceContextLoss();
+    this.runtime.rendering.renderer.domElement.remove();
+    this.state.lifecycle.loaded = false;
+    this.runtime.assets.fallbackCover?.dispose();
+    this.runtime.assets.coverTextures = [];
+    this.runtime.assets.coverInstances = [];
   }
-  uiOnlyParallax = false;
-  private theme = new ThemeWave();
-  private subduedIndex = { value: 0 };
-  private selectedIndexOnly = false;
-  private superPerformance = false;
   setSuperPerformance(enabled: boolean) {
-    if (this.superPerformance === enabled) return;
-    this.superPerformance = enabled;
-    for (const inst of this.instances) {
+    if (this.state.presentation.superPerformance === enabled) return;
+    this.state.presentation.superPerformance = enabled;
+    for (const inst of this.runtime.assets.instances) {
       const original = (inst.userData.fullMaterial ??= inst.material) as THREE.MeshPhysicalMaterial;
       if (enabled && !inst.userData.fastMaterial) {
         const fast = original.clone();
@@ -168,40 +135,22 @@ export class ArchiveScene {
     this.resize();
   }
   setSelectedIndexAccent(onlySelected: boolean) {
-    this.selectedIndexOnly = onlySelected;
-  }
-
-  get themeAmount() {
-    return this.theme.background(performance.now() / 1000);
+    this.state.presentation.selectedIndexOnly = onlySelected;
   }
   setTheme(dark: boolean, immediate = false) {
-    this.theme.set(dark, performance.now() / 1000, this.selectedCell, immediate);
+    this.state.presentation.theme.set(
+      dark,
+      performance.now() / 1000,
+      this.state.navigation.selectedCell,
+      immediate,
+    );
   }
-  private playfield: ArchivePlayfield = {
-    enabled: false,
-    bands: quietBands(),
-    strength: 1,
-    flatten: 0,
-    target: null,
-    breathing: true,
-  };
-  private flatMix = 0;
-  private audioGain = 0;
-  private audioBands: MusicBands | undefined;
   setAudioBands(bands?: MusicBands) {
-    this.audioBands = bands;
+    this.state.audio.audioBands = bands;
   }
-  private audioFieldCache = new Map<string, number>();
-  private rhythm = new RhythmMotion();
-  private rhythmStyle: RhythmStyle = 'legacy';
   setRhythmStyle(style: RhythmStyle) {
-    this.rhythmStyle = style;
+    this.state.audio.rhythmStyle = style;
   }
-  private relayLifts = new Map<string, number>();
-  private relayPoints = new Map<string, { cell: ArchiveCell; point: THREE.Vector3 }>();
-  private relayActive = false;
-  onRelayPick?: (key: string | null) => void;
-  onCoverUpdate?: () => void;
   setPlayfield(
     enabled: boolean,
     bands: MusicBands,
@@ -210,33 +159,33 @@ export class ArchiveScene {
     target: string | null,
     breathing = true,
   ) {
-    this.playfield = { enabled, bands, strength, flatten, target, breathing };
+    this.state.audio.playfield = { enabled, bands, strength, flatten, target, breathing };
   }
   setRelayActive(active: boolean) {
-    if (active === this.relayActive) return;
-    this.cancelPointer();
+    if (active === this.state.relay.relayActive) return;
+    this.runtime.cancelPointer();
     this.setHover(null);
-    this.relayActive = active;
-    this.pointer.set(0, 0);
+    this.state.relay.relayActive = active;
+    this.state.interaction.pointer.set(0, 0);
   }
   relayPulse(key: string) {
-    const cell = this.relayPoints.get(key)?.cell;
-    if (cell && !this.reduced) this.emitPulse(cell);
+    const cell = this.state.relay.relayPoints.get(key)?.cell;
+    if (cell && !this.state.presentation.reduced) this.runtime.emitPulse(cell);
   }
   projectRelay(key: string) {
-    const item = this.relayPoints.get(key);
+    const item = this.state.relay.relayPoints.get(key);
     if (!item) return null;
-    const point = item.point.clone().project(this.camera);
-    const rect = this.renderer.domElement.getBoundingClientRect();
+    const point = item.point.clone().project(this.runtime.camera);
+    const rect = this.runtime.rendering.renderer.domElement.getBoundingClientRect();
     return {
       x: rect.left + ((point.x + 1) * rect.width) / 2,
       y: rect.top + ((1 - point.y) * rect.height) / 2,
     };
   }
   relayCandidates() {
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.scene.updateMatrixWorld(true);
-    return [...this.relayPoints.keys()].filter((key) => {
+    const rect = this.runtime.rendering.renderer.domElement.getBoundingClientRect();
+    this.runtime.scene.updateMatrixWorld(true);
+    return [...this.state.relay.relayPoints.keys()].filter((key) => {
       const p = this.projectRelay(key)!;
       const x = (p.x - rect.left) / rect.width,
         y = (p.y - rect.top) / rect.height;
@@ -245,208 +194,46 @@ export class ArchiveScene {
       return hit && cellKey(hit) === key;
     });
   }
-  get renderer() {
-    return this.rendererSetup.renderer;
-  }
-  readonly scene = new THREE.Scene();
-  // The reference uses a long lens 72–140 units from the cassette. A 0.1 near
-  // plane quantizes adjacent optical layers to the same depth (visible shimmer).
-  // All visible foreground geometry is beyond 5; retain the framing and lens.
-  readonly camera = new THREE.PerspectiveCamera(34, 16 / 9, 5, 300);
-  private get composer() {
-    return this.rendererSetup.composer;
-  }
-  private get ao() {
-    return this.rendererSetup.ao;
-  }
-  private get bokeh() {
-    return this.rendererSetup.bokeh;
-  }
-
-  private renderState = new RenderState();
-  private renderedFrames = 0;
-  private reusedFrames = 0;
-  private visibility = new ArchiveVisibility();
-
-  private drawnCells: ArchiveCell[] = [];
-  private extraCoverage = false;
   setArchiveCoverage(extra: boolean) {
-    this.extraCoverage = extra;
+    this.state.render.extraCoverage = extra;
   }
-  private assets = new ArchiveSceneAssets({
-    scene: this.scene,
-    renderer: () => this.renderer,
-    isDisposed: () => this.disposed,
-    isLoaded: () => this.loaded,
-    markLoaded: () => {
-      this.loaded = true;
-    },
-    lightingLook: () => this.lightingLook,
-    coverUrls: () => this.coverUrls,
-    subduedIndex: () => this.subduedIndex,
-    selectedPosition: () => this.cellPosition(poolCell(this.selectedSlot)),
-    appendCells: (cell) => {
-      this.cells.push(cell);
-    },
-    onCoverUpdate: () => {
-      this.renderState.invalidate();
-      this.onCoverUpdate?.();
-    },
-  });
-  private get instances() {
-    return this.assets.instances;
-  }
-  private set instances(value: ArchiveSceneAssets['instances']) {
-    this.assets.instances = value;
-  }
-  private get coverInstances() {
-    return this.assets.coverInstances;
-  }
-  private set coverInstances(value: ArchiveSceneAssets['coverInstances']) {
-    this.assets.coverInstances = value;
-  }
-  private get coverTextures() {
-    return this.assets.coverTextures;
-  }
-  private set coverTextures(value: ArchiveSceneAssets['coverTextures']) {
-    this.assets.coverTextures = value;
-  }
-  private get selectedCover() {
-    return this.assets.selectedCover;
-  }
-  private get fallbackCover() {
-    return this.assets.fallbackCover;
-  }
-  private get matrixUpdates() {
-    return this.assets.matrixUpdates;
-  }
-  private set matrixUpdates(value: ArchiveSceneAssets['matrixUpdates']) {
-    this.assets.matrixUpdates = value;
-  }
-  private get themeUpdates() {
-    return this.assets.themeUpdates;
-  }
-  private set themeUpdates(value: ArchiveSceneAssets['themeUpdates']) {
-    this.assets.themeUpdates = value;
-  }
-  private get instanceCapacity() {
-    return this.assets.instanceCapacity;
-  }
-  private get model() {
-    return this.assets.model;
-  }
-  private get appearance() {
-    return this.assets.appearance;
-  }
-  private get themeAttribute() {
-    return this.assets.themeAttribute;
-  }
-  private get labelCanvas() {
-    return this.assets.labelCanvas;
-  }
-
-  private decryption = new DecryptionController();
-  private cursor = new THREE.Vector2();
-  private raycaster = new THREE.Raycaster();
-  private dummy = new THREE.Object3D();
-  private cells: ArchiveCell[] = [];
-  private selectedCell: ArchiveCell = { lane: 2, row: 12 };
-  private looping = false;
-  private coordinateOrigin: ArchiveCell = { lane: 0, row: 0 };
-  private lift = { value: 0, velocity: 0 };
-  private rail = { value: 0, velocity: 0 };
-  private shoulder = { value: 12, velocity: 0 };
-  private laneFocus = { value: 2, velocity: 0 };
-  private columnCamera = { value: 0, velocity: 0 };
-  private returnY: number | null = null;
-  private canInspect = false;
-  private clearance = 0;
-  private pulseGain = 1;
-  private idleGain = 0;
-  private lastInteraction = 0;
-  private scanTime = 29.1;
-  private scanBlend = 0;
-  private cameraAim = new THREE.Vector3();
-  private outgoing: {
-    group: THREE.Group;
-    slot: number;
-    cell: ArchiveCell;
-    lift: { value: number; velocity: number };
-    returnY: number | null;
-    clarity: number;
-  }[] = [];
-  private pulses: { row: number; lane: number; time: number }[] = [];
-  private pendingPulse: ArchiveCell | null = null;
-  private selectedSlot = 76;
-  private detail = 0;
-  private targetDetail = 0;
-  private reveal = 0;
-  private targetReveal = 0;
-  private last = 0;
-  private pointer = new THREE.Vector2();
-  private dragging = false;
-  private hoverCell: ArchiveCell | null = null;
-  private hoverLifts = new Map<string, number>();
-  private archiveDrag = new ArchiveDrag();
-  private dragTrack: DragPosition | null = null;
-  private navigatingDrag = false;
-  private archiveMomentum: { motion: ArchivePlaneMomentum; time: number } | null = null;
-  private holdingArchive = false;
-  private cancelPointer = () => {};
-  private rotation = 0;
-  private targetRotation = 0;
-  private get light() {
-    return this.rendererSetup.light;
-  }
-  private clock = 0;
-  private loaded = false;
-
-  private reduced = false;
-  private rendererSetup: ArchiveRendererSetup;
-  private get quality() {
-    return this.rendererSetup.currentQuality;
-  }
-
-  private smaa = new SMAAPass();
-
-  onSelect?: (index: number, cell?: ArchiveCell) => void;
-  onHover?: (index: number | null) => void;
-  onNavigate?: (axis: 'row' | 'lane', direction: number) => void;
   constructor(
-    private container: HTMLElement,
-    private readonly selectionPulse = baselineSelectionWave,
-    private readonly deferSelectionPulse = false,
-    private readonly lightingLook: LightingLook = 'baseline',
-    private readonly coverUrls: readonly string[] = [],
+    container: HTMLElement,
+    selectionPulse = baselineSelectionWave,
+    deferSelectionPulse = false,
+    lightingLook: LightingLook = 'baseline',
+    coverUrls: readonly string[] = [],
   ) {
-    this.rendererSetup = new ArchiveRendererSetup({
+    this.runtime = new ArchiveSceneRuntime({
       container,
-      scene: this.scene,
-      camera: this.camera,
-      cameraAim: this.cameraAim,
-      smaa: this.smaa,
+      selectionPulse: (distance, age) => selectionPulse.call(this, distance, age),
+      onCoverUpdate: () => this.onCoverUpdate?.(),
+      deferSelectionPulse,
       lightingLook,
-      signal: this.inputEvents.signal,
-      renderState: this.renderState,
-      superPerformance: () => this.superPerformance,
+      coverUrls,
     });
-    this.scene.add(this.model);
+    this.frame = new ArchiveSceneUpdate(this.runtime, {
+      canBrowse: () => this.canBrowse(),
+      setHover: (cell) => this.setHover(cell),
+      rebaseCoordinates: () => this.rebaseCoordinates(),
+      navigatePlane: (coordinate) => this.navigatePlane(coordinate),
+      trackPosition: (axis, coordinate) => this.trackPosition(axis, coordinate),
+    });
     this.bindPointer();
   }
   load(assetUrl = publicAsset('assets/archive-cassette.glb')) {
-    return this.assets.load(assetUrl);
+    return this.runtime.assets.load(assetUrl);
   }
-
   async prepareEntry() {
-    const canvas = this.renderer.domElement;
+    const canvas = this.runtime.rendering.renderer.domElement;
     canvas.style.visibility = 'hidden';
     try {
       // 先编译材质，再完成真实后处理首帧；这些冷启动工作不占用可见入场的时间轴。
       this.setMode('hidden');
-      await this.renderer.compileAsync(this.scene, this.camera);
-      if (this.disposed) return;
+      await this.runtime.rendering.renderer.compileAsync(this.runtime.scene, this.runtime.camera);
+      if (this.state.lifecycle.disposed) return;
       this.update(performance.now() / 1000, { time: 21.9, reveal: 0, lift: 0, zoom: 0 });
-      const gl = this.renderer.getContext();
+      const gl = this.runtime.rendering.renderer.getContext();
       if (!('fenceSync' in gl)) return;
       const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
       if (!fence) return;
@@ -455,9 +242,11 @@ export class ArchiveScene {
         const deadline = performance.now() + 5000;
         const poll = () => {
           const status =
-            this.disposed || gl.isContextLost() ? gl.WAIT_FAILED : gl.clientWaitSync(fence, 0, 0);
+            this.state.lifecycle.disposed || gl.isContextLost()
+              ? gl.WAIT_FAILED
+              : gl.clientWaitSync(fence, 0, 0);
           if (
-            this.disposed ||
+            this.state.lifecycle.disposed ||
             gl.isContextLost() ||
             status !== gl.TIMEOUT_EXPIRED ||
             performance.now() >= deadline
@@ -472,138 +261,134 @@ export class ArchiveScene {
       canvas.style.visibility = '';
     }
   }
-  // 仅为音乐库入场保留镜头与阵列连续性，不触发选档或详情业务。
-  private openingMix = 0;
-  private openingSnap = false;
-  private openingCameraBlend: number | undefined;
-  private openingProgress = 0;
-  private openingFieldTime = 24.9;
   finishOpening(immediate = false) {
     this.setMode('archive');
-    const chosen = this.cellPosition(this.selectedCell);
-    this.columnCamera.value = immediate ? chosen.x : 0;
-    this.columnCamera.velocity = 0;
-    this.rail.value = immediate ? -2.17 - chosen.z : 0;
-    this.rail.velocity = 0;
-    this.openingMix = immediate ? 0 : 1;
-    this.openingProgress = 0;
-    this.openingSnap = immediate;
-    this.reveal = this.targetReveal;
+    const chosen = this.runtime.cellPosition(this.state.navigation.selectedCell);
+    this.state.navigation.columnCamera.value = immediate ? chosen.x : 0;
+    this.state.navigation.columnCamera.velocity = 0;
+    this.state.navigation.rail.value = immediate ? -2.17 - chosen.z : 0;
+    this.state.navigation.rail.velocity = 0;
+    this.state.opening.openingMix = immediate ? 0 : 1;
+    this.state.opening.openingProgress = 0;
+    this.state.opening.openingSnap = immediate;
+    this.state.presentation.reveal = this.state.presentation.targetReveal;
     if (immediate) {
-      this.lift.value = 0.4;
-      this.lift.velocity = 0;
+      this.state.selection.lift.value = 0.4;
+      this.state.selection.lift.velocity = 0;
     }
   }
   setOpeningProgress(progress: number) {
     const next = ease(progress);
-    this.openingCameraBlend =
-      (next - this.openingProgress) / Math.max(0.000001, 1 - this.openingProgress);
-    this.openingProgress = next;
-    this.openingMix = 1 - next;
-    const chosen = this.cellPosition(this.selectedCell);
-    this.columnCamera.value = chosen.x * next;
-    this.columnCamera.velocity = 0;
-    this.rail.value = (-2.17 - chosen.z) * next;
-    this.rail.velocity = 0;
-    this.lift.value = 0.4 * next;
-    this.lift.velocity = 0;
+    this.state.opening.openingCameraBlend =
+      (next - this.state.opening.openingProgress) /
+      Math.max(0.000001, 1 - this.state.opening.openingProgress);
+    this.state.opening.openingProgress = next;
+    this.state.opening.openingMix = 1 - next;
+    const chosen = this.runtime.cellPosition(this.state.navigation.selectedCell);
+    this.state.navigation.columnCamera.value = chosen.x * next;
+    this.state.navigation.columnCamera.velocity = 0;
+    this.state.navigation.rail.value = (-2.17 - chosen.z) * next;
+    this.state.navigation.rail.velocity = 0;
+    this.state.selection.lift.value = 0.4 * next;
+    this.state.selection.lift.velocity = 0;
   }
   setMode(mode: 'hidden' | 'archive' | 'detail') {
-    this.cancelPointer();
+    this.runtime.cancelPointer();
     this.setHover(null);
     if (mode === 'detail')
-      this.decryption.enter(this.scanBlend > 0.9 && this.decryption.clarity > 0.999);
-    else this.decryption.leave();
-    if (mode === 'hidden') this.decryption.select();
-    if (mode !== 'archive') this.pendingPulse = null;
-    this.looping = mode !== 'hidden';
-    if (!this.looping) {
-      const canonical = fileLocation(fileAtSlot(this.selectedSlot));
-      this.selectedCell = { lane: canonical.lane, row: canonical.row };
-      this.coordinateOrigin = { lane: 0, row: 0 };
-      for (const old of this.outgoing) {
-        this.scene.remove(old.group);
-        this.appearance.dispose(old.group);
+      this.state.selection.decryption.enter(
+        this.state.selection.scanBlend > 0.9 && this.state.selection.decryption.clarity > 0.999,
+      );
+    else this.state.selection.decryption.leave();
+    if (mode === 'hidden') this.state.selection.decryption.select();
+    if (mode !== 'archive') this.state.selection.pendingPulse = null;
+    this.state.navigation.looping = mode !== 'hidden';
+    if (!this.state.navigation.looping) {
+      const canonical = fileLocation(fileAtSlot(this.state.navigation.selectedSlot));
+      this.state.navigation.selectedCell = { lane: canonical.lane, row: canonical.row };
+      this.state.navigation.coordinateOrigin = { lane: 0, row: 0 };
+      for (const old of this.state.selection.outgoing) {
+        this.runtime.scene.remove(old.group);
+        this.runtime.assets.appearance.dispose(old.group);
       }
-      this.outgoing = [];
+      this.state.selection.outgoing = [];
     }
-    this.lastInteraction = this.clock;
-    this.targetReveal = mode === 'hidden' ? 0 : 1;
-    this.targetDetail = mode === 'detail' ? 1 : 0;
-    this.dragging = false;
+    this.state.navigation.lastInteraction = this.state.timing.clock;
+    this.state.presentation.targetReveal = mode === 'hidden' ? 0 : 1;
+    this.state.selection.targetDetail = mode === 'detail' ? 1 : 0;
+    this.state.interaction.dragging = false;
     if (mode !== 'detail') {
-      this.targetRotation = 0;
-      if (this.rotation !== 0) this.returnY = this.model.position.y;
-    } else this.returnY = null;
+      this.state.selection.targetRotation = 0;
+      if (this.state.selection.rotation !== 0)
+        this.state.selection.returnY = this.runtime.assets.model.position.y;
+    } else this.state.selection.returnY = null;
   }
   setReduced(value: boolean) {
-    if (value && !this.reduced) this.cancelPointer();
-    this.reduced = value;
+    if (value && !this.state.presentation.reduced) this.runtime.cancelPointer();
+    this.state.presentation.reduced = value;
   }
   setQuality(value: RenderQuality | boolean) {
-    this.rendererSetup.setQuality(value);
-  }
-  private cellPosition(cell: ArchiveCell) {
-    return new THREE.Vector3(
-      (cell.lane - 2) * COLUMN_SPACING,
-      -4.6,
-      (cell.row - 15.5) * ROW_SPACING,
-    );
+    this.runtime.rendering.setQuality(value);
   }
   private rebaseCoordinates() {
     // Periodically reduce the logical coordinates while preserving every
     // relative position, spring velocity, ripple and idle phase.
     const shift = {
       lane:
-        Math.abs(this.selectedCell.lane) > 2048
-          ? Math.round((this.selectedCell.lane - 2) / 3) * 3
+        Math.abs(this.state.navigation.selectedCell.lane) > 2048
+          ? Math.round((this.state.navigation.selectedCell.lane - 2) / 3) * 3
           : 0,
       row:
-        Math.abs(this.selectedCell.row) > 2048
-          ? Math.floor((this.selectedCell.row - 12) / 8) * 8
+        Math.abs(this.state.navigation.selectedCell.row) > 2048
+          ? Math.floor((this.state.navigation.selectedCell.row - 12) / 8) * 8
           : 0,
     };
     if (!shift.lane && !shift.row) return;
     this.setHover(null);
-    this.hoverLifts.clear();
-    this.selectedCell.lane -= shift.lane;
-    this.selectedCell.row -= shift.row;
-    this.coordinateOrigin.lane += shift.lane;
-    this.coordinateOrigin.row += shift.row;
-    this.laneFocus.value -= shift.lane;
-    this.shoulder.value -= shift.row;
-    this.columnCamera.value -= shift.lane * COLUMN_SPACING;
-    this.rail.value += shift.row * ROW_SPACING;
-    for (const old of this.outgoing) {
+    this.state.interaction.hoverLifts.clear();
+    this.state.navigation.selectedCell.lane -= shift.lane;
+    this.state.navigation.selectedCell.row -= shift.row;
+    this.state.navigation.coordinateOrigin.lane += shift.lane;
+    this.state.navigation.coordinateOrigin.row += shift.row;
+    this.state.navigation.laneFocus.value -= shift.lane;
+    this.state.navigation.shoulder.value -= shift.row;
+    this.state.navigation.columnCamera.value -= shift.lane * COLUMN_SPACING;
+    this.state.navigation.rail.value += shift.row * ROW_SPACING;
+    for (const old of this.state.selection.outgoing) {
       old.cell.lane -= shift.lane;
       old.cell.row -= shift.row;
     }
-    for (const pulse of this.pulses) {
+    for (const pulse of this.state.selection.pulses) {
       pulse.lane -= shift.lane;
       pulse.row -= shift.row;
     }
-    if (this.pendingPulse) {
-      this.pendingPulse.lane -= shift.lane;
-      this.pendingPulse.row -= shift.row;
+    if (this.state.selection.pendingPulse) {
+      this.state.selection.pendingPulse.lane -= shift.lane;
+      this.state.selection.pendingPulse.row -= shift.row;
     }
   }
   select(index: number, navigation?: ArchiveNavigation) {
-    if (!this.navigatingDrag) this.cancelPointer();
+    if (!this.state.interaction.navigatingDrag) this.runtime.cancelPointer();
     this.setHover(null);
-    this.lastInteraction = this.clock;
+    this.state.navigation.lastInteraction = this.state.timing.clock;
     const next = fileLocation(index).slot;
     const canonical = fileLocation(index);
-    const cell = this.looping
-      ? selectionCell(index, this.selectedCell, navigation)
+    const cell = this.state.navigation.looping
+      ? selectionCell(index, this.state.navigation.selectedCell, navigation)
       : { lane: canonical.lane, row: canonical.row };
-    const changed = !sameCell(cell, this.selectedCell);
-    if (this.looping && changed && this.loaded && this.lift.value > 0.0001) {
-      const group = this.model.clone(true);
+    const changed = !sameCell(cell, this.state.navigation.selectedCell);
+    if (
+      this.state.navigation.looping &&
+      changed &&
+      this.state.lifecycle.loaded &&
+      this.state.selection.lift.value > 0.0001
+    ) {
+      const group = this.runtime.assets.model.clone(true);
       const label = group.children[group.children.length - 1] as THREE.Mesh;
       const canvas = document.createElement('canvas');
       canvas.width = 1024;
       canvas.height = 440;
-      canvas.getContext('2d')!.drawImage(this.labelCanvas, 0, 0);
+      canvas.getContext('2d')!.drawImage(this.runtime.assets.labelCanvas, 0, 0);
       const map = new THREE.CanvasTexture(canvas);
       map.colorSpace = THREE.SRGBColorSpace;
       label.material = new THREE.MeshBasicMaterial({
@@ -615,104 +400,107 @@ export class ArchiveScene {
       // Clone carries the selected label material by reference. Replace it
       // before installing appearance shaders, so theme hooks are not appended
       // to the original label a second time on every selection.
-      this.appearance.prepare(group);
-      this.appearance.apply(group, ease(this.lift.value / 0.4));
-      this.appearance.setClarity(group, this.decryption.clarity);
-      this.scene.add(group);
-      this.outgoing.push({
+      this.runtime.assets.appearance.prepare(group);
+      this.runtime.assets.appearance.apply(group, ease(this.state.selection.lift.value / 0.4));
+      this.runtime.assets.appearance.setClarity(group, this.state.selection.decryption.clarity);
+      this.runtime.scene.add(group);
+      this.state.selection.outgoing.push({
         group,
-        slot: this.selectedSlot,
-        cell: { ...this.selectedCell },
-        lift: { ...this.lift },
+        slot: this.state.navigation.selectedSlot,
+        cell: { ...this.state.navigation.selectedCell },
+        lift: { ...this.state.selection.lift },
         returnY: group.rotation.y !== 0 ? group.position.y : null,
-        clarity: this.decryption.clarity,
+        clarity: this.state.selection.decryption.clarity,
       });
-      this.lift.value = 0;
-      this.lift.velocity = 0;
+      this.state.selection.lift.value = 0;
+      this.state.selection.lift.velocity = 0;
     }
-    this.selectedSlot = next;
-    this.selectedCell = cell;
+    this.state.navigation.selectedSlot = next;
+    this.state.navigation.selectedCell = cell;
     if (changed) {
-      this.decryption.select();
-      this.rotation = 0;
-      this.returnY = null;
+      this.state.selection.decryption.select();
+      this.state.selection.rotation = 0;
+      this.state.selection.returnY = null;
     }
-    const returning = this.outgoing.findIndex((o) => sameCell(o.cell, cell));
+    const returning = this.state.selection.outgoing.findIndex((o) => sameCell(o.cell, cell));
     if (returning >= 0) {
-      const o = this.outgoing[returning];
-      this.lift = { ...o.lift };
-      this.rotation = o.group.rotation.y;
-      this.returnY = o.returnY;
-      this.decryption.select(o.clarity);
-      this.scene.remove(o.group);
-      this.appearance.dispose(o.group);
-      this.outgoing.splice(returning, 1);
+      const o = this.state.selection.outgoing[returning];
+      this.state.selection.lift = { ...o.lift };
+      this.state.selection.rotation = o.group.rotation.y;
+      this.state.selection.returnY = o.returnY;
+      this.state.selection.decryption.select(o.clarity);
+      this.runtime.scene.remove(o.group);
+      this.runtime.assets.appearance.dispose(o.group);
+      this.state.selection.outgoing.splice(returning, 1);
     }
-    if (this.deferSelectionPulse) {
-      this.pendingPulse = this.looping ? { ...cell } : null;
-    } else this.emitPulse(cell);
-    this.targetRotation = 0;
+    if (this.runtime.options.deferSelectionPulse) {
+      this.state.selection.pendingPulse = this.state.navigation.looping ? { ...cell } : null;
+    } else this.runtime.emitPulse(cell);
+    this.state.selection.targetRotation = 0;
     this.drawLabel(index);
   }
-  private emitPulse(cell: ArchiveCell) {
-    this.pulses.push({ ...cell, time: this.clock });
-    this.pulses = this.pulses.slice(-6);
-  }
   private drawLabel(index: number) {
-    this.assets.drawLabel(index);
-  }
-  private ensureInstanceCapacity(required: number) {
-    this.assets.ensureInstanceCapacity(required);
+    this.runtime.assets.drawLabel(index);
   }
   resize() {
-    this.rendererSetup.resize();
+    this.runtime.rendering.resize();
   }
   private canBrowse() {
     return (
-      this.presenceTarget === 1 &&
-      this.looping &&
-      !this.targetDetail &&
-      this.detail < 0.2 &&
-      this.reveal >= 0.8 &&
-      this.loaded &&
-      !this.container.closest('[inert]')
+      this.state.presentation.presenceTarget === 1 &&
+      this.state.navigation.looping &&
+      !this.state.selection.targetDetail &&
+      this.state.selection.detail < 0.2 &&
+      this.state.presentation.reveal >= 0.8 &&
+      this.state.lifecycle.loaded &&
+      !this.runtime.options.container.closest('[inert]')
     );
   }
   private setHover(cell: ArchiveCell | null) {
-    if ((!cell && !this.hoverCell) || (cell && this.hoverCell && sameCell(cell, this.hoverCell)))
+    if (
+      (!cell && !this.state.interaction.hoverCell) ||
+      (cell && this.state.interaction.hoverCell && sameCell(cell, this.state.interaction.hoverCell))
+    )
       return;
-    this.hoverCell = cell ? { ...cell } : null;
+    this.state.interaction.hoverCell = cell ? { ...cell } : null;
     this.onHover?.(cell ? fileAtCell(cell) : null);
   }
   private pickCell(x: number, y: number) {
-    const r = this.renderer.domElement.getBoundingClientRect();
-    this.cursor.set(((x - r.left) / r.width) * 2 - 1, (-(y - r.top) / r.height) * 2 + 1);
-    this.raycaster.setFromCamera(this.cursor, this.camera);
-    const hit = this.raycaster.intersectObjects(
-      [this.instances[0], this.model, ...this.outgoing.map((o) => o.group)],
+    const r = this.runtime.rendering.renderer.domElement.getBoundingClientRect();
+    this.runtime.scratch.cursor.set(
+      ((x - r.left) / r.width) * 2 - 1,
+      (-(y - r.top) / r.height) * 2 + 1,
+    );
+    this.runtime.scratch.raycaster.setFromCamera(this.runtime.scratch.cursor, this.runtime.camera);
+    const hit = this.runtime.scratch.raycaster.intersectObjects(
+      [
+        this.runtime.assets.instances[0],
+        this.runtime.assets.model,
+        ...this.state.selection.outgoing.map((o) => o.group),
+      ],
       true,
     )[0];
     if (!hit) return null;
-    if (hit.instanceId !== undefined) return { ...this.drawnCells[hit.instanceId] };
+    if (hit.instanceId !== undefined) return { ...this.state.render.drawnCells[hit.instanceId] };
     let object: THREE.Object3D | null = hit.object;
     while (object) {
-      const copy = this.outgoing.find((o) => o.group === object);
+      const copy = this.state.selection.outgoing.find((o) => o.group === object);
       if (copy) return { ...copy.cell };
       object = object.parent;
     }
-    return { ...this.selectedCell };
+    return { ...this.state.navigation.selectedCell };
   }
   private trackCoordinate(axis: DragAxis, value: number) {
     return axis === 'lane' ? value / COLUMN_SPACING + 2 : (-value - 2.17) / ROW_SPACING + 15.5;
   }
   private dragProjection(): DragProjection {
-    this.model.updateMatrixWorld(true);
-    this.camera.updateMatrixWorld(true);
-    const center = this.model.localToWorld(new THREE.Vector3(0, 1.85, 0));
-    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.runtime.assets.model.updateMatrixWorld(true);
+    this.runtime.camera.updateMatrixWorld(true);
+    const center = this.runtime.assets.model.localToWorld(new THREE.Vector3(0, 1.85, 0));
+    const rect = this.runtime.rendering.renderer.domElement.getBoundingClientRect();
     const project = (motion: THREE.Vector3) => {
-      const from = center.clone().addScaledVector(motion, -0.5).project(this.camera);
-      const to = center.clone().addScaledVector(motion, 0.5).project(this.camera);
+      const from = center.clone().addScaledVector(motion, -0.5).project(this.runtime.camera);
+      const to = center.clone().addScaledVector(motion, 0.5).project(this.runtime.camera);
       return {
         x: ((to.x - from.x) * rect.width) / 2,
         y: (-(to.y - from.y) * rect.height) / 2,
@@ -731,13 +519,13 @@ export class ArchiveScene {
   }
   private navigatePlane(coordinate: DragPosition) {
     const goal = { lane: Math.round(coordinate.lane), row: Math.round(coordinate.row) };
-    if (sameCell(goal, this.selectedCell)) return;
-    const from = { ...this.selectedCell };
+    if (sameCell(goal, this.state.navigation.selectedCell)) return;
+    const from = { ...this.state.navigation.selectedCell };
     const steps = Math.min(
       64,
       Math.max(Math.abs(goal.lane - from.lane), Math.abs(goal.row - from.row)),
     );
-    this.navigatingDrag = true;
+    this.state.interaction.navigatingDrag = true;
     try {
       // Select physical cells along the travelled segment in one update per cell.
       // Column memory is updated by onSelect, but never pulls a held plane away.
@@ -746,81 +534,82 @@ export class ArchiveScene {
           lane: Math.round(from.lane + ((goal.lane - from.lane) * i) / steps),
           row: Math.round(from.row + ((goal.row - from.row) * i) / steps),
         };
-        if (!sameCell(cell, this.selectedCell)) this.onSelect?.(fileAtCell(cell), cell);
+        if (!sameCell(cell, this.state.navigation.selectedCell))
+          this.onSelect?.(fileAtCell(cell), cell);
       }
     } finally {
-      this.navigatingDrag = false;
+      this.state.interaction.navigatingDrag = false;
     }
   }
   private stopMomentum() {
-    if (this.archiveMomentum) {
-      this.columnCamera.velocity = 0;
-      this.rail.velocity = 0;
+    if (this.state.interaction.archiveMomentum) {
+      this.state.navigation.columnCamera.velocity = 0;
+      this.state.navigation.rail.velocity = 0;
     }
-    this.archiveMomentum = null;
+    this.state.interaction.archiveMomentum = null;
   }
   private bindPointer() {
     const scene = this;
-    this.cancelPointer = bindArchiveInteractions({
-      canvas: this.renderer.domElement,
-      signal: this.inputEvents.signal,
-      pointer: this.pointer,
-      archiveDrag: this.archiveDrag,
-      columnCamera: this.columnCamera,
-      rail: this.rail,
+    this.runtime.cancelPointer = bindArchiveInteractions({
+      canvas: this.runtime.rendering.renderer.domElement,
+      signal: this.runtime.inputEvents.signal,
+      pointer: this.state.interaction.pointer,
+      archiveDrag: this.state.interaction.archiveDrag,
+      columnCamera: this.state.navigation.columnCamera,
+      rail: this.state.navigation.rail,
       get relayActive() {
-        return scene.relayActive;
+        return scene.state.relay.relayActive;
       },
       get canInspect() {
-        return scene.canInspect;
+        return scene.state.selection.canInspect;
       },
       get reduced() {
-        return scene.reduced;
+        return scene.state.presentation.reduced;
       },
       get clock() {
-        return scene.clock;
+        return scene.state.timing.clock;
       },
       get dragging() {
-        return scene.dragging;
+        return scene.state.interaction.dragging;
       },
       set dragging(value) {
-        scene.dragging = value;
+        scene.state.interaction.dragging = value;
       },
       get dragTrack() {
-        return scene.dragTrack;
+        return scene.state.interaction.dragTrack;
       },
       set dragTrack(value) {
-        scene.dragTrack = value;
+        scene.state.interaction.dragTrack = value;
       },
       get holdingArchive() {
-        return scene.holdingArchive;
+        return scene.state.interaction.holdingArchive;
       },
       set holdingArchive(value) {
-        scene.holdingArchive = value;
+        scene.state.interaction.holdingArchive = value;
       },
       get archiveMomentum() {
-        return scene.archiveMomentum;
+        return scene.state.interaction.archiveMomentum;
       },
       set archiveMomentum(value) {
-        scene.archiveMomentum = value;
+        scene.state.interaction.archiveMomentum = value;
       },
       get lastInteraction() {
-        return scene.lastInteraction;
+        return scene.state.navigation.lastInteraction;
       },
       set lastInteraction(value) {
-        scene.lastInteraction = value;
+        scene.state.navigation.lastInteraction = value;
       },
       get targetRotation() {
-        return scene.targetRotation;
+        return scene.state.selection.targetRotation;
       },
       set targetRotation(value) {
-        scene.targetRotation = value;
+        scene.state.selection.targetRotation = value;
       },
       get navigatingDrag() {
-        return scene.navigatingDrag;
+        return scene.state.interaction.navigatingDrag;
       },
       set navigatingDrag(value) {
-        scene.navigatingDrag = value;
+        scene.state.interaction.navigatingDrag = value;
       },
       canBrowse: () => this.canBrowse(),
       stopMomentum: () => this.stopMomentum(),
@@ -834,889 +623,128 @@ export class ArchiveScene {
       onRelayPick: (key) => this.onRelayPick?.(key),
     });
   }
-  update(time: number, cinematic?: CinematicUpdate) {
-    const elapsed = Math.max(0, time - this.last || 0.016);
-    const dt = Math.min(elapsed, 0.05);
-    this.last = time;
-    this.clock = time;
-    if (!this.loaded) return;
-    // 顺序沿用原实现：波形闭包首次采样早于相机更新，实例裁剪晚于相机矩阵提交。
-    this.updateLighting(elapsed);
-    const motion = this.updateMotion(time, elapsed, dt, cinematic);
-    const wave = this.updateWaveAudio(motion);
-    this.updateRelay(wave);
-    const field = this.createWaveField(wave);
-    const frame = this.updateSelection(wave, field);
-    this.updateDecryption(frame);
-    const entryZ = this.updateCards(frame);
-    const camera = this.updateCamera(frame);
-    const matricesChanged = this.updateCardInstances(frame, entryZ, camera);
-    const bokehUniforms = this.updateInspection(frame);
-    this.renderFrame(frame, matricesChanged, camera.fog, bokehUniforms);
-  }
-
-  private updateLighting(elapsed: number) {
-    const step = this.reduced ? 1 : Math.min(elapsed, 0.25) / 1.1;
-    this.presence +=
-      Math.sign(this.presenceTarget - this.presence) *
-      Math.min(step, Math.abs(this.presenceTarget - this.presence));
-    this.renderer.domElement.style.opacity = String(
-      THREE.MathUtils.clamp(this.presence / 0.16, 0, 1),
-    );
-    this.theme.beginFrame();
-    themeEnvironment(this.scene, this.renderer, this.themeAmount);
-  }
-
-  private updateMotion(
-    time: number,
-    elapsed: number,
-    dt: number,
-    cinematic?: CinematicUpdate,
-  ): MotionFrame {
-    const blend = 1 - Math.exp(-dt * (this.reduced ? 35 : 2.8));
-    this.reveal = cinematic
-      ? cinematic.reveal
-      : THREE.MathUtils.lerp(this.reveal, this.targetReveal, blend);
-    this.rotation = this.targetDetail
-      ? THREE.MathUtils.lerp(this.rotation, this.targetRotation, blend)
-      : returnStep(this.rotation, dt, this.reduced);
-    const shot = cinematic?.time ?? 29.1;
-    const workspaceEntry =
-      Boolean(cinematic) && this.container.closest<HTMLElement>('[data-entry-phase]') !== null;
-    const referenceCinematic = Boolean(cinematic) && !workspaceEntry;
-    if (cinematic) this.openingMix = 1;
-    if (cinematic) {
-      this.openingFieldTime = shot;
-      this.scanTime = shot;
-      this.scanBlend = 1;
-    } else {
-      this.scanTime += dt;
-      this.scanBlend *= Math.exp(-dt * 3);
-    }
-    if (!this.canBrowse()) {
-      this.setHover(null);
-      if (this.holdingArchive || this.archiveMomentum) this.cancelPointer();
-    }
-    if (this.looping && !cinematic && !this.holdingArchive && !this.archiveMomentum)
-      this.rebaseCoordinates();
-    const momentum = !cinematic ? this.archiveMomentum : null;
-    if (momentum) {
-      momentum.motion.step(Math.min(Math.max(time - momentum.time, 0), 0.25));
-      momentum.time = time;
-      this.navigatePlane(momentum.motion.value);
-      this.lastInteraction = time;
-    }
-    const hoverKey = !cinematic && this.hoverCell ? cellKey(this.hoverCell) : null;
-    if (hoverKey && !this.hoverLifts.has(hoverKey)) this.hoverLifts.set(hoverKey, 0);
-    for (const [key, value] of this.hoverLifts) {
-      const target = key === hoverKey ? 0.28 : 0;
-      const next = cinematic
-        ? 0
-        : this.reduced
-          ? target
-          : THREE.MathUtils.lerp(value, target, 1 - Math.exp(-dt * 14));
-      if (target === 0 && next < 0.0001) this.hoverLifts.delete(key);
-      else this.hoverLifts.set(key, next);
-    }
-    const hoverLift = (cell: ArchiveCell) => this.hoverLifts.get(cellKey(cell)) ?? 0;
-    const chosen = this.cellPosition(this.selectedCell);
-    const selectedRow = this.selectedCell.row;
-    const selectedLane = this.selectedCell.lane;
-    damp(this.shoulder, selectedRow, this.reduced ? 35 : 5, dt);
-    damp(this.laneFocus, selectedLane, this.reduced ? 35 : 4, dt);
-    // A held or freely coasting plane owns both tracks; selection cannot pull it.
-    if (!this.holdingArchive && !momentum) {
-      damp(this.columnCamera, chosen.x, this.reduced ? 35 : 3.7, dt);
-      damp(this.rail, cinematic ? 0 : -2.17 - chosen.z, this.reduced ? 35 : 3.7, dt);
-    }
-    if (momentum) {
-      this.columnCamera.value = this.trackPosition('lane', momentum.motion.lane.value);
-      this.rail.value = this.trackPosition('row', momentum.motion.row.value);
-      this.columnCamera.velocity = momentum.motion.lane.velocity * COLUMN_SPACING;
-      this.rail.velocity = -momentum.motion.row.velocity * ROW_SPACING;
-      if (momentum.motion.phase === 'idle') this.archiveMomentum = null;
-    }
-    if (this.dragTrack && !cinematic) {
-      this.columnCamera.value = this.dragTrack.lane;
-      this.rail.value = this.dragTrack.row;
-      this.columnCamera.velocity = this.rail.velocity = 0;
-    }
-    if (cinematic) {
-      this.rail.value = 0;
-      this.rail.velocity = 0;
-      this.lift.value = extraction(shot);
-      this.lift.velocity = 0;
-      this.shoulder.value = selectedRow;
-      this.laneFocus.value = selectedLane;
-      this.laneFocus.velocity = 0;
-      this.columnCamera.value = chosen.x;
-      this.columnCamera.velocity = 0;
-    }
-    // Keep the illuminated set near the origin. Lateral navigation is a track
-    // movement of the whole array, just like the existing front/back rail.
-    const trackX = cinematic ? 0 : this.columnCamera.value;
-    return {
-      time,
-      dt,
-      cinematic,
-      blend,
-      shot,
-      workspaceEntry,
-      referenceCinematic,
-      hoverLift,
-      chosen,
-      selectedRow,
-      selectedLane,
-      trackX,
-    };
-  }
-
-  private updateWaveAudio(frame: MotionFrame): WaveFrame {
-    const { time, dt, cinematic } = frame;
-    this.pulses = this.pulses.filter((p) => time - p.time < 3.2);
-    const aligningCopy = this.outgoing.some((o) => o.returnY !== null);
-    const idle =
-      !cinematic &&
-      !this.reduced &&
-      this.targetReveal > 0 &&
-      !this.targetDetail &&
-      this.detail < 0.01 &&
-      this.returnY === null &&
-      !aligningCopy &&
-      time - this.lastInteraction > 2.5;
-    this.idleGain = cinematic
-      ? 0
-      : THREE.MathUtils.lerp(
-          this.idleGain,
-          idle
-            ? this.playfield.enabled
-              ? this.playfield.breathing && !this.relayActive
-                ? 1 - this.playfield.bands.activity
-                : 0
-              : 1 - (this.audioBands?.activity ?? 0)
-            : 0,
-          1 - Math.exp(-dt * (idle ? 0.8 : 4)),
-        );
-    this.pulseGain = THREE.MathUtils.lerp(
-      this.pulseGain,
-      this.targetDetail || this.returnY !== null || aligningCopy ? 0 : 1,
-      1 - Math.exp(-dt * 8),
-    );
-    const play = this.playfield;
-    this.audioGain = interactionGain(
-      this.audioGain,
-      this.holdingArchive || Boolean(this.archiveMomentum),
-      Boolean(this.targetDetail || this.detail > 0.01 || this.returnY !== null || aligningCopy),
-      dt,
-    );
-    const activePlay = !cinematic && !this.targetDetail && play.enabled;
-    const rhythm = this.rhythm.update(
-      activePlay && !this.reduced ? play.bands : quietBands(),
-      time,
-      dt,
-      this.rhythmStyle,
-    );
-    this.flatMix +=
-      ((activePlay ? play.flatten : 0) - this.flatMix) * (this.reduced ? 1 : 1 - Math.exp(-dt * 4));
-    this.subduedIndex.value = Math.max(Number(this.selectedIndexOnly), this.flatMix);
-    const indexDim = (lift: number) =>
-      this.selectedIndexOnly ? 1 - ease(lift / 0.4) * (1 - this.flatMix) : this.flatMix;
-    return { ...frame, play, activePlay, rhythm, indexDim };
-  }
-
-  private updateRelay(frame: WaveFrame) {
-    const { activePlay, play, dt } = frame;
-    const gameTarget = activePlay ? play.target : null;
-    if (gameTarget && !this.relayLifts.has(gameTarget)) this.relayLifts.set(gameTarget, 0);
-    for (const [key, height] of this.relayLifts) {
-      const next =
-        height +
-        ((key === gameTarget ? 0.95 : 0) - height) * (this.reduced ? 1 : 1 - Math.exp(-dt * 8));
-      if (next < 0.001 && key !== gameTarget) this.relayLifts.delete(key);
-      else this.relayLifts.set(key, next);
-    }
-  }
-
-  private createWaveField(frame: WaveFrame) {
-    const { time, cinematic, shot, trackX, activePlay, play, rhythm } = frame;
-    const spectrumPoint = new THREE.Vector3();
-    const screenX = (row: number, lane: number) => {
-      spectrumPoint
-        .set(
-          (lane - 2) * COLUMN_SPACING - trackX,
-          -4.6,
-          (row - 15.5) * ROW_SPACING + this.rail.value,
-        )
-        .project(this.camera);
-      return (spectrumPoint.x + 1) / 2;
-    };
-    const fieldCache = this.audioFieldCache;
-    fieldCache.clear();
-    const field = (row: number, lane: number): number => {
-      const key = `${row}:${lane}`;
-      const cached = fieldCache.get(key);
-      if (cached !== undefined) return cached;
-      if (cinematic)
-        return cinematicField(row, lane, shot, this.shoulder.value, this.laneFocus.value);
-      const height =
-        archiveWave(
-          row + this.coordinateOrigin.row,
-          lane + this.coordinateOrigin.lane,
-          this.scanTime,
-        ) * this.scanBlend;
-      const breathing =
-        idleWave(row + this.coordinateOrigin.row, lane + this.coordinateOrigin.lane, time) *
-        this.idleGain;
-      let pulseHeight = 0;
-      if (!cinematic && !this.reduced) {
-        let ripple = 0;
-        for (const p of this.pulses) {
-          const distance = Math.hypot(row - p.row, (lane - p.lane) * 2.2);
-          const age = time - p.time;
-          ripple +=
-            this.selectionPulse(distance, age) *
-            (this.deferSelectionPulse ? rippleEnvelope(distance, age) : 1);
-        }
-        pulseHeight = THREE.MathUtils.clamp(ripple, -0.6, 0.6) * this.pulseGain;
-      }
-      const distance = row - this.shoulder.value;
-      const interactive =
-        (height + settlingWave(distance, 26.56) * columnStrength(lane, this.laneFocus.value)) *
-          (1 - this.flatMix) +
-        breathing +
-        pulseHeight +
-        (activePlay && !this.reduced
-          ? rhythmDisplacement(
-              row,
-              lane,
-              time,
-              play.bands,
-              play.strength,
-              rhythm,
-              screenX(row, lane),
-            )
-          : 0) +
-        (this.audioBands && !this.reduced
-          ? audioWave(
-              row + this.coordinateOrigin.row,
-              lane + this.coordinateOrigin.lane,
-              time,
-              this.audioBands,
-            ) * this.audioGain
-          : 0) +
-        (this.relayLifts.get(cellKey({ row, lane })) ?? 0);
-      // 24.9 秒尚未开始选档肩波；将同一阵列平滑接回交互波形。
-      const result =
-        this.openingMix > 0
-          ? THREE.MathUtils.lerp(
-              interactive,
-              cinematicField(
-                row,
-                lane,
-                this.openingFieldTime,
-                this.shoulder.value,
-                this.laneFocus.value,
-              ),
-              this.openingMix,
-            )
-          : interactive;
-      fieldCache.set(key, result);
-      return result;
-    };
-    return field;
-  }
-
-  private updateSelection(wave: WaveFrame, field: SelectionFrame['field']): SelectionFrame {
-    const { chosen, selectedRow, selectedLane, cinematic, dt, blend } = wave;
-    const selectedBase = chosen.y + field(selectedRow, selectedLane);
-    if (!cinematic) {
-      if (this.returnY !== null && this.rotation !== 0) {
-        this.lift.value = this.returnY - selectedBase;
-        this.lift.velocity = 0;
-      } else {
-        this.returnY = null;
-        damp(
-          this.lift,
-          this.targetDetail
-            ? INSPECTION_LIFT
-            : this.outgoing.some(
-                  (o) =>
-                    o.returnY !== null &&
-                    o.cell.lane === selectedLane &&
-                    Math.abs(o.cell.row - selectedRow) < 5,
-                )
-              ? 0
-              : 0.4 * this.targetReveal * (1 - this.flatMix),
-          this.reduced
-            ? 35
-            : this.deferSelectionPulse && !this.targetDetail && this.lift.value < 0.4
-              ? 7.6
-              : 4.2,
-          dt,
-        );
-      }
-    }
-    const cameraTarget = this.targetDetail
-      ? ease((this.lift.value - 0.8) / 2.4)
-      : this.returnY !== null
-        ? this.detail
-        : ease((this.lift.value - 0.4) / (INSPECTION_LIFT - 0.4));
-    this.detail = cinematic
-      ? cinematic.zoom
-      : THREE.MathUtils.lerp(this.detail, cameraTarget, blend);
-    const detail = this.detail;
-    return { ...wave, field, selectedBase, detail };
-  }
-
-  private updateDecryption(frame: SelectionFrame) {
-    const { dt, detail, cinematic, shot } = frame;
-    this.decryption.update(
-      dt,
-      detail > 0.78 && this.lift.value > 3.3,
-      this.reduced,
-      cinematic ? shot + 5 : undefined,
-    );
-    this.appearance.apply(this.model, ease(this.lift.value / 0.4));
-    this.appearance.setClarity(this.model, this.decryption.clarity);
-  }
-
-  private updateCards(frame: SelectionFrame) {
-    const {
-      time,
-      dt,
-      cinematic,
-      shot,
-      workspaceEntry,
-      trackX,
-      field,
-      hoverLift,
-      selectedBase,
-      selectedRow,
-      selectedLane,
-      detail,
-      indexDim,
-      chosen,
-    } = frame;
-    // Reference 26.92–27.76: the array travels horizontally into a white field.
-    const entry = cinematic ? ease((shot - 21.9) / 0.86) : this.reveal;
-    const entranceTime = THREE.MathUtils.clamp((shot - 21.92) / 0.75, 0, 1);
-    const entryZ = workspaceEntry
-      ? 0
-      : cinematic
-        ? -23 * (1 - entranceTime) ** 2
-        : -28 * (1 - entry);
-    for (let i = this.outgoing.length - 1; i >= 0; i--) {
-      const o = this.outgoing[i];
-      const p = this.cellPosition(o.cell);
-      const baseY = p.y + field(o.cell.row, o.cell.lane);
-      o.group.rotation.y = returnStep(o.group.rotation.y, dt, this.reduced);
-      if (o.returnY !== null) {
-        o.lift.value = o.returnY - baseY;
-        o.lift.velocity = 0;
-        if (o.group.rotation.y === 0) o.returnY = null;
-      } else damp(o.lift, 0, this.reduced ? 35 : 4.5, dt);
-      o.group.position.set(
-        p.x - trackX,
-        baseY + o.lift.value + hoverLift(o.cell) - this.presentationDrop(o.cell),
-        p.z + entryZ + this.rail.value,
-      );
-      const quality = ease(o.lift.value / 0.4);
-      this.appearance.apply(o.group, quality);
-      this.appearance.setTheme(o.group, this.theme.sample(o.cell, time), indexDim(o.lift.value));
-      o.clarity = this.reduced ? 0 : o.clarity * Math.exp(-dt * 9);
-      this.appearance.setClarity(o.group, o.clarity);
-      const { row, lane } = o.cell;
-      o.group.rotation.x =
-        (field(row + 0.5, lane) - field(row - 0.5, lane)) * 0.024 * (1 - detail) * (1 - quality);
-      if (o.lift.value < 0.0001 && Math.abs(o.group.rotation.y) < 0.0001) {
-        this.scene.remove(o.group);
-        this.appearance.dispose(o.group);
-        this.outgoing.splice(i, 1);
-      }
-    }
-    if (this.pendingPulse && !cinematic && !this.targetDetail && this.targetReveal) {
-      const selectedY = selectedBase + this.lift.value;
-      const oldCardsLower = this.outgoing.every(
-        (old) =>
-          old.cell.lane !== selectedLane ||
-          Math.abs(old.cell.row - selectedRow) > 4 ||
-          old.group.position.y + 0.015 < selectedY,
-      );
-      // The new file causes the wave: finish most of its rise and let nearby
-      // outgoing files get below it before starting the outward pulse.
-      if (this.lift.value >= 0.35 && this.returnY === null && oldCardsLower) {
-        if (!this.reduced) this.emitPulse(this.pendingPulse);
-        this.pendingPulse = null;
-      }
-    }
-    this.appearance.setTheme(
-      this.model,
-      this.theme.sample(this.selectedCell, time),
-      indexDim(this.lift.value),
-    );
-    this.model.position.set(
-      chosen.x - trackX,
-      chosen.y +
-        field(selectedRow, selectedLane) +
-        this.lift.value +
-        hoverLift(this.selectedCell) -
-        this.presentationDrop(this.selectedCell),
-      chosen.z + entryZ + this.rail.value,
-    );
-    // Extraction only changes elevation. Reframing belongs to the camera.
-    this.model.rotation.set(
-      (field(selectedRow + 0.5, selectedLane) - field(selectedRow - 0.5, selectedLane)) *
-        0.024 *
-        (1 - detail) *
-        (1 - ease(this.lift.value / 0.4)),
-      cinematic ? 0 : this.rotation,
-      0,
-    );
-    return entryZ;
-  }
-
-  private updateCamera(frame: SelectionFrame): CameraFrame {
-    const { dt, cinematic, workspaceEntry, shot, referenceCinematic, detail } = frame;
-    // Measured from frame 787: X edge (382,-204), adjacent row (78,38).
-    // The label vertical edge constrains height; the file base is occluded.
-    // Do not calibrate field of view from the visible fragment of a file.
-    // 工作区入场始终以最终交互构图为目标，原镜头仅供原时间轴使用。
-    const cameraShot = workspaceEntry ? 29.1 : shot;
-    const orbit = ease((cameraShot - 22.6) / 1.6);
-    const settle = ease((cameraShot - 24.25) / 2.25);
-    const yaw = THREE.MathUtils.degToRad(89 - 22 * orbit - 8 * settle);
-    const elevation = THREE.MathUtils.degToRad(
-      3 + 40 * ease((cameraShot - 21.96) / 0.22) - 8 * orbit - 16 * settle,
-    );
-    const span = THREE.MathUtils.lerp(THREE.MathUtils.lerp(10.8, 10.3, orbit), 7.33, settle);
-    const responsiveOpening =
-      Boolean(cinematic) &&
-      this.container.closest<HTMLElement>('[data-layout]')?.dataset.layout === 'opening';
-    const openingAspect = responsiveOpening
-      ? this.container.clientWidth / this.container.clientHeight / (16 / 9)
-      : 1;
-    const openingSpan = (value: number) => value / Math.min(1, openingAspect);
-    const distance = THREE.MathUtils.lerp(
-      THREE.MathUtils.lerp(28 + 7 * orbit, 140, settle),
-      72,
-      detail,
-    );
-    const arrayAim = new THREE.Vector3(
-      -1.091,
-      THREE.MathUtils.lerp(-2.55 + 0.4 * orbit, -0.045, settle),
-      THREE.MathUtils.lerp(2.48, 0.481, settle),
-    );
-    const cameraAim = arrayAim.clone();
-    const viewDirection = new THREE.Vector3(
-      -Math.sin(yaw) * Math.cos(elevation),
-      Math.sin(elevation),
-      Math.cos(yaw) * Math.cos(elevation),
-    );
-    if (referenceCinematic) {
-      const earlyTurn = ease((shot - 27.3) / 1.3);
-      const finalTurn = ease((shot - 28.6) / 5.4);
-      const shotYaw = yaw - THREE.MathUtils.degToRad(9 * earlyTurn + 32 * finalTurn);
-      const shotElevation = elevation - THREE.MathUtils.degToRad(1.5 * earlyTurn + 3.7 * finalTurn);
-      viewDirection.set(
-        -Math.sin(shotYaw) * Math.cos(shotElevation),
-        Math.sin(shotElevation),
-        Math.cos(shotYaw) * Math.cos(shotElevation),
-      );
-    } else {
-      viewDirection.lerp(new THREE.Vector3(-0.277, 0.238, 0.931), detail).normalize();
-    }
-    if (referenceCinematic) {
-      const pan = ease((shot - 25.4) / 0.95);
-      const right = new THREE.Vector3()
-        .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
-        .normalize();
-      cameraAim.addScaledVector(right, -2.05 * (1 - pan) * ease((shot - 24.2) / 0.8));
-    }
-    if (referenceCinematic && shot >= 25.05 && shot <= 27.3) {
-      // Frames 760–785: the camera carries the same physical column from the
-      // right into the selected position while the neighboring crests subside.
-      const pan = ease((shot - 25.4) / 1.05);
-      const right = new THREE.Vector3()
-        .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
-        .normalize();
-      const up = new THREE.Vector3().crossVectors(viewDirection, right).normalize();
-      const pixelScale = 1080 / openingSpan(span);
-      const anchorAim = this.model.position.clone().add(new THREE.Vector3(-2.5, 3.7, 0));
-      anchorAim.addScaledVector(
-        right,
-        (-(THREE.MathUtils.lerp(840, 518, pan) - 960) * openingAspect) / pixelScale,
-      );
-      anchorAim.addScaledVector(up, -(540 - THREE.MathUtils.lerp(340, 288, pan)) / pixelScale);
-      cameraAim.lerp(anchorAim, ease((shot - 25.05) / 0.35));
-    }
-    if (referenceCinematic && shot > 27.3) {
-      const close = ease((shot - 27.3) / 6.7);
-      const extractionCamera = ease((shot - 27.3) / 1.25);
-      const screenX = THREE.MathUtils.lerp(518 - 98 * extractionCamera, 618, close);
-      const screenY = THREE.MathUtils.lerp(296 + 34 * extractionCamera, 287, close);
-      const pixelScale = 1080 / openingSpan(THREE.MathUtils.lerp(span, 5.9, detail));
-      const right = new THREE.Vector3()
-        .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
-        .normalize();
-      const up = new THREE.Vector3().crossVectors(viewDirection, right).normalize();
-      const anchorAim = this.model.position.clone().add(new THREE.Vector3(-2.5, 3.7, 0));
-      anchorAim.addScaledVector(right, (-(screenX - 960) * openingAspect) / pixelScale);
-      anchorAim.addScaledVector(up, -(540 - screenY) / pixelScale);
-      cameraAim.lerp(anchorAim, ease((shot - 27.3) / 0.5));
-    }
-    const framing = archiveFraming(
-      this.container.clientWidth,
-      this.container.clientHeight,
-      span,
-      detail,
-      this.container.closest<HTMLElement>('[data-layout]')?.dataset.layout === 'compact',
-    );
-    if (!referenceCinematic) {
-      const right = new THREE.Vector3()
-        .crossVectors(new THREE.Vector3(0, 1, 0), viewDirection)
-        .normalize();
-      const up = new THREE.Vector3().crossVectors(viewDirection, right).normalize();
-      const width = this.container.clientWidth,
-        height = this.container.clientHeight;
-      const pixelScale = height / framing.span;
-      if (framing.portrait) {
-        // Keep the preview camera independent of the live lift, wave and rail.
-        // Following model.position here would visually cancel those motions.
-        const previewAim = new THREE.Vector3(0, -4.6 + settlingWave(0, 26.56) + 0.4 + 1.85, -2.17);
-        previewAim.addScaledVector(up, ((framing.previewY - 0.5) * height) / pixelScale);
-        cameraAim.copy(previewAim);
-      }
-      const detailAim = this.model.position.clone().add(new THREE.Vector3(0, 1.85, 0));
-      detailAim.addScaledVector(right, ((0.5 - framing.detailX) * width) / pixelScale);
-      detailAim.addScaledVector(up, ((framing.detailY - 0.5) * height) / pixelScale);
-      cameraAim.lerp(detailAim, detail);
-    }
-    const cameraPosition = cameraAim.clone().addScaledVector(viewDirection, distance);
-    let cameraSpan = referenceCinematic
-      ? openingSpan(THREE.MathUtils.lerp(span, 5.9, detail))
-      : framing.span;
-    if (workspaceEntry) {
-      const pose = archiveEntryCamera(shot - 21.9, {
-        yaw,
-        elevation,
-        distance,
-        span: framing.span,
-        aim: [cameraAim.x, cameraAim.y, cameraAim.z],
-      });
-      cameraAim.fromArray(pose.aim);
-      cameraPosition.fromArray(pose.position);
-      cameraSpan = pose.span;
-    }
-    if (!cinematic && !this.reduced && !this.uiOnlyParallax) {
-      // 接回鼠标视差时也沿用衔接进度，避免入场结束瞬间偏移。
-      cameraPosition.x += this.pointer.x * 0.12 * (1 - this.openingMix);
-      cameraPosition.y -= this.pointer.y * 0.12 * (1 - this.openingMix);
-    }
-    const cameraBlend =
-      cinematic || this.openingSnap ? 1 : (this.openingCameraBlend ?? 1 - Math.exp(-dt * 5));
-    this.camera.position.lerp(cameraPosition, cameraBlend);
-    this.cameraAim.lerp(cameraAim, cameraBlend);
-    this.camera.lookAt(this.cameraAim);
-    this.camera.fov = THREE.MathUtils.lerp(
-      this.camera.fov,
-      THREE.MathUtils.radToDeg(2 * Math.atan(cameraSpan / (2 * distance))),
-      cameraBlend,
-    );
-    this.openingSnap = false;
-    this.openingCameraBlend = undefined;
-    const fog = this.scene.fog as THREE.Fog;
-    // The camera position is damped after its target distance changes. Anchor
-    // fog to the rendered camera, or entry puts the array behind the far plane
-    // until the camera catches up (a brief white wash that exit never showed).
-    const renderedDistance = this.camera.position.distanceTo(this.cameraAim);
-    const fogTheme = this.themeAmount;
-    fog.near = renderedDistance + THREE.MathUtils.lerp(5 - 4 * fogTheme, -1, detail);
-    fog.far = renderedDistance + THREE.MathUtils.lerp(25 - 9 * fogTheme, 12, detail);
-
-    this.camera.updateProjectionMatrix();
-    this.camera.updateMatrixWorld();
-    return { fog, responsiveOpening };
-  }
-
-  private updateCardInstances(frame: SelectionFrame, entryZ: number, camera: CameraFrame) {
-    const { time, cinematic, trackX, field, hoverLift, detail, play } = frame;
-    const { fog, responsiveOpening } = camera;
-    // Build and compact the instance set only after the actual damped camera
-    // is final for this frame. Picking uses the same packed index-to-cell map.
-    const fixed = (Boolean(cinematic) || !this.looping) && !responsiveOpening;
-    this.cells = fixed
-      ? Array.from({ length: 160 }, (_, i) => poolCell(i))
-      : this.visibility.update(
-          this.camera,
-          fog.far,
-          trackX,
-          entryZ + this.rail.value,
-          this.extraCoverage,
-        );
-    const hidden = new Set(this.outgoing.map((o) => cellKey(o.cell)));
-    hidden.add(cellKey(this.selectedCell));
-    this.drawnCells = [];
-    this.relayPoints.clear();
-    this.matrixUpdates ??= new InstanceUpdates(this.instances[0].instanceMatrix);
-    if (this.themeAttribute) this.themeUpdates ??= new InstanceUpdates(this.themeAttribute);
-    const coverCounts = this.coverInstances.map(() => 0);
-    for (const cell of this.cells) {
-      const { row, lane } = cell;
-      if (hidden.has(cellKey(cell))) continue;
-      const x = (lane - 2) * COLUMN_SPACING - trackX;
-      const y = -4.6 + field(row, lane) + hoverLift(cell) - this.presentationDrop(cell);
-      const z = (row - 15.5) * ROW_SPACING + entryZ + this.rail.value;
-      if (!fixed && !this.visibility.intersects(x, y, z)) continue;
-      const i = this.drawnCells.length;
-      this.ensureInstanceCapacity(i + 1);
-      this.drawnCells.push(cell);
-      this.themeUpdates?.scalar(i, this.theme.sample(cell, time));
-      const slope = field(row + 0.5, lane) - field(row - 0.5, lane);
-      this.dummy.position.set(x, y, z);
-      this.dummy.rotation.set(slope * 0.024 * (1 - detail), 0, 0);
-      this.dummy.scale.setScalar(1);
-      this.dummy.updateMatrix();
-      if (play.enabled)
-        this.relayPoints.set(cellKey(cell), {
-          cell: { ...cell },
-          point: new THREE.Vector3(0, 3.5, 0).applyMatrix4(this.dummy.matrix),
-        });
-      this.matrixUpdates!.set(i * 16, this.dummy.matrix.elements);
-      const albumIndex = records[fileAtCell(cell)].albumIndex;
-      this.coverInstances[albumIndex].setMatrixAt(coverCounts[albumIndex]++, this.dummy.matrix);
-    }
-    this.coverInstances.forEach((cover, albumIndex) => {
-      cover.count = coverCounts[albumIndex];
-      cover.instanceMatrix.needsUpdate = true;
-    });
-    const countChanged = this.instances[0].count !== this.drawnCells.length;
-    const matricesChanged = this.matrixUpdates!.commit();
-    for (const inst of this.instances) {
-      inst.count = this.drawnCells.length;
-    }
-    // Picking uses only the first instanced surface. The other batches disable
-    // renderer culling and do not need an O(n) bound recomputation each frame.
-    if (matricesChanged || countChanged || !this.instances[0].boundingSphere)
-      this.instances[0].computeBoundingSphere();
-    this.themeUpdates?.commit();
-    return matricesChanged;
-  }
-
-  private updateInspection(frame: SelectionFrame) {
-    const { selectedLane, selectedRow, field, cinematic, detail } = frame;
-    let neighborTop = -Infinity;
-    const lane = selectedLane,
-      row = selectedRow;
-    for (let r = row - 5; r <= row + 5; r++) {
-      if (r !== row) neighborTop = Math.max(neighborTop, -4.6 + field(r, lane) + 3.76);
-    }
-    for (const o of this.outgoing) {
-      if (o.cell.lane === lane && Math.abs(o.cell.row - row) <= 5) {
-        neighborTop = Math.max(neighborTop, o.group.position.y + 3.76);
-      }
-    }
-    this.clearance = this.model.position.y - neighborTop;
-    this.canInspect =
-      !cinematic &&
-      Boolean(this.targetDetail) &&
-      detail > 0.9 &&
-      this.pulseGain < 0.01 &&
-      this.clearance > 0.3;
-    this.container.dataset.inspection =
-      this.returnY !== null
-        ? 'aligning'
-        : this.canInspect
-          ? 'ready'
-          : this.targetDetail
-            ? 'lifting'
-            : 'preview';
-    const focalPoint = this.model.position
-      .clone()
-      .add(new THREE.Vector3(0, 2, 0))
-      .applyMatrix4(this.camera.matrixWorldInverse);
-    const bokehUniforms = this.bokeh.uniforms as Record<string, { value: number }>;
-    bokehUniforms.focus.value = -focalPoint.z;
-    bokehUniforms.aperture.value =
-      (THREE.MathUtils.lerp(0.0003, 0.0008, detail) * this.quality.depthOfField) / 100;
-    return bokehUniforms;
-  }
-
-  private renderFrame(
-    frame: SelectionFrame,
-    matricesChanged: boolean,
-    fog: THREE.Fog,
-    bokehUniforms: Record<string, { value: number }>,
-  ) {
-    const { cinematic } = frame;
-    this.renderer.info.reset();
-    // Keep all simulation and picking current. Reuse the composited canvas only
-    // when its actual inputs are identical, including late textures and materials.
-    const state = this.renderState;
-    this.scene.updateMatrixWorld();
-    // A changed instance buffer already proves the image changed. Avoid a
-    // material/matrix snapshot on those busy frames; capture when it settles.
-    if (matricesChanged || cinematic) {
-      state.invalidate();
-    } else {
-      state.begin();
-      state.floats(
-        ...this.camera.projectionMatrix.elements,
-        ...this.camera.matrixWorldInverse.elements,
-        ...this.camera.position.toArray(),
-        fog.near,
-        fog.far,
-        this.themeAmount,
-        this.subduedIndex.value,
-        bokehUniforms.focus.value,
-        bokehUniforms.aperture.value,
-      );
-      this.scene.traverse((object) => {
-        state.add(object.id, Number(object.visible));
-        if (!(object instanceof THREE.Mesh)) return;
-        object.modelViewMatrix.multiplyMatrices(this.camera.matrixWorldInverse, object.matrixWorld);
-        object.normalMatrix.getNormalMatrix(object.modelViewMatrix);
-        state.floats(
-          ...object.modelViewMatrix.elements,
-          ...object.normalMatrix.elements,
-          ...object.matrixWorld.elements,
-        );
-        const mat = object.material as THREE.MeshPhysicalMaterial;
-        // Three increments material.version for its own double-sided transmission
-        // passes. Track application-controlled inputs, not that render-side counter.
-        state.add(object.geometry.id, mat.uuid, mat.map?.uuid, mat.map?.version ?? 0);
-        state.floats(
-          mat.opacity,
-          mat.roughness,
-          mat.metalness,
-          mat.transmission,
-          mat.thickness,
-          mat.attenuationDistance,
-          mat.clearcoat,
-          mat.clearcoatRoughness,
-          mat.color.r,
-          mat.color.g,
-          mat.color.b,
-          mat.attenuationColor?.r ?? 0,
-          mat.attenuationColor?.g ?? 0,
-          mat.attenuationColor?.b ?? 0,
-        );
-        for (const name of ['appearance', 'glassClarity', 'themeAmount', 'subduedIndex'])
-          state.floats(object.userData[name]?.value ?? 0);
-        if (object instanceof THREE.InstancedMesh)
-          state.add(object.count, object.instanceMatrix.version, this.themeAttribute?.version ?? 0);
-      });
-      if (!state.end()) {
-        this.reusedFrames++;
-        return;
-      }
-    }
-    this.renderedFrames++;
-    this.renderer.shadowMap.needsUpdate = true;
-    if (this.superPerformance) this.renderer.render(this.scene, this.camera);
-    else this.composer.render();
-  }
   projectCard(x: number, y: number) {
-    this.model.updateMatrixWorld(true);
-    const p = this.model.localToWorld(new THREE.Vector3(x, y, 0.255)).project(this.camera);
+    this.runtime.assets.model.updateMatrixWorld(true);
+    const p = this.runtime.assets.model
+      .localToWorld(new THREE.Vector3(x, y, 0.255))
+      .project(this.runtime.camera);
     return [
-      ((p.x + 1) * this.container.clientWidth) / 2,
-      ((1 - p.y) * this.container.clientHeight) / 2,
+      ((p.x + 1) * this.runtime.options.container.clientWidth) / 2,
+      ((1 - p.y) * this.runtime.options.container.clientHeight) / 2,
     ];
   }
   get decryptionFrame() {
-    return this.decryption.frame;
+    return this.state.selection.decryption.frame;
   }
   finishDecryption() {
-    this.decryption.finish();
+    this.state.selection.decryption.finish();
   }
   get detailVisibility() {
-    return ease((this.detail - 0.25) / 0.55);
+    return ease((this.state.selection.detail - 0.25) / 0.55);
   }
   getStats() {
-    this.model.updateMatrixWorld(true);
+    this.runtime.assets.model.updateMatrixWorld(true);
     const project = (x: number, y: number, z: number) => {
-      const p = this.model.localToWorld(new THREE.Vector3(x, y, z)).project(this.camera);
+      const p = this.runtime.assets.model
+        .localToWorld(new THREE.Vector3(x, y, z))
+        .project(this.runtime.camera);
       return [
-        Math.round(((p.x + 1) * this.container.clientWidth) / 2),
-        Math.round(((1 - p.y) * this.container.clientHeight) / 2),
+        Math.round(((p.x + 1) * this.runtime.options.container.clientWidth) / 2),
+        Math.round(((1 - p.y) * this.runtime.options.container.clientHeight) / 2),
       ];
     };
     return {
-      decryption: { ...this.decryption.frame, clarity: this.decryption.clarity },
+      decryption: {
+        ...this.state.selection.decryption.frame,
+        clarity: this.state.selection.decryption.clarity,
+      },
       topLeft: project(-2.5, 3.7, 0),
       topRight: project(2.5, 3.7, 0),
       labelTopLeft: project(-1.855, 3.27, 0.255),
       labelBottomLeft: project(-1.855, 2.81, 0.255),
-      modelPosition: this.model.position.toArray().map((v) => Math.round(v * 10000) / 10000),
-      cameraPosition: this.camera.position.toArray().map((v) => Math.round(v * 10000) / 10000),
-      fieldOfView: this.camera.fov,
-      loaded: this.loaded,
-      drawCalls: this.renderer.info.render.calls,
-      renderedFrames: this.renderedFrames,
-      reusedFrames: this.reusedFrames,
-      superPerformance: this.superPerformance,
-      presentation: this.presence,
-      triangles: this.renderer.info.render.triangles,
-      archiveCount: this.drawnCells.length,
-      archiveCandidates: this.cells.length,
-      archiveCulled: this.cells.length - this.drawnCells.length,
-      archiveCapacity: this.instanceCapacity,
-      archiveCoverage: this.extraCoverage ? 'extra' : 'standard',
-      returningFiles: this.outgoing.length,
-      selectionPhase: this.pendingPulse ? 'lifting' : this.pulses.length ? 'wave' : 'settled',
-      pendingPulse: this.pendingPulse ? { ...this.pendingPulse } : null,
-      pulses: this.pulses.map((pulse) => ({ ...pulse })),
-      referenceTime: Math.round((this.scanTime + 5) * 100) / 100,
-      selectedSlot: this.selectedSlot,
-      selectedLane: Math.floor(this.selectedSlot / 32),
-      selectedCell: { ...this.selectedCell },
-      hoverCell: this.hoverCell ? { ...this.hoverCell } : null,
-      hoverLifts: Object.fromEntries(this.hoverLifts),
-      dragTrack: this.dragTrack ? { ...this.dragTrack } : null,
-      archiveMomentum: this.archiveMomentum
+      modelPosition: this.runtime.assets.model.position
+        .toArray()
+        .map((v) => Math.round(v * 10000) / 10000),
+      cameraPosition: this.runtime.camera.position
+        .toArray()
+        .map((v) => Math.round(v * 10000) / 10000),
+      fieldOfView: this.runtime.camera.fov,
+      loaded: this.state.lifecycle.loaded,
+      drawCalls: this.runtime.rendering.renderer.info.render.calls,
+      renderedFrames: this.state.render.renderedFrames,
+      reusedFrames: this.state.render.reusedFrames,
+      superPerformance: this.state.presentation.superPerformance,
+      presentation: this.state.presentation.presence,
+      triangles: this.runtime.rendering.renderer.info.render.triangles,
+      archiveCount: this.state.render.drawnCells.length,
+      archiveCandidates: this.state.navigation.cells.length,
+      archiveCulled: this.state.navigation.cells.length - this.state.render.drawnCells.length,
+      archiveCapacity: this.runtime.assets.instanceCapacity,
+      archiveCoverage: this.state.render.extraCoverage ? 'extra' : 'standard',
+      returningFiles: this.state.selection.outgoing.length,
+      selectionPhase: this.state.selection.pendingPulse
+        ? 'lifting'
+        : this.state.selection.pulses.length
+          ? 'wave'
+          : 'settled',
+      pendingPulse: this.state.selection.pendingPulse
+        ? { ...this.state.selection.pendingPulse }
+        : null,
+      pulses: this.state.selection.pulses.map((pulse) => ({ ...pulse })),
+      referenceTime: Math.round((this.state.selection.scanTime + 5) * 100) / 100,
+      selectedSlot: this.state.navigation.selectedSlot,
+      selectedLane: Math.floor(this.state.navigation.selectedSlot / 32),
+      selectedCell: { ...this.state.navigation.selectedCell },
+      hoverCell: this.state.interaction.hoverCell ? { ...this.state.interaction.hoverCell } : null,
+      hoverLifts: Object.fromEntries(this.state.interaction.hoverLifts),
+      dragTrack: this.state.interaction.dragTrack ? { ...this.state.interaction.dragTrack } : null,
+      archiveMomentum: this.state.interaction.archiveMomentum
         ? {
-            phase: this.archiveMomentum.motion.phase,
-            value: this.archiveMomentum.motion.value,
-            velocity: this.archiveMomentum.motion.velocity,
+            phase: this.state.interaction.archiveMomentum.motion.phase,
+            value: this.state.interaction.archiveMomentum.motion.value,
+            velocity: this.state.interaction.archiveMomentum.motion.velocity,
           }
         : null,
-      holdingArchive: this.holdingArchive,
+      holdingArchive: this.state.interaction.holdingArchive,
       dragProjection: this.dragProjection(),
-      dragMapping: this.archiveDrag.active ? 'free' : null,
-      coordinateOrigin: { ...this.coordinateOrigin },
+      dragMapping: this.state.interaction.archiveDrag.active ? 'free' : null,
+      coordinateOrigin: { ...this.state.navigation.coordinateOrigin },
       poolBounds: {
-        minLane: Math.min(...this.cells.map((c) => c.lane)),
-        maxLane: Math.max(...this.cells.map((c) => c.lane)),
-        minRow: Math.min(...this.cells.map((c) => c.row)),
-        maxRow: Math.max(...this.cells.map((c) => c.row)),
+        minLane: Math.min(...this.state.navigation.cells.map((c) => c.lane)),
+        maxLane: Math.max(...this.state.navigation.cells.map((c) => c.lane)),
+        minRow: Math.min(...this.state.navigation.cells.map((c) => c.row)),
+        maxRow: Math.max(...this.state.navigation.cells.map((c) => c.row)),
       },
-      laneFocus: this.laneFocus.value,
-      columnCamera: this.columnCamera.value,
-      rotation: this.rotation,
-      clearance: this.clearance,
-      canInspect: this.canInspect,
-      returnPhase: this.returnY !== null ? 'aligning' : 'lowering',
-      extraction: Math.round(this.lift.value * 1000) / 1000,
-      appearance: Math.round(ease(this.lift.value / 0.4) * 1000) / 1000,
-      cameraDetail: Math.round(this.detail * 1000) / 1000,
-      idleGain: this.idleGain,
-      flatten: this.flatMix,
-      spectrumActivity: Math.max(this.playfield.bands.activity, this.audioBands?.activity ?? 0),
-      audioReactiveGain: this.audioGain,
-      selectedIndexDim: this.model.children.find(
+      laneFocus: this.state.navigation.laneFocus.value,
+      columnCamera: this.state.navigation.columnCamera.value,
+      rotation: this.state.selection.rotation,
+      clearance: this.state.selection.clearance,
+      canInspect: this.state.selection.canInspect,
+      returnPhase: this.state.selection.returnY !== null ? 'aligning' : 'lowering',
+      extraction: Math.round(this.state.selection.lift.value * 1000) / 1000,
+      appearance: Math.round(ease(this.state.selection.lift.value / 0.4) * 1000) / 1000,
+      cameraDetail: Math.round(this.state.selection.detail * 1000) / 1000,
+      idleGain: this.state.selection.idleGain,
+      flatten: this.state.audio.flatMix,
+      spectrumActivity: Math.max(
+        this.state.audio.playfield.bands.activity,
+        this.state.audio.audioBands?.activity ?? 0,
+      ),
+      audioReactiveGain: this.state.audio.audioGain,
+      selectedIndexDim: this.runtime.assets.model.children.find(
         (child) => child.userData.surface === 'Index_Inlay',
       )?.userData.subduedIndex?.value,
-      returningIndexDims: this.outgoing.map((o) => ({
+      returningIndexDims: this.state.selection.outgoing.map((o) => ({
         cell: o.cell,
         dim: o.group.children.find((child) => child.userData.surface === 'Index_Inlay')?.userData
           .subduedIndex?.value,
       })),
-      cameraDistance: this.camera.position.distanceTo(this.cameraAim),
-      cameraNear: this.camera.near,
-      cameraFar: this.camera.far,
-      fogNear: (this.scene.fog as THREE.Fog).near,
-      fogFar: (this.scene.fog as THREE.Fog).far,
-      returningAppearance: this.outgoing.map((o) => ({
+      cameraDistance: this.runtime.camera.position.distanceTo(this.state.navigation.cameraAim),
+      cameraNear: this.runtime.camera.near,
+      cameraFar: this.runtime.camera.far,
+      fogNear: (this.runtime.scene.fog as THREE.Fog).near,
+      fogFar: (this.runtime.scene.fog as THREE.Fog).far,
+      returningAppearance: this.state.selection.outgoing.map((o) => ({
         slot: o.slot,
         cell: { ...o.cell },
         lift: o.lift.value,
@@ -1725,7 +753,7 @@ export class ArchiveScene {
         worldY: o.group.position.y,
         phase: o.returnY !== null ? 'aligning' : 'lowering',
       })),
-      rail: Math.round(this.rail.value * 1000) / 1000,
+      rail: Math.round(this.state.navigation.rail.value * 1000) / 1000,
     };
   }
 }

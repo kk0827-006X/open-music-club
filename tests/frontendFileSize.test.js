@@ -57,3 +57,27 @@ it('App 顶层入口不超过 80 行', () => {
   const lines = frontendSizes()['app/App.tsx'];
   assert.ok(Number.isInteger(lines) && lines <= 80, `App 为 ${lines} 行，超过 80 行目标`);
 });
+
+it('scene 入口不超过 800 行，状态、资源连接和帧计算边界完整', () => {
+  const fs = require('node:fs');
+  const files = [
+    'scene.ts',
+    'scene-update.ts',
+    'scene-state.ts',
+    'scene-runtime.ts',
+    'interaction-bindings.ts',
+    'scene-assets.ts',
+    'renderer-setup.ts',
+  ];
+  const source = fs.readFileSync('frontend/src/rhine/scene.ts', 'utf8');
+  assert.ok(countLines(source) <= 800, `scene 为 ${countLines(source)} 行，超过 800 行目标`);
+  for (const file of files) assert.ok(fs.statSync(`frontend/src/rhine/${file}`).isFile(), file);
+  // 记录本轮确认的七个职责模块，避免无意遗漏连接或引入未约定的场景子模块。
+  for (const file of files) {
+    const imports = fs
+      .readFileSync(`frontend/src/rhine/${file}`, 'utf8')
+      .matchAll(/from ['"]\.\/(scene[^'"]*|interaction-bindings|renderer-setup)['"]/g);
+    for (const [, name] of imports)
+      assert.ok(files.includes(`${name}.ts`), `发现额外拆分文件 ${name}`);
+  }
+});

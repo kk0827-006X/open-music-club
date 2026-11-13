@@ -118,7 +118,10 @@ describe('三维专辑档案 UI', () => {
     const modelPath = path.join(projectRoot, 'frontend/public/assets/archive-cassette.glb');
 
     assert.match(readFrontendSource(scenePath), /export class ArchiveScene/);
-    assert.match(readFrontendSource(scenePath), /archiveWave\(/);
+    assert.match(
+      readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene-update.ts')),
+      /archiveWave\(/,
+    );
     const motion = fs.readFileSync(motionPath, 'utf8');
     // 音乐响应仅在文件末尾扩展阻尼；原算法仍逐字锁定，不能通过更新整文件哈希掩盖变化。
     assert.equal(
@@ -194,8 +197,8 @@ describe('三维专辑档案 UI', () => {
 
     assert.ok(coverDepth > front, '封面应在档案正面几何体之前');
     assert.match(
-      readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene.ts')),
-      /this\.coverInstances\[albumIndex\]\.setMatrixAt/,
+      readFrontendSource(path.join(projectRoot, 'frontend/src/rhine/scene-update.ts')),
+      /assets\.coverInstances\[albumIndex\]\.setMatrixAt/,
     );
   });
 

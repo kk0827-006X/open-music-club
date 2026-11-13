@@ -25,7 +25,7 @@ function graphicsProfile(url) {
         super.update(...args);
         // 真实模型/相机/渲染仍运行；业务验收不承载持续动画性能测试。
         const stats = this.getStats();
-        if(window.__archiveEntryProbe && window.__archiveEntryProbe.frames.length < 600) window.__archiveEntryProbe.frames.push({ navigationInert: document.querySelector('[data-archive-navigation]')?.inert, informationHidden: document.querySelector('[data-album-information]')?.hidden, phase: this.acceptanceContainer.closest('[data-entry-phase]')?.dataset.entryPhase, cinematic: args[1], camera: stats.cameraPosition, aim: this.cameraAim.toArray(), fov: this.camera.fov, position: stats.modelPosition });
+        if(window.__archiveEntryProbe && window.__archiveEntryProbe.frames.length < 600) window.__archiveEntryProbe.frames.push({ navigationInert: document.querySelector('[data-archive-navigation]')?.inert, informationHidden: document.querySelector('[data-album-information]')?.hidden, phase: this.acceptanceContainer.closest('[data-entry-phase]')?.dataset.entryPhase, cinematic: args[1], camera: stats.cameraPosition, aim: this.runtime.state.navigation.cameraAim.toArray(), fov: this.camera.fov, position: stats.modelPosition });
         this.acceptanceContainer.dataset.acceptanceFrames = String(stats.renderedFrames);
         this.acceptanceContainer.dataset.acceptanceSelection = JSON.stringify(stats.selectedCell);
       }

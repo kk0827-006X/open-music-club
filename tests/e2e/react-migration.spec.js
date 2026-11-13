@@ -85,8 +85,8 @@ async function mockWorkspace(page, role = 'user', initialQueue, skipAuthorized =
         }
         update(...args) {
           // 资源验收要响应晚到的封面；只补真实待上传贴图的渲染，不持续占用软件 GPU。
-          if (window.__archiveEntryProbe?.resourceReadiness && this.coverTextures.some(texture =>
-            texture !== this.fallbackCover && !this.renderer.properties.get(texture).__webglTexture)) this.pendingFrame = true;
+          if (window.__archiveEntryProbe?.resourceReadiness && this.runtime.assets.coverTextures.some(texture =>
+            texture !== this.runtime.assets.fallbackCover && !this.renderer.properties.get(texture).__webglTexture)) this.pendingFrame = true;
           super.update(...args);
           if (!this.probe) return;
           this.probe.updates++;
@@ -405,10 +405,11 @@ test('退出重进释放旧场景与音频；后台页面不持续驱动场景�
           page.evaluate(() => {
             const scene = window.__archiveEntryProbe.scene;
             return (
-              scene.coverTextures.length === scene.coverUrls.length &&
-              scene.coverTextures.every(
+              scene.runtime.assets.coverTextures.length ===
+                scene.runtime.options.coverUrls.length &&
+              scene.runtime.assets.coverTextures.every(
                 (texture) =>
-                  texture !== scene.fallbackCover &&
+                  texture !== scene.runtime.assets.fallbackCover &&
                   Boolean(scene.renderer.properties.get(texture).__webglTexture),
               )
             );
@@ -1506,13 +1507,13 @@ test('档案阵列入场不聚焦特定专辑，结束后点击才显示资料�
         row: stats.selectedCell.row,
         lane: stats.selectedCell.lane,
         origin: stats.coordinateOrigin,
-        time: scene.clock,
-        scanTime: scene.scanTime,
-        scanBlend: scene.scanBlend,
-        shoulder: scene.shoulder.value,
-        focus: scene.laneFocus.value,
-        idle: scene.idleGain,
-        lift: scene.lift.value,
+        time: scene.state.timing.clock,
+        scanTime: scene.state.selection.scanTime,
+        scanBlend: scene.state.selection.scanBlend,
+        shoulder: scene.state.navigation.shoulder.value,
+        focus: scene.state.navigation.laneFocus.value,
+        idle: scene.state.selection.idleGain,
+        lift: scene.state.selection.lift.value,
       };
     });
     const { row, lane, origin } = state;
@@ -1929,16 +1930,16 @@ test.describe('音频响应图形验收', () => {
       .toBeGreaterThan(0.9);
     const spectrumPeak = () =>
       page.evaluate(() => {
-        const values = [...window.__archiveEntryProbe.scene.audioBands.spectrum];
+        const values = [...window.__archiveEntryProbe.scene.state.audio.audioBands.spectrum];
         return values.indexOf(Math.max(...values));
       });
     expect(await spectrumPeak()).toBeLessThan(12);
     await page.evaluate(() => {
-      window.__archiveEntryProbe.scene.holdingArchive = true;
+      window.__archiveEntryProbe.scene.state.interaction.holdingArchive = true;
     });
     await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(0.25);
     await page.evaluate(() => {
-      window.__archiveEntryProbe.scene.holdingArchive = false;
+      window.__archiveEntryProbe.scene.state.interaction.holdingArchive = false;
     });
     await expect
       .poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 })
