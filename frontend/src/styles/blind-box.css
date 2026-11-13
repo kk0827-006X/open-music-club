@@ -28,30 +28,21 @@
 .blind-box-heading h2 span { color: var(--color-accent-10); font-weight: 300; }
 .blind-box-heading > small { display: block; margin-top: 6px; color: var(--color-text-32); font-size: .64rem; letter-spacing: .06em; }
 
-/* ===== 抽取区：深色舞台 + 双缎带封面轨道 ===== */
+/* ===== 抽取区：无框轨道，直接裸放在纸面页面上 ===== */
 .blind-box-stage {
   position: relative; grid-column: 1; grid-row: 2;
   display: flex; flex-direction: column;
   margin-top: 14px; padding: 14px clamp(12px, 1.6vw, 20px) 10px;
-  border: 1px solid #241a38;
-  background:
-    radial-gradient(560px 280px at 50% 6%, rgba(147, 51, 234, .22), transparent 66%),
-    radial-gradient(680px 340px at 50% 110%, rgba(219, 39, 119, .12), transparent 72%),
-    #0f0b18;
   overflow: hidden;
 }
-.blind-box-stage::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  box-shadow: inset 0 0 80px rgba(0, 0, 0, .55);
-}
-.blind-box-stage-head { position: relative; z-index: 4; display: flex; align-items: baseline; justify-content: space-between; color: rgba(246, 239, 223, .55); font-size: .52rem; letter-spacing: .22em; }
-.blind-box-stage-head b { color: #f6efdf; font-size: .68rem; letter-spacing: .1em; }
+.blind-box-stage-head { position: relative; z-index: 4; display: flex; align-items: baseline; justify-content: space-between; color: var(--color-text-43); font-size: .52rem; letter-spacing: .22em; }
+.blind-box-stage-head b { color: var(--color-text-33); font-size: .68rem; letter-spacing: .1em; }
 
 .blind-box-orbit { position: relative; z-index: 1; height: clamp(200px, 27vh, 280px); margin: 2px 0 0; }
 .blind-box-orbit-cover {
   position: absolute; top: 0; left: 0;
   width: 74px; height: 74px; border-radius: 15px;
-  box-shadow: 0 14px 30px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .22);
+  box-shadow: 0 10px 22px rgba(75, 60, 40, .2), inset 0 1px 0 rgba(255, 255, 255, .5);
   will-change: transform, filter, opacity;
   pointer-events: none;
   overflow: hidden;
@@ -59,11 +50,11 @@
 /* 封面上的圆形母题，和 demo 里的圆环元素呼应 */
 .blind-box-orbit-cover::before {
   content: ""; position: absolute; inset: 20% 24% 32% 16%; border-radius: 50%;
-  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, .3), rgba(255, 255, 255, .05) 60%, transparent 64%);
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, .5), rgba(255, 255, 255, .12) 60%, transparent 64%);
 }
 .blind-box-orbit-cover::after {
   content: ""; position: absolute; inset: 44% 48% 26% 22%; border-radius: 50%;
-  background: radial-gradient(circle at 46% 40%, rgba(20, 10, 30, .4), rgba(20, 10, 30, .12) 70%, transparent);
+  background: radial-gradient(circle at 46% 40%, rgba(72, 60, 52, .35), rgba(72, 60, 52, .1) 70%, transparent);
   mix-blend-mode: multiply;
 }
 
@@ -74,40 +65,40 @@
   animation: blind-box-focus-pull 700ms cubic-bezier(.2, .9, .2, 1) both;
   pointer-events: none;
 }
-.blind-box-focus img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 16px; box-shadow: 0 20px 46px rgba(0, 0, 0, .6); background: #1c1526; }
-.blind-box-focus p { display: flex; flex-direction: column; gap: 2px; margin: 10px 0 0; color: #f6efdf; font-size: .7rem; letter-spacing: .04em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.blind-box-focus p span { color: rgba(246, 239, 223, .55); font-size: .55rem; }
+.blind-box-focus img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 16px; box-shadow: 0 16px 34px rgba(75, 60, 40, .28); background: var(--color-surface-27); }
+.blind-box-focus p { display: flex; flex-direction: column; gap: 2px; margin: 10px 0 0; color: var(--color-text-33); font-size: .7rem; letter-spacing: .04em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blind-box-focus p span { color: var(--color-text-43); font-size: .55rem; }
 @keyframes blind-box-focus-pull {
   from { opacity: 0; transform: scale(.42) translateY(-10px); filter: blur(9px); }
   to { opacity: 1; transform: scale(1); filter: none; }
 }
 
-/* 中央抽取按钮 */
+/* 中央抽取按钮：纸面暖奶油圆钮 */
 .blind-box-draw {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 50;
   display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center;
   width: clamp(78px, 12vw, 96px); aspect-ratio: 1; padding: 0;
-  border: 0; border-radius: 50%; cursor: pointer;
-  background: radial-gradient(circle at 34% 30%, #3a2f4d, #171021 68%);
-  color: #f6efdf;
-  box-shadow: 0 0 0 6px rgba(246, 239, 223, .08), 0 0 38px rgba(147, 51, 234, .35), 0 14px 32px rgba(0, 0, 0, .5);
+  border: 1px solid var(--color-border-24); border-radius: 50%; cursor: pointer;
+  background: radial-gradient(circle at 34% 30%, #fffaf0, #f2e9d4 72%);
+  color: var(--color-text-33);
+  box-shadow: 0 0 0 6px rgba(33, 28, 18, .045), 0 12px 28px rgba(75, 60, 40, .18);
   transition: opacity 260ms ease, box-shadow 260ms ease, transform 260ms ease;
 }
 .blind-box-draw span { font-size: .8rem; letter-spacing: .28em; margin-left: .28em; }
-.blind-box-draw i { font-size: .46rem; font-style: normal; letter-spacing: .26em; color: rgba(246, 239, 223, .6); }
-.blind-box-draw:hover { transform: translate(-50%, -50%) scale(1.045); box-shadow: 0 0 0 6px rgba(246, 239, 223, .14), 0 0 52px rgba(219, 39, 119, .5), 0 14px 32px rgba(0, 0, 0, .5); }
+.blind-box-draw i { font-size: .46rem; font-style: normal; letter-spacing: .26em; color: var(--color-text-43); }
+.blind-box-draw:hover { transform: translate(-50%, -50%) scale(1.045); box-shadow: 0 0 0 6px rgba(167, 121, 66, .12), 0 14px 32px rgba(167, 121, 66, .22), 0 12px 28px rgba(75, 60, 40, .18); }
 .blind-box-draw:disabled { cursor: progress; transform: translate(-50%, -50%); }
 /* 聚焦时按钮让位给封面 */
 .blind-box-stage.is-focusing .blind-box-draw { opacity: 0; pointer-events: none; }
 
-.blind-box-stage-foot { position: relative; z-index: 4; display: flex; gap: 12px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 6px; padding-top: 9px; border-top: 1px dashed rgba(246, 239, 223, .16); }
-.blind-box-count { display: flex; gap: 4px; align-items: center; color: rgba(246, 239, 223, .7); font-size: .62rem; }
+.blind-box-stage-foot { position: relative; z-index: 4; display: flex; gap: 12px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 6px; padding-top: 9px; border-top: 1px dashed var(--color-border-27); }
+.blind-box-count { display: flex; gap: 4px; align-items: center; color: var(--color-text-41); font-size: .62rem; }
 .blind-box-count > span:last-child { margin-left: 3px; }
-.blind-box-count button { min-width: 27px; height: 27px; padding: 0 6px; border: 1px solid rgba(246, 239, 223, .26); background: transparent; color: rgba(246, 239, 223, .72); font-size: .62rem; cursor: pointer; }
-.blind-box-count button[aria-pressed="true"] { border-color: #f6efdf; background: #f6efdf; color: #171021; }
+.blind-box-count button { min-width: 27px; height: 27px; padding: 0 6px; border: 1px solid var(--color-border-33); background: transparent; color: var(--color-text-41); font-size: .62rem; cursor: pointer; }
+.blind-box-count button[aria-pressed="true"] { border-color: var(--color-action-06); background: var(--color-action-06); color: var(--color-inverse-03); }
 .blind-box-count button:disabled { opacity: .5; cursor: progress; }
-.blind-box-hint { flex: 1 1 260px; margin: 0; color: rgba(246, 239, 223, .5); font-size: .6rem; line-height: 1.6; text-align: right; letter-spacing: .03em; }
-.blind-box-inline-link { margin-left: 4px; padding: 0; border: 0; border-bottom: 1px solid rgba(246, 239, 223, .35); background: transparent; color: #f0c78a; font-size: .6rem; cursor: pointer; }
+.blind-box-hint { flex: 1 1 260px; margin: 0; color: var(--color-text-43); font-size: .6rem; line-height: 1.6; text-align: right; letter-spacing: .03em; }
+.blind-box-inline-link { margin-left: 4px; padding: 0; border: 0; border-bottom: 1px solid var(--color-border-34); background: transparent; color: var(--color-accent-10); font-size: .6rem; cursor: pointer; }
 
 /* ===== 抽中结果：固定每行三张 ===== */
 .blind-box-results { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; min-height: 0; margin-top: 12px; }
@@ -187,15 +178,16 @@
 .blind-box-rank-figures small { color: var(--color-text-43); font-size: .5rem; }
 .blind-box-ranking li > button { width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--color-text-41); font-size: .8rem; cursor: pointer; }
 
-/* 轨道封面配色：梅紫缎带，和 demo 的鲜艳色块一致 */
-.blind-box-tone-g1 { background: radial-gradient(circle at 72% 28%, rgba(255, 184, 107, .9), transparent 44%), linear-gradient(135deg, #ff4d6d, #d926a9 60%, #7b2ff7); }
-.blind-box-tone-g2 { background: radial-gradient(circle at 28% 72%, rgba(255, 209, 102, .85), transparent 46%), linear-gradient(135deg, #c026d3, #7c3aed); }
-.blind-box-tone-g3 { background: linear-gradient(135deg, #f43f5e, #a21caf 68%, #4c1d95); }
-.blind-box-tone-g4 { background: radial-gradient(circle at 62% 62%, rgba(251, 113, 133, .85), transparent 52%), linear-gradient(135deg, #8b5cf6, #d946ef); }
-.blind-box-tone-g5 { background: linear-gradient(135deg, #ec4899, #f97316); }
-.blind-box-tone-g6 { background: radial-gradient(circle at 40% 28%, rgba(253, 164, 175, .85), transparent 46%), linear-gradient(160deg, #6d28d9, #db2777); }
-.blind-box-tone-g7 { background: linear-gradient(135deg, #f59e0b, #ef4444 55%, #9333ea); }
-.blind-box-tone-g8 { background: radial-gradient(circle at 66% 34%, rgba(244, 114, 182, .85), transparent 44%), linear-gradient(135deg, #4f46e5, #c026d3); }
+/* 轨道封面配色：莫兰迪低饱和灰调（轨道卡与结果卡共用同一组）
+   灰粉 / 雾霾蓝 / 灰绿 / 灰紫 / 燕麦杏 / 豆沙 / 灰卡其 / 雾青 */
+.blind-box-tone-g1 { background: radial-gradient(circle at 70% 26%, rgba(255, 250, 240, .5), transparent 44%), linear-gradient(135deg, #d9b8ab, #c39a92 62%, #ad837e); }
+.blind-box-tone-g2 { background: radial-gradient(circle at 30% 70%, rgba(255, 250, 240, .45), transparent 46%), linear-gradient(135deg, #b7c4d1, #96a9bb 64%, #7f93a6); }
+.blind-box-tone-g3 { background: linear-gradient(135deg, #c2cdb4, #9fb294 62%, #86997c); }
+.blind-box-tone-g4 { background: radial-gradient(circle at 62% 62%, rgba(255, 250, 240, .45), transparent 50%), linear-gradient(135deg, #cfc0cd, #ab9aad 64%, #908197); }
+.blind-box-tone-g5 { background: radial-gradient(circle at 38% 26%, rgba(255, 251, 243, .5), transparent 46%), linear-gradient(135deg, #e3d1bd, #cdb498 66%, #b49c7f); }
+.blind-box-tone-g6 { background: linear-gradient(135deg, #d6a9a2, #bd8d87 62%, #a37671); }
+.blind-box-tone-g7 { background: radial-gradient(circle at 64% 34%, rgba(255, 251, 243, .45), transparent 44%), linear-gradient(135deg, #cdc4ab, #b1a68c 64%, #978c72); }
+.blind-box-tone-g8 { background: linear-gradient(135deg, #b2c1bc, #90a5a0 62%, #7b908b); }
 
 @media (prefers-reduced-motion: reduce) {
   .blind-box-page, .blind-box-card { transition: none; animation: none; }

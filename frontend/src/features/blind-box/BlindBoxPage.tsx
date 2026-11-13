@@ -15,7 +15,8 @@ import {
 
 const COUNT_OPTIONS = [1, 3, 5] as const
 const FALLBACK_COVER = '/images/album-placeholder-01.svg'
-// 封面轨道只用渐变唱片，不依赖外链图片；抽中后才显示真实封面。
+// 封面轨道只用莫兰迪低饱和渐变唱片（色值在 blind-box.css 的 blind-box-tone-g1~g8），
+// 不依赖外链图片；抽中后才显示真实封面。
 const ORBIT_TILES = 18
 const ORBIT_GRADIENTS = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8']
 const IDLE_SPEED = 0.24
