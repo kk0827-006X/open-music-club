@@ -110,84 +110,6 @@ describe('真实音乐搜索数据转换', () => {
     assert.match(artist[0].coverUrl, /album-placeholder/);
   });
 
-  it('网易云搜索仅传必要参数、携带同源会话，且类型映射正确', async () => {
-    const { fetchNeteaseSearchItems } = await import(frontendModule('services/music/search.ts'));
-    const requests = [];
-    const fetcher = async (url, options) => {
-      requests.push({ url, options });
-      return {
-        ok: true,
-        status: 200,
-        async json() {
-          return { code: 200, result: { artists: [{ id: 7, name: '陈奕迅' }] } };
-        },
-      };
-    };
-    const items = await fetchNeteaseSearchItems(' 陈奕迅 ', 'artist', fetcher);
-
-    assert.equal(items[0].title, '陈奕迅');
-    assert.equal(
-      requests[0].url,
-      '/api/netease/search?keywords=%E9%99%88%E5%A5%95%E8%BF%85&type=100',
-    );
-    assert.equal(requests[0].options.credentials, 'same-origin');
-  });
-
-  it('歌曲搜索通过现有详情接口批量补齐真实封面，详情失败时保留结果', async () => {
-    const { fetchNeteaseSearchItems } = await import(frontendModule('services/music/search.ts'));
-    const requests = [];
-    const fetcher = async (url) => {
-      requests.push(url);
-      if (url.startsWith('/api/netease/song/detail')) {
-        return {
-          ok: true,
-          status: 200,
-          async json() {
-            return {
-              code: 200,
-              songs: [{ id: 11, al: { picUrl: 'http://p3.music.126.net/real.jpg' } }],
-            };
-          },
-        };
-      }
-      return {
-        ok: true,
-        status: 200,
-        async json() {
-          return {
-            code: 200,
-            result: {
-              songs: [
-                { id: 11, name: '十年', album: { name: '黑·白·灰' } },
-                { id: 12, name: '另一首', album: { name: '黑·白·灰' } },
-              ],
-            },
-          };
-        },
-      };
-    };
-    const items = await fetchNeteaseSearchItems('十年', 'song', fetcher);
-    assert.deepEqual(requests, [
-      '/api/netease/search?keywords=%E5%8D%81%E5%B9%B4&type=1',
-      '/api/netease/song/detail?ids=11%2C12',
-    ]);
-    assert.equal(items[0].coverUrl, 'https://p3.music.126.net/real.jpg');
-    assert.match(items[1].coverUrl, /album-placeholder/);
-
-    const failingFetcher = async (url) =>
-      url.startsWith('/api/netease/song/detail')
-        ? {
-            ok: false,
-            status: 502,
-            async json() {
-              return {};
-            },
-          }
-        : fetcher(url);
-    const fallback = await fetchNeteaseSearchItems('十年', 'song', failingFetcher);
-    assert.equal(fallback.length, 2);
-  });
-
   it('歌曲播放地址按来源取得，并拒绝空 URL 与不可信域名', async () => {
     const { resolvePlaybackUrl } = await import(frontendModule('services/music/search.ts'));
     const local = { kind: 'song', source: 'local', sourceId: '12' };
@@ -228,9 +150,7 @@ describe('真实音乐搜索数据转换', () => {
   });
 
   it('本地列表使用现有接口，服务失败只给安全错误', async () => {
-    const { fetchLocalSearchItems, fetchNeteaseSearchItems } = await import(
-      frontendModule('services/music/search.ts')
-    );
+    const { fetchLocalSearchItems } = await import(frontendModule('services/music/search.ts'));
     const requests = [];
     const fetcher = async (url, options) => {
       requests.push({ url, options });
@@ -253,9 +173,6 @@ describe('真实音乐搜索数据转换', () => {
         return { message: '上游内部路径和密钥' };
       },
     });
-    await assert.rejects(
-      () => fetchNeteaseSearchItems('测试', 'song', failing),
-      /网易云搜索暂时不可用/,
-    );
+    await assert.rejects(() => fetchLocalSearchItems(failing), /本地音乐暂时无法加载/);
   });
 });

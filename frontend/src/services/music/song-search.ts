@@ -1,5 +1,6 @@
 import {
   fetchLocalSearchItems,
+  completeNeteaseSongCovers,
   toNeteaseSearchItems,
   type SearchFetcher,
   type SearchItem,
@@ -113,7 +114,7 @@ export function createSongSearch(
         return [{ ...item, key }];
       });
       return {
-        items,
+        items: await completeNeteaseSongCovers(items, fetcher, signal),
         hasMore: songMore || artistMore || bufferOffset < buffered.length,
         warning: warnings.size ? `${[...warnings].join('、')}暂时不可用，已保留其他结果` : '',
       };

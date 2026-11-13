@@ -20,7 +20,13 @@ export function useProfile(api: PersonalLibraryClient, unmountedRef: RefObject<b
   const [avatarFeedback, setAvatarFeedback] = useState('点击头像更换图片');
 
   function acceptProfile(next: UserProfile, revision: number) {
-    if (revision !== revisionRef.current) return;
+    const identityChanged = profileRef.current !== null && profileRef.current.id !== next.id;
+    // 当前刷新确认身份已变化时优先切换；同一身份的旧资料仍服从头像版本保护。
+    if (!identityChanged && revision !== revisionRef.current) return;
+    if (identityChanged) {
+      revisionRef.current += 1;
+      setAvatarFeedback('点击头像更换图片');
+    }
     profileRef.current = next;
     setNickname(next.nickname);
     // 头像地址在展示前再次限制为当前用户的受保护接口。
@@ -32,6 +38,7 @@ export function useProfile(api: PersonalLibraryClient, unmountedRef: RefObject<b
     revisionRef.current += 1;
     setNickname('会话已失效');
     setAvatarUrl(null);
+    setAvatarFeedback('会话已失效，请重新登录后更换头像');
   }
 
   async function onAvatarChange(event: ChangeEvent<HTMLInputElement>) {
@@ -43,11 +50,23 @@ export function useProfile(api: PersonalLibraryClient, unmountedRef: RefObject<b
       setAvatarFeedback(error);
       return;
     }
+    const revision = revisionRef.current;
+    const ownerId = profileRef.current?.id;
+    // 请求开始时的身份与资料代次必须仍然有效，清空或切换身份后丢弃迟到结果。
+    const current = () =>
+      !unmountedRef.current &&
+      revision === revisionRef.current &&
+      (ownerId === undefined || ownerId === profileRef.current?.id);
     avatarBusyRef.current = true;
     setAvatarFeedback('正在保存头像…');
     try {
       const saved = await api.uploadAvatar(file);
-      if (unmountedRef.current) return;
+      if (!current()) return;
+      // 首次资料未就绪时也允许上传，但成功结果必须属于随后确认的当前身份。
+      if (profileRef.current && saved.id !== profileRef.current.id) {
+        setAvatarFeedback('资料已变化，请重新选择头像');
+        return;
+      }
       // 让更早发出的 profile 请求知道头像已被更新，避免旧响应覆盖新头像。
       revisionRef.current += 1;
       profileRef.current = saved;
@@ -55,8 +74,7 @@ export function useProfile(api: PersonalLibraryClient, unmountedRef: RefObject<b
       setAvatarUrl(saved.avatarUrl);
       setAvatarFeedback('头像已保存，下次登录仍可见');
     } catch (error) {
-      if (!unmountedRef.current)
-        setAvatarFeedback(error instanceof Error ? error.message : '头像保存失败');
+      if (current()) setAvatarFeedback(error instanceof Error ? error.message : '头像保存失败');
     } finally {
       avatarBusyRef.current = false;
     }

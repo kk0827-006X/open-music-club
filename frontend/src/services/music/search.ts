@@ -10,8 +10,6 @@ export type SearchFetcher = (
   options: { credentials: 'same-origin'; signal?: AbortSignal },
 ) => Promise<SearchResponse>;
 
-const NETEASE_TYPES: Record<SearchKind, number> = { song: 1, album: 10, artist: 100 };
-
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -210,42 +208,43 @@ export async function fetchLocalSearchItems(
   return toLocalSearchItems(body.tracks);
 }
 
-export async function fetchNeteaseSearchItems(
-  query: string,
-  kind: SearchKind,
-  fetcher: SearchFetcher = window.fetch.bind(window) as SearchFetcher,
+// 补齐当前页缺图的网易云歌曲，已有封面和本地来源保持原样。
+export async function completeNeteaseSongCovers(
+  items: SearchItem[],
+  fetcher: SearchFetcher,
   signal?: AbortSignal,
 ): Promise<SearchItem[]> {
-  const keywords = query.trim();
-  if (!keywords) return [];
-  const url = `/api/netease/search?keywords=${encodeURIComponent(keywords)}&type=${NETEASE_TYPES[kind]}`;
-  const response = await fetcher(url, { credentials: 'same-origin', signal });
-  if (!response.ok)
-    throw new Error(response.status === 401 ? '登录已失效，请重新登录' : '网易云搜索暂时不可用');
-  const body = await response.json();
-  if (record(body)?.code !== 200) throw new Error('网易云搜索暂时不可用');
-  const items = toNeteaseSearchItems(body, kind);
-  if (kind !== 'song') return items;
-  const missing = items.filter((item) => item.coverUrl === FALLBACK_COVER);
-  if (!missing.length) return items;
+  const assertActive = () => {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('搜索已取消', 'AbortError');
+  };
+  const needsCover = (item: SearchItem) =>
+    item.kind === 'song' && item.source === 'netease' && item.coverUrl === FALLBACK_COVER;
+  assertActive();
+  const missing = new Set(items.filter(needsCover).map((item) => item.sourceId));
+  if (!missing.size) return items;
   try {
-    const ids = missing.map((item) => item.sourceId).join(',');
-    const detailResponse = await fetcher(
-      `/api/netease/song/detail?ids=${encodeURIComponent(ids)}`,
-      { credentials: 'same-origin', signal },
-    );
-    if (!detailResponse.ok) return items;
-    const details = record(await detailResponse.json());
+    const ids = [...missing].join(',');
+    const response = await fetcher(`/api/netease/song/detail?ids=${encodeURIComponent(ids)}`, {
+      credentials: 'same-origin',
+      signal,
+    });
+    assertActive();
+    if (!response.ok) return items;
+    const details = record(await response.json());
+    assertActive();
     if (details?.code !== 200 || !Array.isArray(details.songs)) return items;
     const covers = new Map<string, string>();
     for (const value of details.songs) {
       const detail = record(value);
       const id = positiveId(detail?.id);
-      if (id) covers.set(id, safeCoverUrl(record(detail?.al)?.picUrl));
+      if (id && missing.has(id)) covers.set(id, safeCoverUrl(record(detail?.al)?.picUrl));
     }
-    return items.map((item) => ({ ...item, coverUrl: covers.get(item.sourceId) || item.coverUrl }));
+    return items.map((item) =>
+      needsCover(item) ? { ...item, coverUrl: covers.get(item.sourceId) || item.coverUrl } : item,
+    );
   } catch (error) {
     if (signal?.aborted) throw error;
+    // 可选封面失败不丢弃已获取的歌曲，继续使用安全占位图。
     return items;
   }
 }

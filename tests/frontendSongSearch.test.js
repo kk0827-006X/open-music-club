@@ -148,3 +148,199 @@ it('Gooey 仅在非中文组字的 Enter 提交非空关键词，不随输入自
     assert.deepEqual(queries, ['周杰伦']);
   });
 });
+
+// 所有请求都经当前生产搜索入口发出，不再直接测试已退出生产的旧搜索函数。
+function coverSearchFixture({ direct = [], artist = [], album = [], local = [], detail } = {}) {
+  const calls = [];
+  const response = (body, status = 200) => ({ ok: status === 200, status, json: async () => body });
+  const fetcher = async (address, options) => {
+    calls.push({ address, options });
+    const url = new URL(address, 'http://localhost');
+    if (url.pathname === '/api/local/music') return response({ success: true, tracks: local });
+    if (url.pathname.endsWith('/song/detail')) return detail(url, response);
+    if (url.pathname.endsWith('/artist/songs'))
+      return response({ code: 200, songs: artist, more: false });
+    if (url.pathname.endsWith('/album')) return response({ code: 200, songs: album });
+    const type = url.searchParams.get('type');
+    if (type === '100')
+      return response({
+        code: 200,
+        result: { artists: artist.length ? [{ id: 7, name: '歌手' }] : [] },
+      });
+    if (type === '10')
+      return response({
+        code: 200,
+        result: { albums: album.length ? [{ id: 8, name: '专辑' }] : [] },
+      });
+    return response({ code: 200, result: { songs: direct, songCount: direct.length } });
+  };
+  return { calls, fetcher };
+}
+
+it('生产统一搜索携带同源凭证与取消信号，准确发送关键词、类型和分页参数', async () => {
+  const { createSongSearch } = await import('../frontend/src/services/music/song-search.ts');
+  const controller = new AbortController();
+  const fixture = coverSearchFixture({
+    direct: [{ ...song(11), al: { name: '专辑', picUrl: 'https://p1.music.126.net/known.jpg' } }],
+    artist: [{ ...song(11), al: { name: '专辑', picUrl: 'https://p1.music.126.net/known.jpg' } }],
+  });
+  const result = await createSongSearch(' 陈奕迅 ', fixture.fetcher, controller.signal).next();
+  assert.deepEqual(
+    result.items.map((item) => item.key),
+    ['netease:11'],
+  );
+  for (const { options } of fixture.calls) {
+    assert.equal(options.credentials, 'same-origin');
+    assert.equal(options.signal, controller.signal);
+  }
+  const searches = fixture.calls
+    .map(({ address }) => new URL(address, 'http://localhost'))
+    .filter((url) => url.pathname === '/api/netease/search');
+  assert.deepEqual(
+    searches.map((url) => Object.fromEntries(url.searchParams)),
+    [
+      { keywords: '陈奕迅', type: '100', limit: '1', offset: '0' },
+      { keywords: '陈奕迅', type: '10', limit: '1', offset: '0' },
+      { keywords: '陈奕迅', type: '1', limit: '30', offset: '0' },
+    ],
+  );
+  assert.equal(
+    fixture.calls.some(({ address }) => address.includes('/artist/songs?id=7&limit=30&offset=0')),
+    true,
+  );
+});
+
+it('当前页合并去重后批量补齐网易云缺失封面，保留本地、已有封面和不可信图片回退', async () => {
+  const { createSongSearch } = await import('../frontend/src/services/music/song-search.ts');
+  const { FALLBACK_COVER } = await import('../frontend/src/shared/music.ts');
+  const controller = new AbortController();
+  const fixture = coverSearchFixture({
+    direct: [
+      song(11),
+      { ...song(12), al: { name: '专辑', picUrl: 'https://p1.music.126.net/known.jpg' } },
+      { ...song(13), al: { name: '专辑', picUrl: 'javascript:unsafe' } },
+    ],
+    artist: [song(11), song(14)],
+    album: [song(15)],
+    local: [
+      { sourceId: '11', title: '匹配本地', artists: [], album: { name: '本地' }, durationMs: 1 },
+    ],
+    detail: async (_url, response) =>
+      response({
+        code: 200,
+        songs: [
+          { id: 11, al: { picUrl: 'http://p3.music.126.net/real.jpg' } },
+          { id: 12, al: { picUrl: 'https://p1.music.126.net/unrequested.jpg' } },
+          { id: 13, al: { picUrl: 'https://evil.test/private.jpg' } },
+          { id: 14, al: { picUrl: 'https://p2.music.126.net/artist.jpg' } },
+        ],
+      }),
+  });
+  const result = await createSongSearch('匹配', fixture.fetcher, controller.signal).next();
+  assert.deepEqual(
+    result.items.map((item) => item.key),
+    ['netease:11', 'netease:12', 'netease:13', 'netease:14', 'local:11', 'netease:15'],
+  );
+  assert.deepEqual(
+    result.items.map((item) => item.coverUrl),
+    [
+      'https://p3.music.126.net/real.jpg',
+      'https://p1.music.126.net/known.jpg',
+      FALLBACK_COVER,
+      'https://p2.music.126.net/artist.jpg',
+      FALLBACK_COVER,
+      FALLBACK_COVER,
+    ],
+  );
+  const requests = fixture.calls.filter(({ address }) => address.includes('/song/detail'));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].address, '/api/netease/song/detail?ids=11%2C13%2C14%2C15');
+  assert.equal(requests[0].options.credentials, 'same-origin');
+  assert.equal(requests[0].options.signal, controller.signal);
+  assert.equal(result.hasMore, false);
+});
+
+it('当前页网易云封面齐全时不请求详情，本地缺图不会触发网易云补齐', async () => {
+  const { createSongSearch } = await import('../frontend/src/services/music/song-search.ts');
+  const fixture = coverSearchFixture({
+    direct: [{ ...song(1), al: { name: '专辑', picUrl: 'https://p1.music.126.net/known.jpg' } }],
+    local: [{ sourceId: '2', title: '匹配本地', artists: [], album: { name: null } }],
+  });
+  const result = await createSongSearch('匹配', fixture.fetcher).next();
+  assert.equal(result.items.length, 2);
+  assert.equal(
+    fixture.calls.some(({ address }) => address.includes('/song/detail')),
+    false,
+  );
+});
+
+for (const failure of ['网络失败', 'HTTP失败', '业务失败', '解析失败', '结构错误']) {
+  it(`封面详情${failure}时保留当前搜索结果和占位图`, async () => {
+    const { createSongSearch } = await import('../frontend/src/services/music/song-search.ts');
+    const { FALLBACK_COVER } = await import('../frontend/src/shared/music.ts');
+    const fixture = coverSearchFixture({
+      direct: [song(11), song(12)],
+      detail: async (_url, response) => {
+        if (failure === '网络失败') throw new Error('上游内部路径');
+        if (failure === 'HTTP失败') return response({ message: '上游内部路径' }, 502);
+        if (failure === '业务失败') return response({ code: 500 });
+        if (failure === '解析失败')
+          return {
+            ok: true,
+            status: 200,
+            json: async () => {
+              throw new Error('上游内部路径');
+            },
+          };
+        return response({ code: 200, songs: {} });
+      },
+    });
+    const result = await createSongSearch('词', fixture.fetcher).next();
+    assert.deepEqual(
+      result.items.map((item) => item.key),
+      ['netease:11', 'netease:12'],
+    );
+    assert.ok(result.items.every((item) => item.coverUrl === FALLBACK_COVER));
+    assert.doesNotMatch(result.warning, /内部路径/);
+  });
+}
+
+for (const stage of ['响应', 'JSON']) {
+  it(`封面${stage}迟到时，取消统一搜索不会交付旧结果`, async () => {
+    const { createSongSearch } = await import('../frontend/src/services/music/song-search.ts');
+    const controller = new AbortController();
+    let started, finish;
+    const waiting = new Promise((resolve) => {
+      started = resolve;
+    });
+    const delayed = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const fixture = coverSearchFixture({
+      direct: [song(11)],
+      detail: async (_url, response) => {
+        if (stage === '响应') {
+          started();
+          return delayed;
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => {
+            started();
+            return delayed;
+          },
+        };
+      },
+    });
+    const pending = createSongSearch('词', fixture.fetcher, controller.signal).next();
+    await waiting;
+    controller.abort();
+    const body = {
+      code: 200,
+      songs: [{ id: 11, al: { picUrl: 'https://p1.music.126.net/late.jpg' } }],
+    };
+    finish(stage === '响应' ? { ok: true, status: 200, json: async () => body } : body);
+    await assert.rejects(pending, (error) => error.name === 'AbortError');
+  });
+}

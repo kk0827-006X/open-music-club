@@ -106,7 +106,7 @@ frontend/src/
 - `features/player/PlayerView.tsx` 保留原对外 ref 接口与队列装配入口；按依赖调用 `usePlayerCollection`、`usePlayerVisibility`、`usePlayerQueue`、`usePlayerLikes`、`usePlayerLyrics`。队列及持久化工厂通过能力参数传入 hook，既有跨 feature 精确引用白名单不扩张。
 - `CompactPlayer` 与 `ExpandedPlayer` 只呈现状态和转交动作，不持有音频、网络请求或焦点生命周期。可见性 hook 负责展开/收起的焦点归还与重试取消；歌词 hook 负责请求序号、中止和容器内滚动；队列 hook 保留删除/清空、版本快照及串行持久化的原行为。
 
-- `features/user/UserPage.tsx` 保留 `refresh`、`hasOpenDialog` 与管理员审核装配入口；`use-personal-library-data` 负责 lists/tracks/section/pageIndex、过渡和最新请求，`use-playlist-mutations` 负责创建/重命名/删除与互斥状态，`use-profile` 负责昵称、头像校验和上传版本保护。读取与写入通过同一刷新入口协调，不复制数据状态或扩张跨 feature 白名单。
+- `features/user/UserPage.tsx` 保留 `refresh`、`hasOpenDialog` 与管理员审核装配入口；`use-personal-library-data` 负责 lists/tracks/section/pageIndex、过渡和最新请求，`use-playlist-mutations` 负责创建/重命名/删除与互斥状态，`use-profile` 负责昵称、头像校验和上传版本保护。头像上传绑定资料代次与身份，401 清理及身份切换会作废迟到的成功/失败响应；首次资料加载与同身份上传可正常交错，原身份 A→B→A 后的旧上传也不能恢复。读取与写入通过同一刷新入口协调，不复制数据状态或扩张跨 feature 白名单。
 - `UserSidebar`、`PlaylistDetail`、`PlaylistHeader`、`UserTrackRow`、`CreatePlaylistDialog`、`DeletePlaylistDialog` 呈现原有 DOM 与动作；不另建播放器或发起请求。个人页入口及各模块目标为 350 行以内，由行数测试约束；原有最近播放占位行为保留，不新增昵称编辑功能。
 
 - `Workspace` 入口不超过 100 行，统一创建稳定的播放器命令对象（play/enqueue/choosePlaylist/closeQueue/replaceAndPlay/syncLiked），调用时读取当前 PlayerView ref；`WorkspaceView` 沿用原页面 JSX、DOM 标记与懒加载保留策略。`use-workspace-navigation` 统一受控路由与本地导航、visited 和切页清除搜索；`use-archive-keyboard` 保留输入区、设置、入场、展开播放器、业务弹窗及档案详情的原按键优先级，并在卸载时移除监听。
@@ -203,6 +203,7 @@ frontend/src/
 - `components.json` 注册 `@aceternity`（`https://ui.aceternity.com/registry/{name}.json`），复用现有 shadcn MCP。官方源码来源为 <https://ui.aceternity.com/registry/draggable-card-demo-2.json>；项目根目录没有独立 tsconfig，CLI 源码安装在隔离目录完成后适配到现有前端。
 - Dock 的 Gooey Input 按 Enter 提交统一歌曲搜索，在当前页面复用 QueuePanel 的只读搜索模式展示结果，提供播放、加入歌单和加载更多；旧独立搜索页及其兼容入口、专属样式已删除；浏览与翻页不覆盖真实队列，播放沿用原有自动入队行为。键盘 `/` 同样打开新入口；输入和结果面板内的键盘不驱动三维档案。
 - `createSongSearch` 每次查询拥有独立 AbortSignal 和分页游标：歌曲检索、最匹配歌手的歌曲、最匹配专辑的歌曲及本地匹配歌曲按 `source:sourceId` 去重；各云端分页每批 30，专辑/本地曲目缓冲分批展示。来源失败显示提示并保留其他结果，旧查询不能覆盖新查询。
+- 当前统一搜索在每页合并、按来源与歌曲 ID 去重后，仅对缺封面的网易云歌曲批量调用 `/api/netease/song/detail` 补齐安全封面；本地歌曲与已有封面保持不变。详情请求继承同源凭证与搜索取消信号，响应及 JSON 迟到时均丢弃；详情不可用或图片不可信时保留歌曲和占位图。搜索请求/分页/封面测试直接覆盖 `createSongSearch`，已移除退出生产的旧 `fetchNeteaseSearchItems` 请求入口。
 - 后端 `/api/netease/search` 内部使用 vendor cloudsearch，外部参数及登录/限流规则不变；新增 `GET /api/netease/artist/songs?id=&limit=&offset=`，限制正整数 ID、1～100 条分页，固定热门顺序，丢弃 Cookie、proxy 等非白名单参数，复用统一网易云权限及错误脱敏。
 - 本地与网易云分别请求各自 API，只在展示层合并为统一 Track。队列项始终记录具体音源；同一录音的多个来源可归组展示，但无法可靠确认时保持为不同歌曲。
 - 播放器切歌不改变播放器位置；动效只用于说明状态变化，支持 `prefers-reduced-motion`，减少动态效果时直接显示最终状态。

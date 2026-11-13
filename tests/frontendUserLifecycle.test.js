@@ -15,11 +15,12 @@ const track = (id) => ({
   playable: true,
 });
 const deferred = () => {
-  let resolve;
-  const promise = new Promise((done) => {
+  let resolve, reject;
+  const promise = new Promise((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 };
 const client = (overrides = {}) => ({
   profile: async () => profile,
@@ -125,6 +126,179 @@ it('会话失效清除旧歌单、昵称与头像，刷新报告失败', async (
     assert.equal(h.query('[data-user-list="1"]'), null);
     assert.equal(h.require('[data-user-nickname]').textContent, '会话已失效');
     assert.equal(h.require('[data-user-avatar-image]').hasAttribute('src'), false);
+  });
+});
+
+for (const outcome of ['成功', '失败']) {
+  it(`会话失效后，旧头像上传${outcome}响应不能恢复资料或覆盖失效反馈`, async () => {
+    await withReactHarness(async (h) => {
+      const { PersonalLibraryError } =
+        await import('../frontend/src/services/music/personal-library.ts');
+      const upload = deferred();
+      let expired = false;
+      const ref = await mount(
+        h,
+        client({
+          profile: async () => {
+            if (expired) throw new PersonalLibraryError('登录已失效', 401);
+            return { ...profile, avatarUrl: '/api/me/avatar?v=before-expiry' };
+          },
+          uploadAvatar: () => upload.promise,
+        }),
+      );
+      await avatar(h);
+      expired = true;
+      await h.React.act(async () => assert.equal(await ref.current.refresh(), false));
+      assert.equal(h.require('[data-user-nickname]').textContent, '会话已失效');
+      await h.React.act(async () => {
+        if (outcome === '成功')
+          upload.resolve({
+            ...profile,
+            nickname: '旧上传昵称',
+            avatarUrl: '/api/me/avatar?v=late',
+          });
+        else upload.reject(new Error('旧上传错误'));
+      });
+      assert.equal(h.require('[data-user-nickname]').textContent, '会话已失效');
+      assert.equal(h.require('[data-user-avatar-image]').hasAttribute('src'), false);
+      assert.match(h.require('[data-user-avatar-feedback]').textContent, /会话已失效/);
+      assert.equal(h.query('[data-user-list="1"]'), null);
+    });
+  });
+}
+
+it('资料身份变化后，原身份的在途头像上传不能覆盖当前资料', async () => {
+  await withReactHarness(async (h) => {
+    const upload = deferred();
+    let switched = false;
+    const current = { id: 2, nickname: '当前成员', avatarUrl: '/api/me/avatar?v=current' };
+    const ref = await mount(
+      h,
+      client({
+        profile: async () => (switched ? current : profile),
+        uploadAvatar: () => upload.promise,
+      }),
+    );
+    await avatar(h);
+    switched = true;
+    await h.React.act(async () => assert.equal(await ref.current.refresh(), true));
+    await h.React.act(async () =>
+      upload.resolve({ ...profile, nickname: '旧成员', avatarUrl: '/api/me/avatar?v=old-member' }),
+    );
+    assert.equal(h.require('[data-user-nickname]').textContent, '当前成员');
+    assert.equal(h.require('[data-user-avatar-image]').getAttribute('src'), current.avatarUrl);
+  });
+});
+
+it('首次资料加载期间开始的同身份头像上传仍能正常保存', async () => {
+  await withReactHarness(async (h) => {
+    const initial = deferred(),
+      upload = deferred();
+    await mount(h, client({ profile: () => initial.promise, uploadAvatar: () => upload.promise }));
+    await avatar(h);
+    await h.React.act(async () => initial.resolve(profile));
+    await h.React.act(async () =>
+      upload.resolve({
+        ...profile,
+        nickname: '首次上传昵称',
+        avatarUrl: '/api/me/avatar?v=initial-upload',
+      }),
+    );
+    assert.equal(h.require('[data-user-nickname]').textContent, '首次上传昵称');
+    assert.equal(
+      h.require('[data-user-avatar-image]').getAttribute('src'),
+      '/api/me/avatar?v=initial-upload',
+    );
+    assert.match(h.require('[data-user-avatar-feedback]').textContent, /头像已保存/);
+  });
+});
+
+it('头像上传在途经历 A→B→A 后，旧 A 响应仍失效且不残留上传中反馈', async () => {
+  await withReactHarness(async (h) => {
+    const upload = deferred();
+    let current = profile;
+    const ref = await mount(
+      h,
+      client({ profile: async () => current, uploadAvatar: () => upload.promise }),
+    );
+    await avatar(h);
+    current = { id: 2, nickname: '成员B', avatarUrl: '/api/me/avatar?v=member-b' };
+    await h.React.act(async () => assert.equal(await ref.current.refresh(), true));
+    assert.equal(h.require('[data-user-nickname]').textContent, current.nickname);
+    assert.doesNotMatch(h.require('[data-user-avatar-feedback]').textContent, /正在保存/);
+    current = {
+      ...profile,
+      nickname: '成员A的新资料',
+      avatarUrl: '/api/me/avatar?v=member-a-current',
+    };
+    await h.React.act(async () => assert.equal(await ref.current.refresh(), true));
+    await h.React.act(async () =>
+      upload.resolve({
+        ...profile,
+        nickname: '成员A的旧上传',
+        avatarUrl: '/api/me/avatar?v=member-a-old',
+      }),
+    );
+    assert.equal(h.require('[data-user-nickname]').textContent, current.nickname);
+    assert.equal(h.require('[data-user-avatar-image]').getAttribute('src'), current.avatarUrl);
+    assert.doesNotMatch(
+      h.require('[data-user-avatar-feedback]').textContent,
+      /正在保存|头像已保存/,
+    );
+  });
+});
+
+it('旧身份头像保存推进版本后，当前刷新确认的新身份仍优先接入', async () => {
+  await withReactHarness(async (h) => {
+    const refresh = deferred();
+    let reads = 0;
+    const ref = await mount(
+      h,
+      client({
+        profile: () => (++reads === 1 ? Promise.resolve(profile) : refresh.promise),
+        uploadAvatar: async () => ({
+          ...profile,
+          avatarUrl: '/api/me/avatar?v=saved-before-switch',
+        }),
+      }),
+    );
+    let loading;
+    await h.React.act(async () => {
+      loading = ref.current.refresh();
+    });
+    await avatar(h);
+    const next = {
+      id: 2,
+      nickname: '刷新确认的新身份',
+      avatarUrl: '/api/me/avatar?v=confirmed-owner',
+    };
+    await h.React.act(async () => {
+      refresh.resolve(next);
+      await loading;
+    });
+    assert.equal(h.require('[data-user-nickname]').textContent, next.nickname);
+    assert.equal(h.require('[data-user-avatar-image]').getAttribute('src'), next.avatarUrl);
+    assert.doesNotMatch(
+      h.require('[data-user-avatar-feedback]').textContent,
+      /正在保存|头像已保存/,
+    );
+  });
+});
+
+it('首次资料确认身份后，另一身份的上传结果不能覆盖它', async () => {
+  await withReactHarness(async (h) => {
+    const initial = deferred(),
+      upload = deferred();
+    await mount(h, client({ profile: () => initial.promise, uploadAvatar: () => upload.promise }));
+    await avatar(h);
+    const next = { id: 2, nickname: '已确认身份', avatarUrl: '/api/me/avatar?v=confirmed' };
+    await h.React.act(async () => initial.resolve(next));
+    await h.React.act(async () =>
+      upload.resolve({ ...profile, avatarUrl: '/api/me/avatar?v=other' }),
+    );
+    assert.equal(h.require('[data-user-nickname]').textContent, next.nickname);
+    assert.equal(h.require('[data-user-avatar-image]').getAttribute('src'), next.avatarUrl);
+    assert.match(h.require('[data-user-avatar-feedback]').textContent, /资料已变化/);
   });
 });
 

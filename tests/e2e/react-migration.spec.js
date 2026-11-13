@@ -1774,6 +1774,26 @@ test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真�
   await page.route('**/api/netease/album?**', (route) =>
     route.fulfill({ json: { code: 200, songs: [songs(910004)] } }),
   );
+  const coverBatches = [];
+  await page.route('**/api/netease/song/detail?**', async (route) => {
+    const ids = new URL(route.request().url()).searchParams.get('ids').split(',');
+    coverBatches.push(ids);
+    await route.fulfill({
+      json: {
+        code: 200,
+        songs: ids.map((id) => ({
+          id: Number(id),
+          al: { picUrl: `http://p3.music.126.net/p2-search-${id}.svg` },
+        })),
+      },
+    });
+  });
+  await page.route('https://p3.music.126.net/p2-search-*.svg', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="#a65"/></svg>',
+    }),
+  );
   await page.route('**/api/netease/song/url/v1?**', (route) =>
     route.fulfill({
       json: { code: 200, data: [{ url: 'https://e2e.music.126.net/unified.wav' }] },
@@ -1801,6 +1821,14 @@ test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真�
   await input.press('Enter');
   const panel = page.locator('[data-song-search-panel]');
   await expect(panel.locator('[data-queue-key]')).toHaveCount(4);
+  const completedCover = panel.locator('[data-queue-key="netease:910001"] img');
+  await expect(completedCover).toHaveAttribute(
+    'src',
+    'https://p3.music.126.net/p2-search-910001.svg',
+  );
+  await expect
+    .poll(() => completedCover.evaluate((image) => image.complete && image.naturalWidth > 0))
+    .toBe(true);
   releaseOld();
   await expect(panel.locator('[data-queue-key]')).toHaveCount(4);
   await expect(
@@ -1812,6 +1840,7 @@ test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真�
   await expect(more).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await more.click();
   await expect(panel.locator('[data-queue-key]')).toHaveCount(5);
+  expect(coverBatches).toEqual([['910001', '910002', '910003', '910004'], ['910005']]);
   const originalRefs = originalQueue.map(({ source, sourceId }) => ({ source, sourceId }));
   for (const snapshot of writes) expect(snapshot).toEqual(originalRefs);
   await panel.locator('[data-queue-play="netease:910001"]').click();
