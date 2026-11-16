@@ -1,12 +1,3 @@
-.footprint-page .fp-milestone {
-  /* 英雄区：累计播放 + 连续听歌圆环 */
-
-  /* 24 小时曲线 */
-
-  /* 每月聆听：从底部生长的渐变柱 */
-
-  /* 热听榜：奖牌名次 + 播放占比条 */
-}
 .footprint-page .fp-milestone .fp-hero,
 .footprint-page .fp-milestone .fp-stat {
   border: 1px solid var(--color-line-01);
@@ -413,8 +404,6 @@
     transform: translate(-12px, 16px) scale(1.08);
   }
 }
-.footprint-page .fp-milestone .fp-rank {
-}
 @media (max-width: 600px) {
   .footprint-page .fp-milestone .fp-hero {
     grid-template-columns: minmax(0, 1fr);
@@ -478,8 +467,6 @@
   50% {
     transform: scale(1.4);
   }
-}
-.footprint-page .fp-milestone .fp-month small {
 }
 .footprint-page .fp-milestone .fp-top-tracks li {
   border-radius: 10px;

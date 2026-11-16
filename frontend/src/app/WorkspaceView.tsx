@@ -14,6 +14,7 @@ import type { useWorkspaceScene } from './hooks/use-workspace-scene.ts';
 
 const UploadPage = lazy(() => import('../features/upload/UploadPage.tsx'));
 const UserPage = lazy(() => import('../features/user/UserPage.tsx'));
+const AvatarStudio = lazy(() => import('../features/avatar/AvatarStudio.tsx'));
 const FootprintPage = lazy(() => import('../features/footprint/FootprintPage.tsx'));
 const tabs = [
   ['library', '音乐库', 'library'],
@@ -173,6 +174,9 @@ export function WorkspaceView({
                 play={playerCommands.play}
                 enqueue={playerCommands.enqueue}
                 client={client}
+                renderAvatar={(active, onDialogChange) => (
+                  <AvatarStudio active={active} onDialogChange={onDialogChange} />
+                )}
                 choosePlaylist={(track) => {
                   void playerCommands.choosePlaylist(track);
                 }}

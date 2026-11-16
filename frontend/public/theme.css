@@ -772,3 +772,61 @@
   --fp-square-avatar-3: linear-gradient(135deg, #adb99b, #4c5c40);
   --fp-square-avatar-4: linear-gradient(135deg, #a99ccb, #4c3d78);
 }
+
+/* zyr 原版工坊独立色板，不随站点主题改变。 */
+.avatar-studio-original {
+  --as-bg-page: #ece5da;
+  --as-bg-panel: #f4ede3;
+  --as-bg-card: #f9f4ec;
+  --as-bg-elevated: #e5dcc9;
+  --as-bg-stage: #ddd3be;
+  --as-border-soft: #d5c9b5;
+  --as-border-strong: #a89c88;
+  --as-ink-strong: #3f3a33;
+  --as-ink: #5e564b;
+  --as-ink-soft: #8a8275;
+  --as-ink-faint: #b0a694;
+  --as-accent: #8a9a85;
+  --as-accent-dark: #6e7e69;
+  --as-accent-soft: #bcc7b5;
+  --as-accent-bg: rgba(138, 154, 133, 0.12);
+  --as-mauve: #b8a5b5;
+  --as-terracotta: #c7a99b;
+  --as-powder: #a5b5c0;
+  --as-shadow-soft: 0 2px 12px rgba(101, 84, 60, 0.08);
+  --as-shadow-card: 0 6px 24px rgba(101, 84, 60, 0.1);
+  --as-shadow-lift: 0 12px 32px rgba(101, 84, 60, 0.14);
+  --as-shadow-inset: inset 0 1px 2px rgba(101, 84, 60, 0.1);
+  --as-font-display: 'DM Serif Display', 'Songti SC', '宋体', Georgia, serif;
+  --as-font-body: 'Inter', 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
+  --as-avatar-theme: #8a9a85;
+  --as-avatar-theme-dark: #6e7e69;
+  --as-avatar-theme-light: #bcc7b5;
+  --as-source-0: rgba(101, 84, 60, 0.06);
+  --as-source-1: rgba(255, 255, 255, 0.05);
+  --as-source-2: #e5c5bc;
+  --as-source-3: #8b5e4f;
+  --as-source-4: rgba(101, 84, 60, 0.04);
+  --as-source-5: rgba(101, 84, 60, 0.15);
+  --as-source-6: rgba(255, 255, 255, 0.4);
+  --as-source-7: rgba(244, 237, 227, 0.92);
+  --as-source-8: #f6f0e5;
+  --as-source-9: #efe7d9;
+  --as-source-10: #e9dfcf;
+  --as-source-11: rgba(255, 255, 255, 0.5);
+  --as-source-12: rgba(101, 84, 60, 0.055);
+  --as-source-13: rgba(249, 244, 236, 0.75);
+  --as-source-14: #a4553f;
+  --as-source-15: #c9a18f;
+  --as-source-16: rgba(199, 169, 155, 0.2);
+  --as-source-17: rgba(255, 252, 246, 0.95);
+  --as-source-18: rgba(221, 211, 190, 0.9);
+  --as-source-19: rgba(213, 201, 181, 0.95);
+  --as-source-20: rgba(101, 84, 60, 0.16);
+  --as-source-21: rgba(255, 255, 255, 0.7);
+  --as-source-22: rgba(101, 84, 60, 0.18);
+  --as-source-23: #fbf6ec;
+  --as-source-24: rgba(101, 84, 60, 0.2);
+  --as-source-25: rgba(249, 244, 236, 0.6);
+  --as-source-26: rgba(213, 201, 181, 0.7);
+}

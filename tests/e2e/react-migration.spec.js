@@ -51,6 +51,8 @@ async function mockWorkspace(page, role = 'user', initialQueue, skipAuthorized =
     else if (url.pathname.startsWith('/api/me/likes/')) body = { liked: false };
     else if (url.pathname === '/api/me/playlists') body = { playlists: [] };
     else if (url.pathname === '/api/me/likes') body = { tracks: [] };
+    else if (url.pathname === '/api/avatar-studio')
+      body = { viewerId: 1, context: 'isolated-avatar-session', outfits: [] };
     else if (url.pathname === '/api/footprint/timeline')
       body = { events: [], total: 0, timezoneOffsetMinutes: 480 };
     else if (url.pathname === '/api/footprint/milestone')

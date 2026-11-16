@@ -9,13 +9,15 @@ const { withReactHarness } = require('./helpers/reactHarness');
 const frontend = (name) => path.resolve(__dirname, '../frontend/src', name);
 
 describe('用户页面真实数据界面', () => {
-  it('提供四个个人音乐入口及持久化状态，不再显示静态预览提示', async () => {
+  it('保留歌单、喜爱、上传及像素工坊，移除被足迹替代的历史记录入口', async () => {
     await withReactHarness(async (h) => {
       const { UserPage } = await import('../frontend/src/features/user/UserPage.tsx');
       await h.render(h.React.createElement(UserPage, { active: false }));
       const page = h.require('[data-user-page]');
-      for (const section of ['playlists', 'favorites', 'recent', 'uploads'])
+      for (const section of ['playlists', 'favorites', 'uploads', 'avatar'])
         h.require(`[data-user-tab="${section}"]`);
+      assert.equal(h.query('[data-user-tab="recent"]'), null);
+      assert.doesNotMatch(page.textContent, /最近播放|播放记录尚未开启|历史记录功能将单独接入/);
       for (const selector of [
         '[data-user-create]',
         '[data-user-content]',

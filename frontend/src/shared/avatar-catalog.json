@@ -1,0 +1,1324 @@
+{
+  "themes": [
+    {
+      "id": "moss",
+      "name": "苔绿",
+      "primary": "#9DA89B",
+      "dark": "#7B8776",
+      "light": "#BCC7B5"
+    },
+    {
+      "id": "mist",
+      "name": "雾蓝",
+      "primary": "#9CB0BC",
+      "dark": "#7A91A0",
+      "light": "#BCCBD3"
+    },
+    {
+      "id": "mauve",
+      "name": "灰紫",
+      "primary": "#B8A5B5",
+      "dark": "#988595",
+      "light": "#D1C5CF"
+    },
+    {
+      "id": "camel",
+      "name": "暖驼",
+      "primary": "#C4A992",
+      "dark": "#A08873",
+      "light": "#DBC6B0"
+    },
+    {
+      "id": "rose",
+      "name": "灰粉",
+      "primary": "#C9A5A5",
+      "dark": "#A68383",
+      "light": "#DCC2C2"
+    },
+    {
+      "id": "teal",
+      "name": "烟青",
+      "primary": "#8FA4A5",
+      "dark": "#6E8586",
+      "light": "#B5C4C5"
+    },
+    {
+      "id": "chestnut",
+      "name": "栗棕",
+      "primary": "#A89078",
+      "dark": "#857058",
+      "light": "#C3B19B"
+    },
+    {
+      "id": "latte",
+      "name": "奶咖",
+      "primary": "#C9B8A5",
+      "dark": "#A89887",
+      "light": "#DDCDBC"
+    }
+  ],
+  "skins": [
+    {
+      "id": "light",
+      "name": "浅瓷",
+      "color": "#F2E0CC",
+      "shadow": "#D9B89A"
+    },
+    {
+      "id": "medium",
+      "name": "暖米",
+      "color": "#DDC4A4",
+      "shadow": "#B8956E"
+    },
+    {
+      "id": "tan",
+      "name": "琥珀",
+      "color": "#B89878",
+      "shadow": "#876650"
+    },
+    {
+      "id": "dark",
+      "name": "深陶",
+      "color": "#7A5540",
+      "shadow": "#52362A"
+    }
+  ],
+  "hair": [
+    {
+      "id": "ink",
+      "name": "墨黑",
+      "color": "#3A3530",
+      "light": "#524C44"
+    },
+    {
+      "id": "brown",
+      "name": "棕褐",
+      "color": "#6A5544",
+      "light": "#856E5A"
+    },
+    {
+      "id": "sand",
+      "name": "沙金",
+      "color": "#C9A878",
+      "light": "#D9BC92"
+    },
+    {
+      "id": "ember",
+      "name": "暮霞",
+      "color": "#A87565",
+      "light": "#C19080"
+    },
+    {
+      "id": "silver",
+      "name": "银灰",
+      "color": "#A8A29E",
+      "light": "#C2BCB4"
+    },
+    {
+      "id": "smoke",
+      "name": "烟蓝",
+      "color": "#7A8B98",
+      "light": "#9AA9B5"
+    },
+    {
+      "id": "lilac",
+      "name": "藕荷",
+      "color": "#9B8A95",
+      "light": "#B6A8B0"
+    },
+    {
+      "id": "sage",
+      "name": "松针",
+      "color": "#7B8776",
+      "light": "#9BA296"
+    }
+  ],
+  "colors": {
+    "1": "#C9A5A5",
+    "2": "#C7A99B",
+    "3": "#D9C9B0",
+    "4": "#857058",
+    ".": null,
+    "k": "#3F3A33",
+    "G": "#A8A096",
+    "p": "#C9A5A5",
+    "a": "#C7A99B",
+    "y": "#D9C9B0",
+    "l": "#A8785E",
+    "w": "#F4EDE3",
+    "g": "#8A8275",
+    "o": "#C9A878",
+    "i": "#B0A694",
+    "r": "#A87565",
+    "n": "#5E6E80",
+    "c": "#9BA296",
+    "C": "#6E7E69",
+    "e": "#8FA091",
+    "E": "#6E7E69",
+    "t": "#7A5540",
+    "T": "#A8785E",
+    "q": "#8B5E5E",
+    "u": "#7A8B98",
+    "U": "#5E6E80",
+    "s": "#C9A5B0",
+    "S": "#A6838F",
+    "d": "#D9BC92",
+    "W": "#F9F4EC",
+    "B": "#3F3A33",
+    "@": "#7A8B98",
+    "#": "#5E6E80",
+    "+": "#8FA091"
+  },
+  "parts": {
+    "body": [
+      {
+        "id": "body-steve",
+        "label": "标准",
+        "w": 14,
+        "h": 22,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...SSSSSSSS...",
+          ".SSSSSSSSSSSS.",
+          ".SSSSSSSSSSSS.",
+          ".SSBBSSSSBBSS.",
+          ".SSWBSSSSWBSS.",
+          ".SfSSSSSSSSfS.",
+          ".SSSSSmmSSSSS.",
+          "..SSSSSSSSSS..",
+          ".....SSSS.....",
+          "..SSSSSSSSSS..",
+          ".SS.SSSSSS.SS.",
+          ".SS.SSSSSS.SS.",
+          ".SS.SSSSSS.SS.",
+          ".SS.SSSSSS.SS.",
+          "..SSSSSSSSSS..",
+          "...SSSSSSSS...",
+          "....nnnnnn....",
+          "....nnnnnn....",
+          "....nnnnnn....",
+          "....nnnnnn....",
+          "....nnnnnn....",
+          "....nnnnnn...."
+        ]
+      },
+      {
+        "id": "body-alex",
+        "label": "纤细",
+        "w": 14,
+        "h": 22,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...SSSSSSSS...",
+          "..SSSSSSSSSS..",
+          ".SSSSSSSSSSSS.",
+          ".SSBBSSSSBBSS.",
+          ".SSWBSSSSWBSS.",
+          ".SfSSSSSSSSfS.",
+          ".SSSSSmmSSSSS.",
+          "..SSSSSSSSSS..",
+          ".....SSSS.....",
+          "...SSSSSSSS...",
+          "..S.SSSSSS.S..",
+          "..S.SSSSSS.S..",
+          "..S.SSSSSS.S..",
+          "..S.SSSSSS.S..",
+          "...SSSSSSSS...",
+          "....SSSSSS....",
+          ".....nnnn.....",
+          ".....nnnn.....",
+          ".....nnnn.....",
+          ".....nnnn.....",
+          ".....nnnn.....",
+          ".....nnnn....."
+        ]
+      },
+      {
+        "id": "body-villager",
+        "label": "圆润",
+        "w": 14,
+        "h": 22,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...SSSSSSSS...",
+          ".SSSSSSSSSSSS.",
+          ".SSSSSSSSSSSS.",
+          ".SSBBSSSSBBSS.",
+          ".SSWBSSSSWBSS.",
+          ".SfSSSSSSSSfS.",
+          ".SSSSSmmSSSSS.",
+          "..SSSSSSSSSS..",
+          ".....SSSS.....",
+          "..SSSSSSSSSS..",
+          "..SSSSSSSSSS..",
+          ".SSSSSSSSSSSS.",
+          ".SSSSSSSSSSSS.",
+          ".SSSSSSSSSSSS.",
+          ".SSSSSSSSSSSS.",
+          "..SSSSSSSSSS..",
+          "....nnnnnn....",
+          "...nnnnnnnn...",
+          "...nnnnnnnn...",
+          "...nnnnnnnn...",
+          "...nnnnnnnn...",
+          "....nnnnnn...."
+        ]
+      },
+      {
+        "id": "body-enderman",
+        "label": "高瘦",
+        "w": 14,
+        "h": 22,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "....SSSSSS....",
+          "...SSSSSSSS...",
+          "..SSSSSSSSSS..",
+          "..SBBSSSSBBS..",
+          "..SWBSSSSWBS..",
+          "..fSSSSSSSSf..",
+          "...SSSmmSSS...",
+          "...SSSSSSSS...",
+          ".....SSSS.....",
+          ".....SSSS.....",
+          "...SSSSSSSS...",
+          "..S.SSSSSS.S..",
+          "..S.SSSSSS.S..",
+          "..S.SSSSSS.S..",
+          "..S.SSSSSS.S..",
+          "...SSSSSSSS...",
+          "....SSSSSS....",
+          "....nnnnnn....",
+          "....nnnnnn....",
+          "....nnnnnn....",
+          "....nnnnnn....",
+          "....nnnnnn...."
+        ]
+      }
+    ],
+    "head": [
+      {
+        "id": "head-short",
+        "label": "短发",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...hhhhhhhh...",
+          ".hhhhhhhhhhhh.",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-long",
+        "label": "长发",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...hhhhhhhh...",
+          ".hhhhhhhhhhhh.",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hhh......hhh.",
+          ".hh........hh.",
+          ".hh........hh."
+        ]
+      },
+      {
+        "id": "head-pony",
+        "label": "马尾",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...hhhhhhhh...",
+          ".hhhhhhhhhhhh.",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-twin",
+        "label": "双马尾",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...hhhhhhhh...",
+          ".hhhhhhhhhhhh.",
+          ".hhhhhhhhhhhh.",
+          "hhh........hhh",
+          "hhh........hhh",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-bald",
+        "label": "光头",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "..............",
+          "..............",
+          "..............",
+          "..............",
+          "..............",
+          "..............",
+          "..............",
+          "..............",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-curly",
+        "label": "卷发",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          ".h.hh.hh.hh.h.",
+          ".hhhhhhhhhhhh.",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-buns",
+        "label": "双丸子",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "hh..........hh",
+          "hhh........hhh",
+          ".hhhhhhhhhhhh.",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-band",
+        "label": "头巾",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...rrrrrrrr...",
+          ".rrrrrrrrrrrr.",
+          ".rrrrrrrrrrrr.",
+          "..rrrrrrrrrr..",
+          "..hh......hh..",
+          "..hh......hh..",
+          "..hh......hh..",
+          "..hh......hh..",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-pointy",
+        "label": "尖耳",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "..h........h..",
+          "..hhhhhhhhhh..",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-wing",
+        "label": "翅膀帽",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "h............h",
+          ".hhhhhhhhhhhh.",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-crown",
+        "label": "王冠",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...o.oo.oo.o..",
+          ".hhoooooooohh.",
+          ".hhhhhhhhhhhh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          ".hh........hh.",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "head-helm",
+        "label": "头盔",
+        "w": 14,
+        "h": 10,
+        "ox": 8,
+        "oy": 8,
+        "lines": [
+          "...gggggggg...",
+          ".gggggggggggg.",
+          ".gggggggggggg.",
+          ".gg........gg.",
+          ".gg........gg.",
+          "..g........g..",
+          "..gggggggggg..",
+          "..............",
+          "..............",
+          ".............."
+        ]
+      }
+    ],
+    "top": [
+      {
+        "id": "top-tshirt",
+        "label": "T 恤",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....DDDD.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DPPPPD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-shirt",
+        "label": "衬衫",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....wwww.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DwwwwD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-hoodie",
+        "label": "卫衣",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          "....DDDDDD....",
+          "DPPPPPPPPPPPPD",
+          ".PP.DPPPPD.PP.",
+          ".PP.DwwwwD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-jacket",
+        "label": "夹克",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          "....iiiiii....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DiiiiD.PP.",
+          ".PP.DiiiiD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-armor",
+        "label": "胸甲",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          "....gggggg....",
+          ".gPPPPPPPPPPg.",
+          ".gPPPooooPPPg.",
+          ".gPPPooooPPPg.",
+          ".gPPPPPPPPPPg.",
+          ".gDPPPPPPPPDg.",
+          "..gggggggggg.."
+        ]
+      },
+      {
+        "id": "top-cape",
+        "label": "斗篷",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          "......oo......",
+          "DPPPPPPPPPPPPD",
+          "DPPPPPPPPPPPPD",
+          ".PPPPPPPPPPPP.",
+          ".DPPPPPPPPPPD.",
+          "..DPPPPPPPPD..",
+          "...DDDDDDDD..."
+        ]
+      },
+      {
+        "id": "top-dress",
+        "label": "连衣裙",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....wwww.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DPPPPD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".PP.DwwwwD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..PPPPPPPPPP.."
+        ]
+      },
+      {
+        "id": "top-vest",
+        "label": "工装背心",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....DDDD.....",
+          "..PPPPPPPPPP..",
+          "..PPPPPPPPPP..",
+          "..PPwwwwwwPP..",
+          "..PPwwwwwwPP..",
+          "..PPPPPPPPPP..",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-apron",
+        "label": "围裙",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....DDDD.....",
+          "..wwwwwwwwww..",
+          ".ww.wwwwww.ww.",
+          ".ww.wwwwww.ww.",
+          ".ww.wwDDww.ww.",
+          ".ww.wwwwww.ww.",
+          "..wwwwwwwwww.."
+        ]
+      },
+      {
+        "id": "top-star",
+        "label": "星星 T",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....DDDD.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DddddD.PP.",
+          ".PP.DddddD.PP.",
+          ".PP.DddddD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-melon",
+        "label": "西瓜 T",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....DDDD.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DrrrrD.PP.",
+          ".PP.DrrrrD.PP.",
+          ".PP.DCCCCD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-music",
+        "label": "音符 T",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....uuuu.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DuuuuD.PP.",
+          ".PP.DuuuuD.PP.",
+          ".PP.DuuuuD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-sweater",
+        "label": "毛衣",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....DDDD.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DyyyyD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".PP.DyyyyD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-suit",
+        "label": "西装",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....wwww.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DwwwwD.PP.",
+          ".PP.DqqqqD.PP.",
+          ".PP.DqqqqD.PP.",
+          ".DD.DwwwwD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-navy",
+        "label": "海军外套",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....wwww.....",
+          ".UUUUUUUUUUUU.",
+          ".UU.UwwwwU.UU.",
+          ".UU.UUooUU.UU.",
+          ".UU.UUUUUU.UU.",
+          ".DD.UUUUUU.DD.",
+          "..UUUUUUUUUU.."
+        ]
+      },
+      {
+        "id": "top-wetsuit",
+        "label": "潜水服",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....DDDD.....",
+          ".PPPPPPPPPPPP.",
+          ".PP.DMMMMD.PP.",
+          ".PP.DPPPPD.PP.",
+          ".PP.DMMMMD.PP.",
+          ".DD.DPPPPD.DD.",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "top-labcoat",
+        "label": "实验服",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....iiii.....",
+          "..wwwwwwwwww..",
+          ".ww.wwwwww.ww.",
+          ".ww.wwwwww.ww.",
+          ".ww.wwiiww.ww.",
+          ".ww.wwwwww.ww.",
+          "..wwwwwwwwww.."
+        ]
+      },
+      {
+        "id": "top-pirate",
+        "label": "海盗外套",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          ".....wwww.....",
+          ".qqqqqqqqqqqq.",
+          ".qq.qwwwwq.qq.",
+          ".qq.qooooq.qq.",
+          ".qq.qqqqqq.qq.",
+          ".DD.qqqqqq.DD.",
+          "..qqqqqqqqqq.."
+        ]
+      }
+    ],
+    "bottom": [
+      {
+        "id": "bottom-jeans",
+        "label": "牛仔裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "...DttttttD...",
+          "....DnnnnD....",
+          "....DnnnnD....",
+          "....DnnnnD....",
+          "....DDnnDD...."
+        ]
+      },
+      {
+        "id": "bottom-sweat",
+        "label": "运动裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "....wwwwww....",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "....DDDDDD...."
+        ]
+      },
+      {
+        "id": "bottom-long-skirt",
+        "label": "长裙",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "....DDDDDD....",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "...DPPPPPPD...",
+          "...DPPPPPPD..."
+        ]
+      },
+      {
+        "id": "bottom-skirt",
+        "label": "半裙",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "....DDDDDD....",
+          "....DPPPPD....",
+          "...DPPPPPPD...",
+          "..DPPPPPPPPD..",
+          "..DDDDDDDDDD.."
+        ]
+      },
+      {
+        "id": "bottom-shorts",
+        "label": "短裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "...DPPPPPPD...",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "....DDDDDD....",
+          ".............."
+        ]
+      },
+      {
+        "id": "bottom-overall",
+        "label": "背带裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "...DPPPPPPD...",
+          "...DwPPPPwD...",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "....DDDDDD...."
+        ]
+      },
+      {
+        "id": "bottom-casual",
+        "label": "休闲裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "....DDDDDD....",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "....DDDDDD...."
+        ]
+      },
+      {
+        "id": "bottom-cargo",
+        "label": "工装裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "...DeeeeeeD...",
+          "...DwTTTTwD...",
+          "....DeeeeD....",
+          "....DeeeeD....",
+          "....DDDDDD...."
+        ]
+      },
+      {
+        "id": "bottom-swim",
+        "label": "沙滩裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "....uuuuuu....",
+          "....DuuuuD....",
+          "....DwwwwD....",
+          ".....uuuu.....",
+          ".............."
+        ]
+      },
+      {
+        "id": "bottom-leggings",
+        "label": "打底裤",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "...DPPPPPPD...",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          "....DPPPPD....",
+          ".....DPPD....."
+        ]
+      },
+      {
+        "id": "bottom-pleated",
+        "label": "百褶裙",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "....DDDDDD....",
+          "....DPPPPD....",
+          "...DPPPPPPD...",
+          "..DPPPPPPPPD..",
+          ".DPPPPPPPPPPD."
+        ]
+      },
+      {
+        "id": "bottom-qipao",
+        "label": "旗袍裙",
+        "w": 14,
+        "h": 5,
+        "ox": 8,
+        "oy": 23,
+        "lines": [
+          "....oooooo....",
+          "....DqqqqD....",
+          "...DqqqqqqD...",
+          "...DqqooqqD...",
+          "...DqqqqqqD..."
+        ]
+      }
+    ],
+    "shoes": [
+      {
+        "id": "shoes-sneaker",
+        "label": "运动鞋",
+        "w": 14,
+        "h": 2,
+        "ox": 8,
+        "oy": 28,
+        "lines": ["...PPPPPPPP...", "...DDwwwwDD..."]
+      },
+      {
+        "id": "shoes-boot",
+        "label": "靴子",
+        "w": 14,
+        "h": 2,
+        "ox": 8,
+        "oy": 28,
+        "lines": ["...DttttttD...", "...DBBBBBBD..."]
+      },
+      {
+        "id": "shoes-sandal",
+        "label": "凉鞋",
+        "w": 14,
+        "h": 2,
+        "ox": 8,
+        "oy": 28,
+        "lines": ["....PP..PP....", "....DD..DD...."]
+      },
+      {
+        "id": "shoes-slipper",
+        "label": "拖鞋",
+        "w": 14,
+        "h": 2,
+        "ox": 8,
+        "oy": 28,
+        "lines": ["...DwwwwwwD...", "...DttttttD..."]
+      },
+      {
+        "id": "shoes-leather",
+        "label": "皮鞋",
+        "w": 14,
+        "h": 2,
+        "ox": 8,
+        "oy": 28,
+        "lines": ["...DPPPPPPD...", "...DBBBBBBD..."]
+      }
+    ],
+    "accessory": [
+      {
+        "id": "acc-glasses",
+        "label": "眼镜",
+        "w": 14,
+        "h": 4,
+        "ox": 8,
+        "oy": 10,
+        "lines": ["..kkkk..kkkk..", ".kk..kkkk..kk.", "..k..k..k..k..", "..kkkk..kkkk.."]
+      },
+      {
+        "id": "acc-scarf",
+        "label": "围巾",
+        "w": 14,
+        "h": 6,
+        "ox": 8,
+        "oy": 15,
+        "lines": [
+          "....DDDDDD....",
+          "....PPPPPP....",
+          "....DDDDDD....",
+          "....PPPPPP....",
+          "....PP..PP....",
+          "....DD..DD...."
+        ]
+      },
+      {
+        "id": "acc-backpack",
+        "label": "双肩包",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          "..DD......DD..",
+          ".DPD......DPD.",
+          ".DPD......DPD.",
+          ".DPD......DPD.",
+          "..DD......DD..",
+          "..............",
+          ".............."
+        ]
+      },
+      {
+        "id": "acc-sword",
+        "label": "钻石剑",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          "......Mu......",
+          "......Mu......",
+          "......Mu......",
+          "......Mu......",
+          ".....oMMo.....",
+          "......tt......",
+          "......oo......"
+        ]
+      },
+      {
+        "id": "acc-pickaxe",
+        "label": "镐",
+        "w": 14,
+        "h": 7,
+        "ox": 8,
+        "oy": 16,
+        "lines": [
+          "....kkkkkk....",
+          "...kUiiiiUk...",
+          "....kkkkkk....",
+          "......tT......",
+          "......Tt......",
+          "......tT......",
+          "......tt......"
+        ]
+      },
+      {
+        "id": "acc-pearl",
+        "label": "宝石",
+        "w": 14,
+        "h": 6,
+        "ox": 8,
+        "oy": 17,
+        "lines": [
+          "......oo......",
+          ".....qWWq.....",
+          "....qW++Wq....",
+          "....qW++Wq....",
+          ".....qWWq.....",
+          "......qq......"
+        ]
+      },
+      {
+        "id": "acc-wolf",
+        "label": "小狗",
+        "w": 14,
+        "h": 6,
+        "ox": 8,
+        "oy": 30,
+        "lines": [
+          "...gg....gg...",
+          "...gggggggg...",
+          "...gBBggBBg...",
+          "...ggkkkkgg...",
+          "....gggggg....",
+          "....gg..gg...."
+        ]
+      },
+      {
+        "id": "acc-ocelot",
+        "label": "小猫",
+        "w": 14,
+        "h": 6,
+        "ox": 8,
+        "oy": 30,
+        "lines": [
+          "...dd....dd...",
+          "...dddddddd...",
+          "...dBddddBd...",
+          "...ddkkkkdd...",
+          "....dddddd....",
+          "....dd..dd...."
+        ]
+      }
+    ]
+  },
+  "presets": [
+    {
+      "id": "street",
+      "name": "街头日常",
+      "en": "Street",
+      "desc": "T 恤卫衣 / 牛仔工装 / 运动鞋",
+      "themes": ["moss", "mist", "camel", "latte"],
+      "hair": ["ink", "brown", "sand", "smoke"],
+      "body": ["body-steve", "body-alex", "body-villager"],
+      "head": ["head-short", "head-pony", "head-curly", "head-buns", "head-twin", "head-band"],
+      "top": [
+        "top-tshirt",
+        "top-hoodie",
+        "top-jacket",
+        "top-sweater",
+        "top-star",
+        "top-melon",
+        "top-music",
+        "top-vest"
+      ],
+      "bottom": ["bottom-jeans", "bottom-sweat", "bottom-shorts", "bottom-casual", "bottom-cargo"],
+      "shoes": ["shoes-sneaker", "shoes-boot"],
+      "accessory": ["acc-glasses", "acc-scarf", "acc-backpack", "acc-wolf", "acc-ocelot"]
+    },
+    {
+      "id": "preppy",
+      "name": "学院文雅",
+      "en": "Preppy",
+      "desc": "衬衫针织 / 半裙长裤 / 皮鞋",
+      "themes": ["camel", "mauve", "rose", "latte"],
+      "hair": ["ink", "brown", "sand", "silver"],
+      "body": ["body-steve", "body-alex"],
+      "head": ["head-short", "head-long", "head-band", "head-pony"],
+      "top": ["top-shirt", "top-suit", "top-labcoat", "top-vest", "top-sweater"],
+      "bottom": [
+        "bottom-skirt",
+        "bottom-pleated",
+        "bottom-long-skirt",
+        "bottom-leggings",
+        "bottom-casual"
+      ],
+      "shoes": ["shoes-leather", "shoes-sandal"],
+      "accessory": ["acc-glasses", "acc-scarf"]
+    },
+    {
+      "id": "stage",
+      "name": "舞台演出",
+      "en": "Stage",
+      "desc": "斗篷礼服 / 长裙王冠 / 宝石",
+      "themes": ["mauve", "chestnut", "rose", "teal"],
+      "hair": ["ink", "ember", "lilac", "silver"],
+      "body": ["body-steve", "body-alex", "body-enderman"],
+      "head": ["head-crown", "head-wing", "head-pointy", "head-buns", "head-long"],
+      "top": ["top-cape", "top-dress", "top-navy", "top-pirate", "top-armor"],
+      "bottom": ["bottom-long-skirt", "bottom-skirt", "bottom-pleated", "bottom-qipao"],
+      "shoes": ["shoes-boot", "shoes-leather"],
+      "accessory": ["acc-pearl", "acc-sword", "acc-ocelot"]
+    },
+    {
+      "id": "adventure",
+      "name": "冒险旅途",
+      "en": "Adventure",
+      "desc": "胸甲斗篷 / 工装靴子 / 剑与镐",
+      "themes": ["moss", "chestnut", "teal", "camel"],
+      "hair": ["ink", "brown", "ember", "sage"],
+      "body": ["body-steve", "body-villager", "body-enderman"],
+      "head": ["head-helm", "head-band", "head-pointy", "head-bald"],
+      "top": ["top-armor", "top-cape", "top-jacket", "top-pirate", "top-navy"],
+      "bottom": ["bottom-cargo", "bottom-overall", "bottom-jeans", "bottom-casual"],
+      "shoes": ["shoes-boot"],
+      "accessory": ["acc-sword", "acc-pickaxe", "acc-backpack", "acc-wolf"]
+    },
+    {
+      "id": "resort",
+      "name": "海边度假",
+      "en": "Resort",
+      "desc": "西瓜 T 沙滩裤 / 凉拖 / 宝石",
+      "themes": ["mist", "teal", "rose", "latte"],
+      "hair": ["sand", "brown", "smoke", "ember"],
+      "body": ["body-steve", "body-alex", "body-villager"],
+      "head": ["head-bald", "head-short", "head-pony", "head-twin"],
+      "top": ["top-melon", "top-tshirt", "top-vest", "top-wetsuit", "top-dress"],
+      "bottom": ["bottom-swim", "bottom-shorts", "bottom-skirt"],
+      "shoes": ["shoes-sandal", "shoes-slipper"],
+      "accessory": ["acc-pearl", "acc-glasses"]
+    },
+    {
+      "id": "club",
+      "name": "音乐现场",
+      "en": "Music Club",
+      "desc": "音符 T 卫衣 / 头巾 / 项链",
+      "themes": ["mauve", "moss", "chestnut", "teal"],
+      "hair": ["ink", "ember", "lilac", "smoke", "silver"],
+      "body": ["body-steve", "body-alex", "body-villager"],
+      "head": ["head-band", "head-pony", "head-curly", "head-buns", "head-wing"],
+      "top": ["top-music", "top-star", "top-hoodie", "top-tshirt", "top-jacket", "top-sweater"],
+      "bottom": ["bottom-jeans", "bottom-sweat", "bottom-skirt", "bottom-casual"],
+      "shoes": ["shoes-sneaker", "shoes-leather"],
+      "accessory": ["acc-glasses", "acc-scarf", "acc-pearl"]
+    },
+    {
+      "id": "lounge",
+      "name": "居家放松",
+      "en": "Lounge",
+      "desc": "毛衣运动裤 / 拖鞋 / 猫狗相伴",
+      "themes": ["latte", "rose", "camel", "moss"],
+      "hair": ["ink", "brown", "silver", "sage"],
+      "body": ["body-steve", "body-villager"],
+      "head": ["head-bald", "head-buns", "head-short", "head-curly"],
+      "top": ["top-sweater", "top-tshirt", "top-hoodie"],
+      "bottom": ["bottom-sweat", "bottom-leggings", "bottom-shorts"],
+      "shoes": ["shoes-slipper", "shoes-sandal"],
+      "accessory": ["acc-scarf", "acc-ocelot", "acc-wolf", "acc-glasses"]
+    }
+  ]
+}

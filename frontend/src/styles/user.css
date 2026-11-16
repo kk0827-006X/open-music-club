@@ -492,58 +492,10 @@
   font-size: 0.57rem;
   line-height: 1.5;
 }
-.user-empty-state {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  text-align: center;
-}
-.user-empty-symbol {
-  display: grid;
-  place-items: center;
-  width: 110px;
-  height: 110px;
-  margin-bottom: 22px;
-  border: 1px solid var(--color-border-49);
-  border-radius: 50%;
-  color: var(--color-accent-22);
-  font-size: 3rem;
-  font-weight: 200;
-}
-.user-empty-state small,
 .user-list-detail-main small {
   color: var(--color-text-78);
   font-size: 0.59rem;
   letter-spacing: 0.16em;
-}
-.user-empty-state h3 {
-  margin: 11px 0 0;
-  font-size: 1.7rem;
-}
-.user-empty-state p {
-  max-width: 360px;
-  margin: 12px 0 0;
-  color: var(--color-text-79);
-  font-size: 0.72rem;
-  line-height: 1.7;
-}
-.user-empty-rule {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  margin-top: 35px;
-  color: var(--color-text-80);
-  font-size: 0.52rem;
-  letter-spacing: 0.16em;
-}
-.user-empty-rule i {
-  width: 48px;
-  height: 1px;
-  background: var(--color-surface-47);
 }
 .user-list-detail {
   display: flex;
