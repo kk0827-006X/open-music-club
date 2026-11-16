@@ -38,7 +38,7 @@ export function AvatarSaveDialog({
         }}
       >
         <h3 id="avatar-save-title">保存形象</h3>
-        <p className="modal-sub">保存到当前账号的私人形象库</p>
+        <p className="modal-sub">为这套形象起一个名字</p>
         <label className="field">
           <span>形象名称</span>
           <input

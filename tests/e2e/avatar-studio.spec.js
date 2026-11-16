@@ -33,7 +33,16 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
   await expect(page.locator('.user-sidebar [data-user-tab]')).toHaveCount(4);
   await page.locator('[data-user-tab="avatar"]').click();
   const studio = page.locator('[data-avatar-studio]');
-  await expect(studio.locator('[data-avatar-session]')).toHaveText('已登录 · 私人形象库');
+  await expect(studio).toHaveAttribute('data-avatar-view', 'manual');
+  await expect(studio.getByText(/仅你可见|仅当前账号可见|CONNECTED|Connected/)).toHaveCount(0);
+  await expect(studio.locator('.preview-colors .palette-chip')).toHaveCount(8);
+  await expect(studio.locator('.preview-colors .skin-chip')).toHaveCount(4);
+  const preview = await studio.locator('.preview-stage').boundingBox();
+  const equipped = await studio.locator('.preview-meta').boundingBox();
+  const swatches = await studio.locator('.preview-colors').boundingBox();
+  expect(Math.abs(preview.y - equipped.y)).toBeLessThanOrEqual(1);
+  expect(swatches.y).toBeGreaterThanOrEqual(preview.y + preview.height);
+  await expect(studio.locator('.preview-colors h2, .preview-colors .hint')).toHaveCount(0);
   await expect(studio.locator('.palette-chip')).toHaveCount(8);
   await expect(studio.locator('.skin-chip')).toHaveCount(4);
   await expect(studio.locator('.slot-card')).toHaveCount(6);
@@ -103,6 +112,13 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
       .evaluate((node) => getComputedStyle(node).getPropertyValue('--paper')),
   ).toBe(siteColor);
   await studio.locator('[data-avatar-tab="saved"]').click();
+  await expect(studio.getByRole('heading', { name: '我的形象', exact: true })).toHaveCount(1);
+  await expect(studio.locator('.saved-count')).toContainText('/ 50');
+  await expect(studio.getByRole('button', { name: /刷新列表|保存当前形象/ })).toHaveCount(0);
+  await expect(studio.locator('.brand-sub, .saved-head, .studio-status, .page-footer')).toHaveCount(
+    0,
+  );
+  await studio.screenshot({ path: info.outputPath('saved-library-clean.png') });
   const card = studio.locator(`[data-avatar-outfit="${saved.id}"]`);
   await card.getByRole('button', { name: '设为当前' }).click();
   await expect(card.locator('.saved-badge')).toHaveText('当前');
@@ -144,12 +160,11 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
     await other.close();
   }
   async function refreshLibrary() {
-    await studio.locator('[data-avatar-tab="saved"]').click();
     const reading = page.waitForResponse(
       (response) =>
         response.url().endsWith('/api/avatar-studio') && response.request().method() === 'GET',
     );
-    await studio.getByRole('button', { name: '刷新列表', exact: true }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await reading;
   }
   await write(client, 'post', '/api/auth/logout', {});

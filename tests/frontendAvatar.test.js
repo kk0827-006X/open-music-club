@@ -263,6 +263,11 @@ it('zyr 原版八套渐变色板、四套肤色、六组选择与清除行为；
     assert.equal(h.document.querySelectorAll('.skin-chip').length, 4);
     assert.equal(h.document.querySelectorAll('.slot-card').length, 6);
     assert.equal(h.document.querySelectorAll('[data-avatar-part]').length, 59);
+    assert.equal(h.document.querySelectorAll('.preview-column .palette-chip').length, 8);
+    assert.equal(h.document.querySelectorAll('.preview-column .skin-chip').length, 4);
+    assert.equal(h.query('.preview-colors h2, .preview-colors .hint'), null);
+    assert.equal(h.query('.studio-status'), null);
+    assert.doesNotMatch(h.document.body.textContent, /仅你可见|仅当前账号可见|Connected/);
     assert.equal(h.query('[aria-label="发色"]'), null);
     await h.click('[aria-label="灰粉主题色"]');
     assert.equal(h.require('[aria-label="灰粉主题色"]').getAttribute('aria-checked'), 'true');
@@ -275,6 +280,35 @@ it('zyr 原版八套渐变色板、四套肤色、六组选择与清除行为；
     await h.click('[data-avatar-tab="auto"]');
     await h.click('[data-lock="head"]');
     assert.equal(h.require('[data-lock="head"]').getAttribute('aria-pressed'), 'true');
+  });
+});
+
+it('我的形象只显示一个大标题与数量，不再显示说明和刷新/保存当前形象按钮', async () => {
+  await withReactHarness(async (h) => {
+    const model = await load();
+    const { AvatarStudio } = await import('../frontend/src/features/avatar/AvatarStudio.tsx');
+    const outfit = {
+      id: 1,
+      name: '我的形象一号',
+      config: model.defaultConfig,
+      current: false,
+      createdAt: '',
+      updatedAt: '',
+    };
+    const client = mockClient(model, {
+      read: async () => ({ viewerId: 1, context: 'A', outfits: [outfit] }),
+    });
+    await h.render(h.React.createElement(AvatarStudio, { active: true, client }));
+    await h.click('[data-avatar-tab="saved"]');
+    assert.equal(h.document.querySelectorAll('.page h1').length, 1);
+    assert.equal(h.require('.page h1').textContent, '我的形象');
+    assert.equal(h.require('.saved-count').textContent, '1 / 50');
+    assert.equal(h.query('.saved-head, .brand-sub, .studio-status, .page-footer'), null);
+    assert.doesNotMatch(
+      h.require('.page').textContent,
+      /刷新列表|保存当前形象|仅你可见|仅当前账号|所有保存过/,
+    );
+    h.require('[data-avatar-outfit="1"]');
   });
 });
 

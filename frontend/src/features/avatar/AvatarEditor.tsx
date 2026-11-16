@@ -22,57 +22,50 @@ export function AvatarEditor({
     <fieldset className="view avatar-source-editor" disabled={disabled}>
       <legend className="sr-only">手动换装设置</legend>
       <section className="preview-card">
-        <div className="preview-stage">
-          <AvatarArtwork config={config} />
+        <div className="preview-column">
+          <div className="preview-stage">
+            <AvatarArtwork config={config} />
+          </div>
+          <div className="preview-colors">
+            <section className="meta-section">
+              <div className="selector-row palette-swatches" role="radiogroup" aria-label="调色板">
+                {catalog.themes.map((theme) => (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    className="palette-chip"
+                    role="radio"
+                    aria-label={`${theme.name}主题色`}
+                    title={`${theme.name}主题色`}
+                    aria-checked={config.theme === theme.id}
+                    style={{
+                      background: `linear-gradient(135deg, ${theme.light} 0%, ${theme.primary} 50%, ${theme.dark} 100%)`,
+                    }}
+                    onClick={() => onChange({ ...config, theme: theme.id })}
+                  />
+                ))}
+              </div>
+            </section>
+            <section className="meta-section">
+              <div className="selector-row skin-swatches" role="radiogroup" aria-label="肤色">
+                {catalog.skins.map((skin) => (
+                  <button
+                    key={skin.id}
+                    type="button"
+                    className="skin-chip"
+                    role="radio"
+                    aria-label={`${skin.name}肤色`}
+                    title={`${skin.name}肤色`}
+                    aria-checked={config.skin === skin.id}
+                    style={{ background: skin.color }}
+                    onClick={() => onChange({ ...config, skin: skin.id })}
+                  />
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
         <div className="preview-meta">
-          <section className="meta-section">
-            <h2>
-              调色板 <em>Palette</em>
-            </h2>
-            <p className="hint">
-              8
-              套莫兰迪主题色板（苔绿/雾蓝/灰紫/暖驼/灰粉/烟青/栗棕/奶咖），切换时所有染色部件按色板替换。
-            </p>
-            <div className="selector-row" role="radiogroup" aria-label="调色板">
-              {catalog.themes.map((theme) => (
-                <button
-                  key={theme.id}
-                  type="button"
-                  className="palette-chip"
-                  role="radio"
-                  aria-label={`${theme.name}主题色`}
-                  title={`${theme.name}主题色`}
-                  aria-checked={config.theme === theme.id}
-                  style={{
-                    background: `linear-gradient(135deg, ${theme.light} 0%, ${theme.primary} 50%, ${theme.dark} 100%)`,
-                  }}
-                  onClick={() => onChange({ ...config, theme: theme.id })}
-                />
-              ))}
-            </div>
-          </section>
-          <section className="meta-section">
-            <h2>
-              肤色 <em>Skin</em>
-            </h2>
-            <p className="hint">4 套肤色（浅瓷/暖米/琥珀/深陶），影响脸部、四肢、颈部。</p>
-            <div className="selector-row" role="radiogroup" aria-label="肤色">
-              {catalog.skins.map((skin) => (
-                <button
-                  key={skin.id}
-                  type="button"
-                  className="skin-chip"
-                  role="radio"
-                  aria-label={`${skin.name}肤色`}
-                  title={`${skin.name}肤色`}
-                  aria-checked={config.skin === skin.id}
-                  style={{ background: skin.color }}
-                  onClick={() => onChange({ ...config, skin: skin.id })}
-                />
-              ))}
-            </div>
-          </section>
           <section className="meta-section">
             <h2>
               当前穿搭 <em>Now Equipped</em>

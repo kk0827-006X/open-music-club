@@ -24,7 +24,6 @@ const views = {
   saved: {
     title: '我的形象',
     english: 'Saved',
-    sub: '所有保存过的形象都归属当前账号，随时取回继续编辑',
   },
 };
 
@@ -43,7 +42,7 @@ function AvatarWorkroom({
   const [caption, setCaption] = useState('选择一种风格，点「一键换装」生成整套搭配。');
   const [saveOpen, setSaveOpen] = useState(false);
   const serial = useRef(0);
-  const { session, config, setConfig, name, setName, busy, notice } = studio;
+  const { session, config, setConfig, name, setName, busy, notice, feedbackError } = studio;
   const theme = catalog.themes.find((item) => item.id === config.theme)!;
   function defaultName() {
     return `${catalog.presets.find((item) => item.id === preset)!.name} · ${theme.name}`;
@@ -138,23 +137,21 @@ function AvatarWorkroom({
               </button>
             </Fragment>
           ))}
-          <div className="nav-foot">
-            <span className="nav-db" data-avatar-session>
-              已登录 · 私人形象库
-            </span>
-          </div>
         </nav>
         <main className="page">
           <header className="page-header">
             <div className="brand">
               <div className="brand-text">
                 <h1 className="brand-title">{views[tab].title}</h1>
-                <p className="brand-sub">{views[tab].sub}</p>
+                {tab !== 'saved' && <p className="brand-sub">{views[tab].sub}</p>}
               </div>
             </div>
             <div className="header-actions">
-              <span className="status">{busy ? '保存中…' : 'Connected'}</span>
-              {tab !== 'saved' && (
+              {tab === 'saved' ? (
+                <span className="saved-count" aria-label="已保存形象数量">
+                  {session!.outfits.length} / 50
+                </span>
+              ) : (
                 <button
                   className="btn btn--primary avatar-save-open"
                   type="button"
@@ -166,9 +163,11 @@ function AvatarWorkroom({
               )}
             </div>
           </header>
-          <p className="studio-status" role="status" data-avatar-status>
-            {notice}
-          </p>
+          {feedbackError && (
+            <p className="studio-status" role="alert" data-avatar-status>
+              {notice}
+            </p>
+          )}
           {tab === 'manual' && (
             <AvatarEditor config={config} disabled={busy} onChange={setConfig} />
           )}
@@ -204,28 +203,28 @@ function AvatarWorkroom({
               }}
               onSelect={studio.select}
               onRemove={studio.remove}
-              onSave={openSave}
-              onRefresh={() => void studio.reload()}
             />
           )}
         </main>
       </div>
-      <footer className="page-footer">
-        <div className="player-track">
-          <div className="player-thumb">
-            <AvatarArtwork config={config} />
+      {tab !== 'saved' && (
+        <footer className="page-footer">
+          <div className="player-track">
+            <div className="player-thumb">
+              <AvatarArtwork config={config} />
+            </div>
+            <div className="player-info">
+              <span className="now-playing">♬ Now Styling</span>
+              <span className="track-name">
+                已选 {slots.filter((slot) => config[slot]).length} / 6 槽位 · {theme.name}主题
+              </span>
+            </div>
           </div>
-          <div className="player-info">
-            <span className="now-playing">♬ Now Styling</span>
-            <span className="track-name">
-              已选 {slots.filter((slot) => config[slot]).length} / 6 槽位 · {theme.name}主题
-            </span>
-          </div>
-        </div>
-        <span className="legend">
-          <kbd>Click</kbd> 切换部件
-        </span>
-      </footer>
+          <span className="legend">
+            <kbd>Click</kbd> 切换部件
+          </span>
+        </footer>
+      )}
       <AvatarSaveDialog
         open={saveOpen}
         busy={busy}

@@ -14,6 +14,7 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
   const [name, setName] = useState('我的音乐形象');
   const [phase, setPhase] = useState<'loading' | 'ready' | 'error' | 'expired'>('loading');
   const [notice, setNotice] = useState('正在验证工坊会话…');
+  const [feedbackError, setFeedbackError] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const enabled = useRef(active);
@@ -33,6 +34,7 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
     busyRef.current = false;
     setBusy(false);
     setPhase('loading');
+    setFeedbackError(false);
     setNotice('正在验证工坊会话…');
     try {
       const next = await api.read(pending.signal);
@@ -46,10 +48,11 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
         setName('我的音乐形象');
       }
       setPhase('ready');
-      setNotice('仅你可见 · 形象已按当前登录账号保存');
+      setNotice('');
     } catch (error) {
       if (pending.signal.aborted || generation.current !== serial || !enabled.current) return;
       acceptSession(null);
+      setFeedbackError(true);
       setConfig(defaultConfig);
       setName('我的音乐形象');
       setPhase(
@@ -101,6 +104,7 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
     controller.current = pending;
     busyRef.current = true;
     setBusy(true);
+    setFeedbackError(false);
     setNotice('正在保存更改…');
     const current = () =>
       enabled.current &&
@@ -115,6 +119,7 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
       return true;
     } catch (error) {
       if (!current()) return false;
+      setFeedbackError(true);
       if (error instanceof AvatarError && [401, 403, 409].includes(error.status)) {
         acceptSession(null);
         setConfig(defaultConfig);
@@ -133,6 +138,7 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
   function save(title = name.trim()) {
     if (!title) {
       setNotice('请填写形象名称');
+      setFeedbackError(true);
       return Promise.resolve(false);
     }
     return mutate(
@@ -186,6 +192,7 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
     setName,
     phase,
     notice,
+    feedbackError,
     busy,
     reload,
     save,

@@ -77,6 +77,8 @@ NETEASE_SESSION_ENCRYPTION_KEY=
 
 静态像素图案及色板参考 [jy111-ctrl/zyr-open-music-club 的 studio/app.js](https://github.com/jy111-ctrl/zyr-open-music-club/blob/17caadf9af51a6b5103752a461008b0f8e1ec5a2/studio/app.js)，预设参考同版本 `studio/views.js`。原版布局、色板、样式与交互由本站独立 React 组件承载，样式限定在工坊内部并按可用容器宽度响应，接口统一接入 Express；不使用独立子站、共享形象数据库或浏览器离线形象库。
 
+用户页布局中，调色板与肤色色块位于左侧形象下方，右侧当前穿搭与形象顶部对齐；正常界面不展示连接状态和隐私说明。“我的形象”保留一处标题与数量，卡片支持套用、设为当前及删除；不提供重复的刷新或保存当前形象按钮，返回标签页时仍会自动验证并同步数据。
+
 ## 常用命令
 
 | 命令 | 用途 |

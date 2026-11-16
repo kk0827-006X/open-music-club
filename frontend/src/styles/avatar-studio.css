@@ -1765,3 +1765,37 @@
     transition: none !important;
   }
 }
+
+/* 形象与当前穿搭顶部对齐，色块收在形象下方，不再用右侧说明撑高预览。 */
+.avatar-studio-original .preview-card {
+  grid-template-columns: 280px minmax(0, 1fr);
+  align-items: start;
+}
+.avatar-studio-original .preview-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 20px;
+}
+.avatar-studio-original .preview-colors {
+  display: grid;
+  gap: 16px;
+  padding: 0 4px;
+}
+.avatar-studio-original .palette-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 40px);
+  justify-content: center;
+}
+.avatar-studio-original .skin-swatches {
+  justify-content: center;
+}
+.avatar-studio-original .saved-count {
+  font-size: 13px;
+  color: var(--as-ink-soft);
+}
+@container avatar-studio (max-width: 760px) {
+  .avatar-studio-original .preview-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

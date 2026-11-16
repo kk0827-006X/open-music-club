@@ -8,16 +8,12 @@ export function OutfitLibrary({
   onEdit,
   onSelect,
   onRemove,
-  onSave,
-  onRefresh,
 }: {
   outfits: AvatarOutfit[];
   disabled: boolean;
   onEdit: (config: AvatarConfig) => void;
   onSelect: (id: number) => Promise<boolean>;
   onRemove: (id: number) => Promise<boolean>;
-  onSave: () => void;
-  onRefresh: () => void;
 }) {
   const [armed, setArmed] = useState<number | null>(null);
   useEffect(() => {
@@ -27,27 +23,6 @@ export function OutfitLibrary({
   }, [armed]);
   return (
     <section className="view" aria-label="我的形象">
-      <div className="saved-head">
-        <div>
-          <h2>
-            我的形象 <em>Saved Outfits</em>
-          </h2>
-          <p className="hint">{outfits.length} / 50 个形象 · 仅当前账号可见，刷新页面不会丢失。</p>
-        </div>
-        <div className="saved-head-actions">
-          <button className="btn" type="button" disabled={disabled} onClick={onRefresh}>
-            刷新列表
-          </button>
-          <button
-            className="btn btn--primary"
-            type="button"
-            disabled={disabled || outfits.length >= 50}
-            onClick={onSave}
-          >
-            保存当前形象
-          </button>
-        </div>
-      </div>
       <div className="saved-grid">
         {outfits.map((outfit) => {
           const theme = catalog.themes.find((item) => item.id === outfit.config.theme)!;
