@@ -63,9 +63,20 @@ export type MemoryCard = {
     highlight: { title: string; artist: string; plays: number } | null;
   };
 };
+export type FootprintOverview = { posts: number; likes: number; comments: number; authors: number };
+export type FootprintPostCard = {
+  title: string;
+  style: CardStyle;
+  period: { from: string; to: string };
+  trackCount: number;
+  totalDurationMs: number;
+  highlight: { title: string; artist: string; plays: number } | null;
+  tracks: { title: string; artist: string }[];
+};
 export type FootprintPost = {
   id: number;
   cardId: number;
+  card?: FootprintPostCard | null;
   authorId: number;
   authorNickname: string;
   caption: string;
@@ -263,8 +274,24 @@ export function createFootprintClient(fetcher: Fetcher = globalThis.fetch.bind(g
       ).card,
     deleteCard: (id: number, signal?: AbortSignal) =>
       request(`/api/footprint/cards/${id}`, 'DELETE', undefined, signal),
+    overview: async (signal?: AbortSignal) =>
+      (
+        await request<{ overview: FootprintOverview }>(
+          '/api/footprint/overview',
+          'GET',
+          undefined,
+          signal,
+        )
+      ).overview,
+    myPostsPage: (limit = 12, offset = 0, signal?: AbortSignal) =>
+      request<{ total: number; viewerId: number; posts: FootprintPost[] }>(
+        `/api/footprint/posts/mine?limit=${limit}&offset=${offset}`,
+        'GET',
+        undefined,
+        signal,
+      ),
     posts: (limit = 20, offset = 0, signal?: AbortSignal) =>
-      request<{ total: number; posts: FootprintPost[] }>(
+      request<{ total: number; viewerId?: number; posts: FootprintPost[] }>(
         `/api/footprint/posts?limit=${limit}&offset=${offset}`,
         'GET',
         undefined,

@@ -743,3 +743,22 @@
   background: var(--paper);
   color: var(--ink);
 }
+.fp-timeline {
+  --fp-timeline-source-0: rgba(183, 121, 34, 0.4);
+  --fp-timeline-source-1: rgba(183, 121, 34, 0.36);
+  --fp-timeline-source-2: rgba(255, 255, 255, 0.9);
+  --fp-timeline-source-3: rgba(96, 72, 30, 0.7);
+  --fp-timeline-source-4: rgba(183, 121, 34, 0.1);
+  --fp-timeline-source-5: rgba(183, 121, 34, 0.02);
+  --fp-timeline-source-6: rgba(255, 255, 255, 0.7);
+  --fp-timeline-source-7: rgba(183, 121, 34, 0.45);
+}
+/* wqh 广场昵称头像的固定渐变，仅用于分享作者标记。 */
+.fp-square-gallery {
+  --fp-square-avatar-ink: #ffffff;
+  --fp-square-avatar-0: linear-gradient(135deg, #d9a153, #a9711f);
+  --fp-square-avatar-1: linear-gradient(135deg, #9db3c0, #42596b);
+  --fp-square-avatar-2: linear-gradient(135deg, #c8a3a0, #6d4641);
+  --fp-square-avatar-3: linear-gradient(135deg, #adb99b, #4c5c40);
+  --fp-square-avatar-4: linear-gradient(135deg, #a99ccb, #4c3d78);
+}

@@ -1,3 +1,5 @@
+import { TimelineView } from './TimelineView.tsx';
+import { SquareView } from './SquareView.tsx';
 import { MilestoneView } from './MilestoneView.tsx';
 import { CardStylePicker } from './CardStylePicker.tsx';
 import { useCardStyles } from './use-card-styles.ts';
@@ -16,19 +18,12 @@ import {
   type FootprintEvent,
   type FootprintMilestone,
   type FootprintPost,
+  type FootprintOverview,
   type MemoryCard,
 } from '../../services/music/footprint.ts';
 import { CardArtwork, downloadCardArtwork } from './CardArtwork.tsx';
-import {
-  dayKey,
-  formatClock,
-  formatDate,
-  formatDuration,
-  formatTrackDuration,
-  siteOffset,
-  toFootprintSong,
-} from './format.ts';
-type Tab = 'timeline' | 'milestone' | 'studio' | 'square' | 'mine';
+import { formatClock, formatDate, formatDuration, siteOffset, toFootprintSong } from './format.ts';
+type Tab = 'timeline' | 'milestone' | 'studio' | 'square';
 type Dialog = { kind: 'share'; card: MemoryCard } | { kind: 'card' | 'post'; id: number } | null;
 export interface FootprintPageHandle {
   readonly hasOpenDialog: boolean;
@@ -45,7 +40,6 @@ const tabs: { id: Tab; label: string; english: string; title: string }[] = [
   { id: 'milestone', label: '听歌里程', english: 'MILESTONE', title: '我的听歌里程' },
   { id: 'studio', label: '回忆卡片', english: 'CARD STUDIO', title: '回忆卡片工坊' },
   { id: 'square', label: '足迹广场', english: 'SQUARE', title: '足迹广场' },
-  { id: 'mine', label: '我的分享', english: 'MY SHARES', title: '我的分享' },
 ];
 
 export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>(
@@ -59,6 +53,9 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
     } = useSectionTransition(active);
     const latest = useLatest({ active, play, enqueue });
     const [tab, setTab] = useState<Tab>('timeline');
+    const [squareFilter, setSquareFilter] = useState<'all' | 'mine'>('all');
+    const [overview, setOverview] = useState<FootprintOverview | null>(null);
+    const [viewerId, setViewerId] = useState<number>();
     const [postId, setPostId] = useState<number | null>(null);
     const [offset, setOffset] = useState(480);
     const [pageOffset, setPageOffset] = useState(0);
@@ -116,6 +113,7 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
       invalidate();
       transitionSection(() => {
         setTab(next);
+        if (next === 'square' && tab !== 'square' && id === null) setSquareFilter('all');
         setPostId(id);
         setPageOffset(0);
         setEvents([]);
@@ -212,8 +210,24 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
               (saved.cards.find((card) => card.id === previous.id) ||
                 (pageOffset ? previous : null)),
           );
-        } else if (tab === 'square') {
-          const data = await api.posts(12, pageOffset, controller.signal);
+        } else {
+          const ownOnly = squareFilter === 'mine';
+          const readPosts = async () => {
+            if (!ownOnly) return api.posts(12, pageOffset, controller.signal);
+            if (api.myPostsPage) return api.myPostsPage(12, pageOffset, controller.signal);
+            const posts = await api.myPosts(30, pageOffset, controller.signal);
+            return {
+              posts,
+              total: pageOffset + posts.length + (posts.length === 30 ? 1 : 0),
+              viewerId: undefined,
+            };
+          };
+          const [data, summary] = await Promise.all([
+            readPosts(),
+            api.overview
+              ? api.overview(controller.signal).catch(() => null)
+              : Promise.resolve(null),
+          ]);
           if (!current()) return;
           setPosts((previous) =>
             pageOffset
@@ -224,15 +238,8 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
               : data.posts,
           );
           setTotal(data.total);
-        } else {
-          const data = await api.myPosts(30, pageOffset, controller.signal);
-          if (!current()) return;
-          setPosts((previous) =>
-            pageOffset
-              ? [...previous, ...data.filter((post) => !previous.some((old) => old.id === post.id))]
-              : data,
-          );
-          setTotal(pageOffset + data.length + (data.length === 30 ? 1 : 0));
+          setViewerId(data.viewerId);
+          setOverview(summary);
         }
         if (current()) say('足迹已更新');
       };
@@ -252,7 +259,7 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
         actionRef.current?.abort();
         serial.current++;
       };
-    }, [active, api, tab, postId, appliedRevision, reload, pageOffset]);
+    }, [active, api, tab, postId, appliedRevision, reload, pageOffset, squareFilter]);
 
     // 写操作和读操作共享页面代数；离页或切换详情后，迟到响应不能更新当前界面。
     const mutate = async (
@@ -334,11 +341,6 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
         false,
       );
     };
-    const groups = new Map<string, FootprintEvent[]>();
-    for (const event of events) {
-      const key = dayKey(event.playedAt, offset);
-      groups.set(key, [...(groups.get(key) || []), event]);
-    }
     const heading = tabs.find((item) => item.id === tab)!;
     const disabled = busy || loading;
     const moreComments = postId !== null &&
@@ -399,6 +401,10 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
                     item.id === post.id ? { ...item, liked, likeCount } : item,
                   ),
                 );
+              if (api.overview) {
+                const summary = await api.overview(signal).catch(() => null);
+                if (!signal.aborted) setOverview(summary);
+              }
             },
             liked ? '已点赞' : '已取消赞',
             undefined,
@@ -482,148 +488,48 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
                 </div>
               )}
               {postId === null && tab === 'timeline' && (
-                <section className="fp-view fp-timeline">
-                  <p className="fp-view-summary">{total} 条播放记录</p>
-                  {[...groups.entries()].map(([key, group]) => (
-                    <div className="fp-day" key={key}>
-                      <div className="fp-day-marker">
-                        <i />
-                        <h4>{formatDate(group[0].playedAt, offset)}</h4>
-                        <span>{group.length} 段声音</span>
-                      </div>
-                      <ol className="fp-day-list">
-                        {group.map((event) => (
-                          <li key={event.id} className={`fp-entry${event.note ? ' has-note' : ''}`}>
-                            <time className="fp-entry-time">
-                              {formatClock(event.playedAt, offset)}
-                            </time>
-                            <div className="fp-entry-card">
-                              <img src={safeCoverUrl(event.coverUrl)} alt="" loading="lazy" />
-                              <div className="fp-entry-body">
-                                <strong>{event.title}</strong>
-                                <small>
-                                  {event.artist}
-                                  {event.album ? ` · ${event.album}` : ''}
-                                </small>
-                                <em>
-                                  {formatTrackDuration(event.durationMs)} ·{' '}
-                                  {event.source === 'local' ? '本地' : '网易云'}
-                                </em>
-                                {event.note && editingId !== event.id && (
-                                  <blockquote className="fp-note">
-                                    {event.note.content}
-                                    <cite>随笔 · {formatClock(event.note.updatedAt, offset)}</cite>
-                                  </blockquote>
-                                )}
-                                {editingId === event.id && (
-                                  <form
-                                    className="fp-note-form"
-                                    data-fp-note-form={event.id}
-                                    onSubmit={(e) => {
-                                      e.preventDefault();
-                                      const content = noteDraft.trim();
-                                      if (!content) {
-                                        say('随笔内容不能为空', true);
-                                        return;
-                                      }
-                                      void mutate(
-                                        (signal) => api.saveNote(event.id, content, signal),
-                                        '随笔已保存',
-                                        () => setEditingId(null),
-                                      );
-                                    }}
-                                  >
-                                    <textarea
-                                      autoFocus
-                                      name="note"
-                                      rows={3}
-                                      maxLength={1000}
-                                      aria-label="听歌随笔"
-                                      value={noteDraft}
-                                      disabled={busy}
-                                      onChange={(e) => setNoteDraft(e.target.value)}
-                                    />
-                                    <div className="fp-note-actions">
-                                      <span>{noteDraft.length}/1000</span>
-                                      <button
-                                        type="button"
-                                        disabled={busy}
-                                        data-fp-note-cancel
-                                        onClick={() => setEditingId(null)}
-                                      >
-                                        取消
-                                      </button>
-                                      <button type="submit" disabled={busy}>
-                                        保存随笔
-                                      </button>
-                                    </div>
-                                  </form>
-                                )}
-                              </div>
-                              <div className="fp-entry-actions">
-                                <IconButton
-                                  icon="play"
-                                  className="fp-icon"
-                                  data-fp-play={event.trackKey}
-                                  aria-label={`播放 ${event.title}`}
-                                  disabled={!play}
-                                  onClick={() => playTrack(event)}
-                                />
-                                <IconButton
-                                  icon="plus"
-                                  className="fp-icon"
-                                  data-fp-enqueue={event.trackKey}
-                                  aria-label={`加入队列 ${event.title}`}
-                                  disabled={!enqueue}
-                                  onClick={() => {
-                                    latest.current.enqueue?.(toFootprintSong(event));
-                                    say('已加入播放队列');
-                                  }}
-                                />
-                                {editingId !== event.id && (
-                                  <button
-                                    type="button"
-                                    className="fp-text"
-                                    data-fp-note-edit={event.id}
-                                    disabled={disabled}
-                                    onClick={() => {
-                                      setEditingId(event.id);
-                                      setNoteDraft(event.note?.content || '');
-                                    }}
-                                  >
-                                    {event.note ? '修改随笔' : '写随笔'}
-                                  </button>
-                                )}
-                                {event.note && editingId !== event.id && (
-                                  <button
-                                    type="button"
-                                    className="fp-text"
-                                    data-fp-note-delete={event.id}
-                                    disabled={disabled}
-                                    onClick={() => {
-                                      void mutate(
-                                        (signal) => api.deleteNote(event.id, signal),
-                                        '随笔已删除',
-                                      );
-                                    }}
-                                  >
-                                    删除随笔
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  ))}
-                  {!events.length && !loading && (
-                    <p className="fp-empty">
-                      还没有足迹。去音乐库或搜索里播放一首歌，它会自己出现在时间轴上。
-                    </p>
-                  )}
-                  {more(events.length, total, '加载更早的足迹')}
-                </section>
+                <TimelineView
+                  events={events}
+                  total={total}
+                  offset={offset}
+                  active={active}
+                  loading={loading}
+                  busy={busy}
+                  disabled={disabled}
+                  editingId={editingId}
+                  noteDraft={noteDraft}
+                  onPlay={play ? playTrack : undefined}
+                  onEnqueue={
+                    enqueue
+                      ? (event) => {
+                          latest.current.enqueue?.(toFootprintSong(event));
+                          say('已加入播放队列');
+                        }
+                      : undefined
+                  }
+                  onEdit={(event) => {
+                    setEditingId(event.id);
+                    setNoteDraft(event.note?.content || '');
+                  }}
+                  onCancel={() => setEditingId(null)}
+                  onDraft={setNoteDraft}
+                  onSaveNote={(id, draft) => {
+                    const content = draft.trim();
+                    if (!content) {
+                      say('随笔内容不能为空', true);
+                      return;
+                    }
+                    void mutate(
+                      (signal) => api.saveNote(id, content, signal),
+                      '随笔已保存',
+                      () => setEditingId(null),
+                    );
+                  }}
+                  onDeleteNote={(id) => {
+                    void mutate((signal) => api.deleteNote(id, signal), '随笔已删除');
+                  }}
+                  more={more(events.length, total, '加载更早的足迹')}
+                />
               )}
 
               {postId === null && tab === 'milestone' && (
@@ -812,58 +718,31 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
                 </section>
               )}
 
-              {postId === null && (tab === 'square' || tab === 'mine') && (
-                <section className={`fp-view fp-${tab}`}>
-                  <div className={tab === 'square' ? 'fp-square-grid' : 'fp-mine-list'}>
-                    {posts.map((post) => (
-                      <article className="fp-post-card" key={post.id}>
-                        <header>
-                          <strong className="fp-post-author">{post.authorNickname}</strong>
-                          <time>
-                            {formatDate(post.createdAt, offset)}{' '}
-                            {formatClock(post.createdAt, offset)}
-                          </time>
-                        </header>
-                        <button
-                          type="button"
-                          className="fp-post-open"
-                          data-fp-open-post={post.id}
-                          onClick={() => switchView(tab, post.id)}
-                        >
-                          <strong>{post.caption || '一段音乐足迹'}</strong>
-                          <span className="fp-post-meta">回忆卡片 #{post.cardId}</span>
-                          <em>
-                            查看回忆 <Icon name="open" />
-                          </em>
-                        </button>
-                        <footer>
-                          {like(post)}
-                          <span className="fp-post-meta">评论 {post.commentCount}</span>
-                          {tab === 'mine' && (
-                            <button
-                              type="button"
-                              className="fp-danger"
-                              data-fp-remove-post={post.id}
-                              disabled={disabled}
-                              onClick={() => setDialog({ kind: 'post', id: post.id })}
-                            >
-                              删除分享
-                            </button>
-                          )}
-                        </footer>
-                      </article>
-                    ))}
-                  </div>
-                  {!posts.length && !loading && (
-                    <p className="fp-empty">
-                      还没有分享
-                      {tab === 'mine'
-                        ? '。在回忆卡片工坊里分享一张卡片吧。'
-                        : '，来分享第一段音乐回忆吧。'}
-                    </p>
-                  )}
-                  {more(posts.length, total, '加载更多分享')}
-                </section>
+              {postId === null && tab === 'square' && (
+                <SquareView
+                  posts={posts}
+                  overview={overview}
+                  total={total}
+                  viewerId={viewerId}
+                  filter={squareFilter}
+                  loading={loading}
+                  disabled={disabled}
+                  offset={offset}
+                  onFilter={(value) => {
+                    if (value === squareFilter) return;
+                    invalidate();
+                    transitionSection(() => {
+                      setSquareFilter(value);
+                      setPosts([]);
+                      setPageOffset(0);
+                      setTotal(0);
+                    });
+                  }}
+                  onOpen={(id) => switchView(tab, id)}
+                  onRemove={(post) => setDialog({ kind: 'post', id: post.id })}
+                  like={(post) => like(post)}
+                  more={more(posts.length, total, '加载更多分享')}
+                />
               )}
 
               {postId !== null && (

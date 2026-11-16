@@ -128,9 +128,9 @@ it('React 足迹空态和全部分页入口可用，隐藏会取消请求，迟�
     assert.equal(h.query('[data-fp-play]'), null);
     assert.match(h.require('[data-fp-content]').textContent, /还没有听歌里程/);
     await h.click('[data-fp-tab="square"]');
-    assert.match(h.require('[data-fp-content]').textContent, /还没有分享/);
-    await h.click('[data-fp-tab="mine"]');
-    assert.match(h.require('[data-fp-content]').textContent, /还没有分享/);
+    assert.match(h.require('[data-fp-content]').textContent, /还没有人分享足迹/);
+    await h.click('[data-fp-filter="mine"]');
+    assert.match(h.require('[data-fp-content]').textContent, /你还没有分享过足迹/);
     await h.render(h.React.createElement(FootprintPage, { active: false, client: api }));
     assert.equal(h.require('[data-footprint-page]').hasAttribute('inert'), true);
   });
@@ -651,7 +651,7 @@ it('足迹侧栏各子页不再重复展示介绍标题，保留计数、内容�
     );
     assert.equal(h.query('.fp-header p, .fp-header span'), null);
     assert.equal(h.require('.fp-view-summary').textContent, '1 条播放记录');
-    for (const tab of ['timeline', 'milestone', 'studio', 'square', 'mine']) {
+    for (const tab of ['timeline', 'milestone', 'studio', 'square']) {
       await h.click(`[data-fp-tab="${tab}"]`);
       await h.until(
         () => !h.require('[data-fp-content]').hasAttribute('inert'),
@@ -780,4 +780,49 @@ it('独立里程视图展示曲线圆环和奖牌，播放保持来源与单曲�
     );
     assert.match(h.require('.fp-empty').textContent, /还没有听歌里程/);
   });
+});
+
+it('广场按服务端分页切换本人分享，侧栏保持原入口，统计失败不阻断列表', async () => {
+  const own = Array.from({ length: 13 }, (_, i) => ({ ...post, id: 100 + i, authorId: 2 }));
+  const offsets = [];
+  const api = client({
+    posts: async () => ({ posts: [{ ...post, authorId: 3 }], total: 1, viewerId: 2 }),
+    overview: async () => {
+      throw new Error('隔离统计失败');
+    },
+    myPostsPage: async (limit, offset) => {
+      offsets.push(offset);
+      return { posts: own.slice(offset, offset + limit), total: 13, viewerId: 2 };
+    },
+  });
+  await withReactHarness(async (h) => {
+    const { default: FootprintPage } =
+      await import('../frontend/src/features/footprint/FootprintPage.tsx');
+    await h.render(h.React.createElement(FootprintPage, { active: true, client: api }));
+    await h.click('[data-fp-tab="square"]');
+    assert.equal(h.document.querySelectorAll('[data-fp-open-post]').length, 1);
+    assert.match(h.require('.fp-square-stat-status').textContent, /暂时不可用/);
+    assert.equal(h.query('[data-fp-remove-post]'), null);
+    await h.click('[data-fp-filter="mine"]');
+    assert.equal(h.require('[data-fp-tab="square"]').getAttribute('aria-current'), 'page');
+    assert.equal(h.document.querySelectorAll('[data-fp-open-post]').length, 12);
+    await h.click('[data-fp-more]');
+    assert.deepEqual(offsets, [0, 12]);
+    assert.equal(h.document.querySelectorAll('[data-fp-open-post]').length, 13);
+    assert.equal(h.query('[data-fp-more]'), null);
+    assert.equal(h.document.querySelectorAll('[data-fp-remove-post]').length, 13);
+    assert.equal(h.query('[data-fp-tab="mine"]'), null);
+    assert.ok(h.query('.fp-square.fp-square-gallery'));
+    assert.equal(h.require('[data-fp-filter="mine"]').getAttribute('aria-pressed'), 'true');
+  });
+});
+
+it('时光轴今天和昨天按站点午夜分组，与浏览器时区无关', async () => {
+  const { timelineDayLabel } =
+    await import('../frontend/src/features/footprint/timeline-format.ts');
+  const now = Date.parse('2026-11-15T16:30:00Z');
+  assert.equal(timelineDayLabel('2026-11-15 16:01:00', 480, now), '今天');
+  assert.equal(timelineDayLabel('2026-11-15 15:59:00', 480, now), '昨天');
+  assert.equal(timelineDayLabel('2026-11-15T16:01:00Z', 0, now), '今天');
+  assert.equal(timelineDayLabel('bad', 480, now), '未知日期');
 });

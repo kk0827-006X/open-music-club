@@ -801,7 +801,7 @@ test('用户与足迹右侧无重复标题和顶线，设置弹窗标题保持�
   await expect(page.locator('.fp-header')).toHaveCSS('height', '0px');
   await expect(page.locator('.fp-header')).toHaveCSS('border-bottom-width', '0px');
   await expect(page.locator('.fp-header h2')).toHaveClass('sr-only');
-  for (const tab of ['timeline', 'milestone', 'studio', 'square', 'mine']) {
+  for (const tab of ['timeline', 'milestone', 'studio', 'square']) {
     await page.locator(`[data-fp-tab="${tab}"]`).click();
     await expect(page.locator(`.fp-view.fp-${tab}`)).toBeVisible();
     await expect(page.locator('.fp-view > .fp-view-header')).toHaveCount(0);

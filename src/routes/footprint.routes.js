@@ -144,10 +144,15 @@ function createFootprintRouter({ database, timezoneOffsetMinutes } = {}) {
     return res.json({ success: true });
   });
 
+  router.get('/overview', (req, res) => res.json({ success: true, overview: service.overview() }));
   router.get('/posts', (req, res) => {
     const page = parsePage(req.query);
     if (!page) return invalid(res, '分页参数无效');
-    return res.json({ success: true, ...service.posts(req.user.id, page.limit, page.offset) });
+    return res.json({
+      success: true,
+      viewerId: req.user.id,
+      ...service.posts(req.user.id, page.limit, page.offset),
+    });
   });
   router.post('/posts', (req, res) => {
     const cardId = parseId(req.body?.cardId),
@@ -163,6 +168,8 @@ function createFootprintRouter({ database, timezoneOffsetMinutes } = {}) {
     return res.json({
       success: true,
       posts: service.ownPosts(req.user.id, page.limit, page.offset),
+      total: service.ownPostCount(req.user.id),
+      viewerId: req.user.id,
     });
   });
   router.get('/posts/:id', (req, res) => {

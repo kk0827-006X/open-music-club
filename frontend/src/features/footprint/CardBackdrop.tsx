@@ -1,5 +1,13 @@
 // 静态 SVG 背景复现来源卡片的渐变与柔光；所有颜色仅在主题表中定义。
-export function CardBackdrop({ uid, height }: { uid: string; height: number }) {
+export function CardBackdrop({
+  uid,
+  height,
+  width = 480,
+}: {
+  uid: string;
+  height: number;
+  width?: number;
+}) {
   return (
     <>
       <defs>
@@ -32,7 +40,7 @@ export function CardBackdrop({ uid, height }: { uid: string; height: number }) {
         </radialGradient>
       </defs>
       {['', '-b1', '-b3', '-b2', '-glow', '-sheen'].map((suffix) => (
-        <rect key={suffix} width="480" height={height} rx="22" fill={`url(#${uid}${suffix})`} />
+        <rect key={suffix} width={width} height={height} rx="22" fill={`url(#${uid}${suffix})`} />
       ))}
     </>
   );

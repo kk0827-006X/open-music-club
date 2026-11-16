@@ -66,7 +66,21 @@ function toCard(row) {
       }
     : null;
 }
-function toPost(row) {
+// 只为已发布分享输出有限卡片摘要，不包含随笔和未分享记录。
+function toPostCard(row, offset) {
+  if (!row.card_title || !row.card_data_json) return null;
+  const data = JSON.parse(row.card_data_json);
+  return {
+    title: row.card_title,
+    style: resolveCardStyle(isCardStyle(data.style) ? data.style : 'auto', data, offset),
+    period: data.period,
+    trackCount: data.trackCount,
+    totalDurationMs: data.totalDurationMs,
+    highlight: data.highlight,
+    tracks: data.tracks.slice(0, 2).map((track) => ({ title: track.title, artist: track.artist })),
+  };
+}
+function toPost(row, offset = DEFAULT_TIMEZONE_OFFSET_MINUTES) {
   return row
     ? {
         id: row.id,
@@ -78,6 +92,7 @@ function toPost(row) {
         likeCount: row.like_count,
         commentCount: row.comment_count,
         liked: Boolean(row.liked),
+        card: toPostCard(row, offset),
       }
     : null;
 }
@@ -295,12 +310,17 @@ function createFootprintService({
         return toCard(repository.findCard(userId, id));
       }),
     deleteCard: repository.deleteCard,
+    overview: repository.overview,
+    ownPostCount: repository.countOwnPosts,
     posts: (userId, limit, offset) => ({
       total: repository.countPosts(),
-      posts: repository.listPosts(userId, limit, offset).map(toPost),
+      posts: repository
+        .listPosts(userId, limit, offset)
+        .map((row) => toPost(row, timezoneOffsetMinutes)),
     }),
-    ownPosts: (userId, limit, offset) => repository.ownPosts(userId, limit, offset).map(toPost),
-    post: (userId, id) => toPost(requirePost(userId, id)),
+    ownPosts: (userId, limit, offset) =>
+      repository.ownPosts(userId, limit, offset).map((row) => toPost(row, timezoneOffsetMinutes)),
+    post: (userId, id) => toPost(requirePost(userId, id), timezoneOffsetMinutes),
     publishCard: (userId, cardId, caption) =>
       repository.transaction(() => {
         if (!repository.findCard(userId, cardId)) throw new FootprintError(404, '卡片不存在');

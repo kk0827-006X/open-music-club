@@ -1,0 +1,173 @@
+/* 广场与本人分享复用 wqh 卡片式布局，作用域不触及侧栏及详情。 */
+.footprint-page .fp-square-heading p {
+  margin: 0;
+  color: var(--amber);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+}
+.footprint-page .fp-square-heading h3 {
+  margin: 8px 0;
+  font-size: 1.4rem;
+}
+.footprint-page .fp-square-heading > span,
+.footprint-page .fp-square-stat-status {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.footprint-page .fp-square-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.footprint-page .fp-square-overview > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px;
+  padding: 15px;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--color-surface-07);
+}
+.footprint-page .fp-square-overview dt {
+  order: 1;
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+.footprint-page .fp-square-overview dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.3rem;
+  font-weight: 650;
+}
+.footprint-page .fp-square-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.footprint-page .fp-square-filter button {
+  padding: 8px 15px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.footprint-page .fp-square-filter button[aria-pressed='true'] {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: var(--color-surface-04);
+}
+.footprint-page .fp-square-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: 16px;
+}
+.footprint-page .fp-square-gallery .fp-post-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  background: var(--color-surface-07);
+}
+.footprint-page .fp-square-gallery .fp-post-card > header,
+.footprint-page .fp-square-gallery .fp-post-card > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.footprint-page .fp-square-gallery .fp-post-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+.footprint-page .fp-square-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--fp-square-avatar-ink);
+  background: var(--fp-square-avatar-0);
+  font-size: 0.65rem;
+  font-style: normal;
+}
+.footprint-page .fp-square-avatar[data-color='1'] {
+  background: var(--fp-square-avatar-1);
+}
+.footprint-page .fp-square-avatar[data-color='2'] {
+  background: var(--fp-square-avatar-2);
+}
+.footprint-page .fp-square-avatar[data-color='3'] {
+  background: var(--fp-square-avatar-3);
+}
+.footprint-page .fp-square-avatar[data-color='4'] {
+  background: var(--fp-square-avatar-4);
+}
+.footprint-page .fp-square-gallery time {
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+.footprint-page .fp-square-gallery .fp-post-open {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.footprint-page .fp-square-gallery .fp-post-art {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+.footprint-page .fp-square-gallery .fp-post-open strong {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.footprint-page .fp-square-gallery .fp-post-open em {
+  color: var(--amber);
+  font-size: 0.62rem;
+  font-style: normal;
+}
+.footprint-page .fp-square-gallery .fp-post-card > footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.footprint-page .fp-post-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.footprint-page .fp-post-fallback {
+  padding: 30px 10px;
+  color: var(--muted);
+}
+.footprint-page .fp-square-filter button:focus-visible,
+.footprint-page .fp-square-gallery .fp-post-open:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .footprint-page .fp-square-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

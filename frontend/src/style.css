@@ -1,3 +1,5 @@
+@import './styles/footprint-timeline.css';
+@import './styles/footprint-square.css';
 @import './styles/milestone.css';
 @import './styles/tokens-global.css';
 @import './styles/login.css';

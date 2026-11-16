@@ -1,0 +1,306 @@
+/* ---------- 时光轴 ---------- */
+.footprint-page .fp-timeline .fp-day {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 0 20px;
+}
+.footprint-page .fp-timeline .fp-day-marker {
+  position: relative;
+  padding: 2px 0 22px;
+  text-align: right;
+}
+.footprint-page .fp-timeline .fp-day-marker i {
+  position: absolute;
+  top: 7px;
+  right: -25px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 1px var(--fp-timeline-source-0);
+}
+.footprint-page .fp-timeline .fp-day-marker h4 {
+  position: relative;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.footprint-page .fp-timeline .fp-day-marker span {
+  position: relative;
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.55rem;
+  letter-spacing: 0.05em;
+}
+.footprint-page .fp-timeline .fp-day-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0 0 6px 22px;
+  border-left: 1px solid var(--hairline);
+  list-style: none;
+}
+.footprint-page .fp-timeline .fp-entry {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 0 12px;
+}
+.footprint-page .fp-timeline .fp-entry-time {
+  padding-top: 12px;
+  color: var(--muted);
+  font-size: 0.57rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.footprint-page .fp-timeline .fp-entry-dot {
+  display: none;
+}
+.footprint-page .fp-timeline .fp-entry-card {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 11px 13px;
+  border-radius: 13px;
+  transition:
+    border-color 260ms ease,
+    transform 260ms ease,
+    box-shadow 260ms ease;
+}
+.footprint-page .fp-timeline .fp-entry-card:hover {
+  border-color: var(--fp-timeline-source-1);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 var(--fp-timeline-source-2) inset,
+    0 18px 32px -24px var(--fp-timeline-source-3);
+}
+.footprint-page .fp-timeline .fp-entry-card img {
+  width: 46px;
+  height: 46px;
+  border-radius: 9px;
+  object-fit: cover;
+  background: var(--muted);
+}
+.footprint-page .fp-timeline .fp-entry-body strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.79rem;
+  letter-spacing: -0.01em;
+}
+.footprint-page .fp-timeline .fp-entry-body small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+.footprint-page .fp-timeline .fp-entry-body em {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.55rem;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+.footprint-page .fp-timeline .fp-note {
+  margin: 9px 0 0;
+  padding: 9px 12px;
+  border-left: 2px solid var(--amber);
+  border-radius: 0 9px 9px 0;
+  background: linear-gradient(90deg, var(--fp-timeline-source-4), var(--fp-timeline-source-5));
+  color: var(--ink);
+  font-size: 0.7rem;
+  line-height: 1.75;
+}
+.footprint-page .fp-timeline .fp-note cite {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.53rem;
+  font-style: normal;
+  letter-spacing: 0.08em;
+}
+.footprint-page .fp-timeline .fp-note-form textarea {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--hairline);
+  border-radius: 9px;
+  background: var(--fp-timeline-source-6);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.65;
+  resize: vertical;
+}
+.footprint-page .fp-timeline .fp-note-form textarea:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+.footprint-page .fp-timeline .fp-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin-top: 7px;
+}
+.footprint-page .fp-timeline .fp-note-actions span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 0.53rem;
+}
+.footprint-page .fp-timeline .fp-note-actions button {
+  padding: 5px 13px;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.61rem;
+  cursor: pointer;
+}
+.footprint-page .fp-timeline .fp-note-actions button[type='submit'] {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: var(--on-action);
+}
+.footprint-page .fp-timeline .fp-entry-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.footprint-page .fp-timeline .fp-entry-actions .fp-text {
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.footprint-page .fp-timeline .fp-entry-actions [data-fp-note-delete]:hover {
+  color: var(--danger);
+}
+.footprint-page .fp-timeline .fp-entry.has-note .fp-entry-card {
+  border-left: 2px solid var(--fp-timeline-source-7);
+}
+
+.footprint-page .fp-timeline-heading p:first-child {
+  margin: 0;
+  color: var(--amber);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+}
+.footprint-page .fp-timeline-heading h3 {
+  margin: 8px 0;
+  font-size: 1.4rem;
+}
+.footprint-page .fp-timeline .fp-entry-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.footprint-page .fp-timeline .fp-entry-card {
+  border: 1px solid var(--hairline);
+  background: var(--color-surface-07);
+}
+.footprint-page .fp-timeline .fp-note-form textarea {
+  background: var(--paper);
+}
+.footprint-page .fp-timeline .fp-entry {
+  animation: fp-timeline-rise 480ms ease both;
+  animation-delay: calc(min(var(--fp-i, 0), 10) * 55ms);
+}
+.footprint-page .fp-timeline .fp-day-marker i::before,
+.footprint-page .fp-timeline .fp-day-marker i::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 1px solid var(--amber);
+  border-radius: 50%;
+  animation: fp-timeline-pulse 2.8s ease-out infinite;
+}
+.footprint-page .fp-timeline .fp-day-marker i::after {
+  animation-delay: 1.4s;
+}
+.footprint-page .fp-timeline .fp-entry-card:hover {
+  transform: perspective(900px) rotateX(0.6deg) translateY(-1px);
+}
+.footprint-page .fp-timeline .fp-note {
+  animation: fp-timeline-rise 360ms ease both;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@keyframes fp-timeline-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fp-timeline-pulse {
+  from {
+    opacity: 0.6;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+.footprint-page .fp-timeline[data-motion-active='false'] *,
+.footprint-page .fp-timeline[data-motion-active='false'] *::before,
+.footprint-page .fp-timeline[data-motion-active='false'] *::after {
+  animation-play-state: paused !important;
+}
+@media (max-width: 860px) {
+  .footprint-page .fp-timeline .fp-day {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .footprint-page .fp-timeline .fp-day-marker {
+    text-align: left;
+    padding-bottom: 10px;
+  }
+  .footprint-page .fp-timeline .fp-day-marker i {
+    display: none;
+  }
+  .footprint-page .fp-timeline .fp-day-list {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .footprint-page .fp-timeline .fp-entry {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+  }
+  .footprint-page .fp-timeline .fp-entry-time {
+    text-align: left;
+    padding: 0;
+  }
+  .footprint-page .fp-timeline .fp-entry-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+  .footprint-page .fp-timeline .fp-entry-card img {
+    width: 40px;
+    height: 40px;
+  }
+  .footprint-page .fp-timeline .fp-entry-actions {
+    grid-column: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .footprint-page .fp-timeline *,
+  .footprint-page .fp-timeline *::before,
+  .footprint-page .fp-timeline *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .footprint-page .fp-timeline .fp-entry-card:hover {
+    transform: none;
+  }
+}
