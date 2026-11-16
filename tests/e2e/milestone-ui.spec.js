@@ -160,5 +160,17 @@ test('wqh 听歌里程设计桌面深色窄屏与正常动效验收', async ({ p
   await page.locator('[data-fp-tab="milestone"]').click();
   await expect(page.locator('.fp-hero-num')).toContainText('12483', { timeout: 5000 });
   await expect(page.locator('.fp-hours-peak-label')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.fp-ring-num')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.fp-hero-num b')).toHaveCSS('animation-name', 'fp-ms-shine');
+  await expect(page.locator('.fp-rank').first()).toHaveCSS('animation-name', 'fp-ms-medal');
+  const stat = page.locator('.fp-stat').first();
+  await stat.hover();
+  await expect(stat).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, -2)');
+  const month = page.locator('.fp-month').first();
+  await month.hover();
+  await expect(month.locator('i')).toHaveCSS('transform', 'matrix(1, 0, 0, 1.05, 0, 0)');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(page.locator('.fp-hero-num b')).toHaveCSS('animation-name', 'none');
+  await expect(page.locator('.fp-ring-num')).toHaveCSS('opacity', '1');
   expect(errors).toEqual([]);
 });

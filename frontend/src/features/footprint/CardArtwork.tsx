@@ -1,3 +1,4 @@
+import { serializeCardArtwork } from './card-export.ts';
 import { forwardRef, useId } from 'react';
 import type { MemoryCard } from '../../services/music/footprint.ts';
 import { formatDate } from './format.ts';
@@ -221,14 +222,7 @@ export const CardArtwork = forwardRef<
 
 // 只序列化本组件产生的 SVG，并将站点主题令牌固化到可离线打开的文件。
 export function downloadCardArtwork(svg: SVGSVGElement, title: string) {
-  const theme = getComputedStyle(svg);
-  const Serializer = svg.ownerDocument.defaultView?.XMLSerializer;
-  if (!Serializer) throw new Error('当前环境不支持卡片下载');
-  const xml = new Serializer()
-    .serializeToString(svg)
-    .replace(/var\((--(?:fp-card-[\w-]+|paper|amber|ink|muted))\)/g, (_, token: string) =>
-      theme.getPropertyValue(token).trim(),
-    );
+  const xml = serializeCardArtwork(svg);
   const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }));
   const link = document.createElement('a');
   try {

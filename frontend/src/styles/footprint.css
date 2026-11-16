@@ -142,11 +142,6 @@
   color: var(--muted);
   font-size: 0.66rem;
 }
-.footprint-page .fp-detail-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 16px;
-}
 .footprint-page .fp-content {
   min-height: 0;
   overflow-y: auto;
@@ -197,8 +192,7 @@
 .footprint-page .fp-more,
 .footprint-page .fp-ghost,
 .footprint-page .fp-danger,
-.footprint-page .fp-studio-actions > button,
-.footprint-page .fp-comment-actions button {
+.footprint-page .fp-studio-actions > button {
   padding: 8px 14px;
   border: 1px solid var(--hairline);
   border-radius: 8px;
@@ -248,18 +242,6 @@
 .footprint-page .fp-text:hover:not(:disabled) {
   color: var(--amber);
 }
-.footprint-page .fp-detail-caption {
-  margin: 8px 0 0;
-  padding: 8px 10px;
-  border-left: 3px solid var(--amber);
-  border-radius: 0 8px 8px 0;
-  background: var(--color-surface-04);
-  color: var(--ink);
-  font-size: 0.7rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .footprint-page textarea,
 .footprint-page .fp-field input {
   width: 100%;
@@ -278,40 +260,24 @@
   outline: 2px solid var(--amber);
   outline-offset: 1px;
 }
-.footprint-page .fp-comment-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 6px;
-}
-.footprint-page .fp-comment-actions span {
-  margin-right: auto;
-  color: var(--muted);
-  font-size: 0.54rem;
-}
-.footprint-page .fp-comment-actions [type='submit'],
 .footprint-page [data-fp-generate] {
   border-color: var(--amber);
   background: var(--amber);
   color: var(--on-action);
 }
 .footprint-page .fp-panel,
-.footprint-page .fp-picker,
-.footprint-page .fp-comments {
+.footprint-page .fp-picker {
   padding: 16px 14px;
   border: 1px solid var(--color-line-01);
   border-radius: 14px;
   background: var(--color-surface-07);
 }
 .footprint-page .fp-panel h4,
-.footprint-page .fp-picker-head h4,
-.footprint-page .fp-comment-head h4 {
+.footprint-page .fp-picker-head h4 {
   margin: 0 0 12px;
   font-size: 0.8rem;
 }
-.footprint-page .fp-studio-body,
-.footprint-page .fp-detail-body {
+.footprint-page .fp-studio-body {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   gap: 16px;
@@ -487,77 +453,6 @@
   border-color: var(--amber);
   color: var(--amber);
 }
-.footprint-page .fp-detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-.footprint-page .fp-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.66rem;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.footprint-page .fp-detail-caption {
-  font-size: 0.78rem;
-}
-.footprint-page .fp-detail-card {
-  display: grid;
-  justify-items: center;
-  gap: 10px;
-}
-.footprint-page .fp-detail-card svg {
-  width: min(100%, 340px);
-}
-.footprint-page .fp-comment-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.footprint-page .fp-comment-head h4 {
-  margin: 0;
-}
-.footprint-page .fp-comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 320px;
-  margin: 12px 0;
-  padding: 0;
-  list-style: none;
-  overflow-y: auto;
-}
-.footprint-page .fp-comment-list li {
-  display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-line-01);
-  border-radius: 10px;
-  background: var(--paper);
-}
-.footprint-page .fp-comment-list strong {
-  font-size: 0.66rem;
-}
-.footprint-page .fp-comment-list time {
-  display: block;
-  color: var(--muted);
-  font-size: 0.54rem;
-}
-.footprint-page .fp-comment-list p {
-  margin: 0;
-  font-size: 0.7rem;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
 .footprint-page .fp-dialog {
   width: min(440px, calc(100vw - 32px));
   padding: 24px;
@@ -618,8 +513,7 @@
   .footprint-page .fp-nav .ui-icon {
     display: none;
   }
-  .footprint-page .fp-studio-body,
-  .footprint-page .fp-detail-body {
+  .footprint-page .fp-studio-body {
     grid-template-columns: minmax(0, 1fr);
   }
 }

@@ -753,6 +753,16 @@
   --fp-timeline-source-6: rgba(255, 255, 255, 0.7);
   --fp-timeline-source-7: rgba(183, 121, 34, 0.45);
 }
+.fp-detail {
+  --fp-detail-source-0: rgba(183, 121, 34, 0.1);
+  --fp-detail-source-1: rgba(183, 121, 34, 0.015);
+  --fp-detail-source-2: rgba(96, 76, 40, 0.1);
+  --fp-detail-source-3: rgba(96, 76, 40, 0.6);
+  --fp-detail-source-4: rgba(255, 253, 247, 0.7);
+  --fp-detail-source-5: rgba(255, 255, 255, 0.78);
+  --fp-detail-source-6: #c98f36;
+  --fp-detail-source-7: rgba(183, 121, 34, 0.9);
+}
 /* wqh 广场昵称头像的固定渐变，仅用于分享作者标记。 */
 .fp-square-gallery {
   --fp-square-avatar-ink: #ffffff;

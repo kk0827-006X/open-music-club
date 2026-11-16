@@ -826,3 +826,45 @@ it('时光轴今天和昨天按站点午夜分组，与浏览器时区无关', a
   assert.equal(timelineDayLabel('2026-11-15T16:01:00Z', 0, now), '今天');
   assert.equal(timelineDayLabel('bad', 480, now), '未知日期');
 });
+
+it('PNG 导出在离页取消或图像读取失败时释放临时地址，不触发下载', async () => {
+  const originalImage = Object.getOwnPropertyDescriptor(globalThis, 'Image');
+  const create = URL.createObjectURL,
+    revoke = URL.revokeObjectURL;
+  const revoked = [];
+  let image;
+  try {
+    Object.defineProperty(globalThis, 'Image', {
+      configurable: true,
+      writable: true,
+      value: class {
+        constructor() {
+          image = this;
+        }
+      },
+    });
+    URL.createObjectURL = () => 'blob:isolated-png-source';
+    URL.revokeObjectURL = (value) => revoked.push(value);
+    await withReactHarness(async (h) => {
+      const { downloadCardPng } = await import('../frontend/src/features/footprint/card-export.ts');
+      const svg = h.document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '480');
+      svg.setAttribute('height', '500');
+      const controller = new AbortController();
+      const pending = downloadCardPng(svg, '测试', controller.signal);
+      controller.abort();
+      await assert.rejects(pending, (error) => error.name === 'AbortError');
+      assert.equal(image.onload, null);
+      assert.equal(image.onerror, null);
+      const failure = downloadCardPng(svg, '测试');
+      image.onerror();
+      await assert.rejects(failure, /读取失败/);
+      assert.deepEqual(revoked, ['blob:isolated-png-source', 'blob:isolated-png-source']);
+    });
+  } finally {
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = revoke;
+    if (originalImage) Object.defineProperty(globalThis, 'Image', originalImage);
+    else delete globalThis.Image;
+  }
+});

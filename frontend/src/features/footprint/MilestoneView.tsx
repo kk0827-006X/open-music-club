@@ -100,7 +100,7 @@ export function MilestoneView({
         <h4>每月聆听 · 最近 12 个月</h4>
         <div className="fp-months">
           {data.monthly.map((item, index) => (
-            <div key={item.month} className="fp-month">
+            <div key={item.month} className="fp-month" style={{ '--fp-i': index } as CSSProperties}>
               <i style={barStyle(item.plays / monthlyPeak, index * 55)} />
               <b>{item.month.slice(2)}</b>
               <small>{item.plays} 次</small>
@@ -113,7 +113,7 @@ export function MilestoneView({
         <h4>热听榜 · 循环最多的歌</h4>
         <ol className="fp-top-tracks">
           {data.topTracks.map((track, index) => (
-            <li key={track.trackKey}>
+            <li key={track.trackKey} style={{ '--fp-i': index } as CSSProperties}>
               <span className={`fp-rank fp-rank-${index + 1}`}>{index + 1}</span>
               <img src={safeCoverUrl(track.coverUrl)} alt="" loading="lazy" />
               <div className="fp-top-body">

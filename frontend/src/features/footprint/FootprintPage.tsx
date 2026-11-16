@@ -1,10 +1,12 @@
+import { ShareDetailView } from './ShareDetailView.tsx';
+import { FootprintComments } from './FootprintComments.tsx';
 import { TimelineView } from './TimelineView.tsx';
 import { SquareView } from './SquareView.tsx';
 import { MilestoneView } from './MilestoneView.tsx';
 import { CardStylePicker } from './CardStylePicker.tsx';
 import { useCardStyles } from './use-card-styles.ts';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { Icon, IconButton, Modal } from '../../shared/react/ui.tsx';
+import { IconButton, Modal } from '../../shared/react/ui.tsx';
 import { motion } from 'motion/react';
 import { useLatest } from '../../shared/react/hooks.ts';
 import { usePageMotion, useSectionTransition } from '../../shared/react/page-transitions.ts';
@@ -475,18 +477,6 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
               inert={changing}
               aria-busy={loading || changing}
             >
-              {postId !== null && (
-                <div className="fp-detail-toolbar">
-                  <IconButton
-                    icon="left"
-                    className="fp-back"
-                    data-fp-back
-                    onClick={() => switchView(tab)}
-                  >
-                    返回列表
-                  </IconButton>
-                </div>
-              )}
               {postId === null && tab === 'timeline' && (
                 <TimelineView
                   events={events}
@@ -746,135 +736,46 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
               )}
 
               {postId !== null && (
-                <section className="fp-view fp-detail">
-                  {detail ? (
-                    <>
-                      <header className="fp-view-header fp-detail-head">
-                        <div>
-                          <h3>{detail.card?.title || '音乐足迹'}</h3>
-                          <span>
-                            {detail.post.authorNickname} ·{' '}
-                            {formatDate(detail.post.createdAt, offset)}{' '}
-                            {formatClock(detail.post.createdAt, offset)}
-                          </span>
-                        </div>
-                        {detail.canDelete && (
-                          <button
-                            type="button"
-                            className="fp-danger"
-                            data-fp-delete-post
-                            disabled={disabled}
-                            onClick={() => setDialog({ kind: 'post', id: detail.post.id })}
-                          >
-                            删除分享
-                          </button>
-                        )}
-                      </header>
-                      {detail.post.caption && (
-                        <p className="fp-detail-caption">{detail.post.caption}</p>
-                      )}
-                      <div className="fp-detail-body">
-                        <div className="fp-detail-card">
-                          {detail.card ? (
-                            <>
-                              <CardArtwork ref={svgRef} card={detail.card} offset={offset} />
-                              <button
-                                type="button"
-                                className="fp-ghost"
-                                data-fp-download
-                                onClick={() => detail.card && download(detail.card)}
-                              >
-                                下载卡片
-                              </button>
-                            </>
-                          ) : (
-                            <p className="fp-empty">卡片已被作者删除</p>
-                          )}
-                        </div>
-                        <div className="fp-comments">
-                          <div className="fp-comment-head">
-                            <h4>评论 {detail.comments.length}</h4>
-                            {like(detail.post, true)}
-                          </div>
-                          <ol className="fp-comment-list">
-                            {detail.comments.map((item) => (
-                              <li key={item.id}>
-                                <div>
-                                  <strong>{item.authorNickname}</strong>
-                                  <time>
-                                    {formatDate(item.createdAt, offset)}{' '}
-                                    {formatClock(item.createdAt, offset)}
-                                  </time>
-                                </div>
-                                <p>{item.content}</p>
-                                {(item.canDelete ||
-                                  (detail.viewerId !== undefined &&
-                                    item.authorId === detail.viewerId)) && (
-                                  <button
-                                    type="button"
-                                    className="fp-text"
-                                    data-fp-delete-comment={item.id}
-                                    disabled={disabled}
-                                    onClick={() => {
-                                      void mutate(
-                                        (signal) => api.deleteComment(item.id, signal),
-                                        '评论已删除',
-                                      );
-                                    }}
-                                  >
-                                    删除
-                                  </button>
-                                )}
-                              </li>
-                            ))}
-                          </ol>
-                          {moreComments}
-                          {!detail.comments.length && (
-                            <p className="fp-empty">还没有评论，来说点什么吧。</p>
-                          )}
-                          <form
-                            className="fp-comment-form"
-                            data-fp-comment-form
-                            onSubmit={(e) => {
-                              e.preventDefault();
-                              const content = comment.trim();
-                              if (!content) {
-                                say('评论内容不能为空', true);
-                                return;
-                              }
-                              void mutate(
-                                (signal) => api.addComment(detail.post.id, content, signal),
-                                '评论已发布',
-                                () => setComment(''),
-                              );
-                            }}
-                          >
-                            <textarea
-                              name="content"
-                              maxLength={300}
-                              rows={2}
-                              aria-label="评论内容"
-                              placeholder="写一句评论…"
-                              value={comment}
-                              disabled={busy}
-                              onChange={(e) => setComment(e.target.value)}
-                            />
-                            <div className="fp-comment-actions">
-                              <span>{comment.length}/300</span>
-                              <button type="submit" disabled={disabled}>
-                                {busy ? '发送中…' : '发送'}
-                              </button>
-                            </div>
-                          </form>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <p className="fp-empty">
-                      {loading ? '正在读取这条分享…' : '这条分享无法读取，请重试或返回列表。'}
-                    </p>
+                <ShareDetailView
+                  key={postId}
+                  detail={detail}
+                  loading={loading}
+                  active={active}
+                  disabled={disabled}
+                  offset={offset}
+                  onBack={() => switchView(tab)}
+                  onRemove={() => detail && setDialog({ kind: 'post', id: detail.post.id })}
+                  onNotice={say}
+                >
+                  {detail && (
+                    <FootprintComments
+                      comments={detail.comments}
+                      viewerId={detail.viewerId}
+                      offset={offset}
+                      like={like(detail.post, true)}
+                      moreComments={moreComments}
+                      comment={comment}
+                      busy={busy}
+                      disabled={disabled}
+                      onDelete={(id) => {
+                        void mutate((signal) => api.deleteComment(id, signal), '评论已删除');
+                      }}
+                      onSubmit={(draft) => {
+                        const content = draft.trim();
+                        if (!content) {
+                          say('评论内容不能为空', true);
+                          return;
+                        }
+                        void mutate(
+                          (signal) => api.addComment(detail.post.id, content, signal),
+                          '评论已发布',
+                          () => setComment(''),
+                        );
+                      }}
+                      onChange={setComment}
+                    />
                   )}
-                </section>
+                </ShareDetailView>
               )}
             </div>
             <p className="fp-feedback" data-fp-feedback data-error={notice.error} role="status">
