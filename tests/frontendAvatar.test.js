@@ -118,10 +118,12 @@ it('登录失效会清除旧形象；重新验证身份后只显示新账号数�
       ],
     };
     let expired = false,
+      hold = false,
       signal;
     const client = mockClient(model, {
       read: async (value) => {
         signal = value;
+        if (hold) return new Promise(() => {});
         if (expired) throw new AvatarError('登录已失效', 401);
         return next;
       },
@@ -139,6 +141,9 @@ it('登录失效会清除旧形象；重新验证身份后只显示新账号数�
     await h.click('.avatar-studio > button');
     await h.click('[data-avatar-tab="saved"]');
     assert.match(h.document.body.textContent, /还没有保存的形象/);
+    hold = true;
+    h.window.dispatchEvent(new h.window.Event('focus'));
+    await h.wait();
     await h.render(h.React.createElement(AvatarStudio, { active: false, client }));
     assert.equal(signal.aborted, true);
     assert.equal(h.query('[data-avatar-studio]'), null);
@@ -328,4 +333,184 @@ it('原版保持配色只锁主题，头部锁定保护肤色发色；预设配�
   const random = randomOutfit(defaultConfig, 'random', ['head'], true, () => 0.8);
   assert.equal(random.head, defaultConfig.head);
   assert.notEqual(random.hair, defaultConfig.hair);
+});
+
+it('点击风格立即生成对应搭配，保持锁定部件并记录最近方案', async () => {
+  await withReactHarness(async (h) => {
+    const model = await load();
+    const { AvatarStudio } = await import('../frontend/src/features/avatar/AvatarStudio.tsx');
+    let saved;
+    const client = mockClient(model, {
+      save: async (context, name, config) => {
+        saved = config;
+        return { outfit: { id: 2, name, config, current: false, createdAt: '', updatedAt: '' } };
+      },
+    });
+    await h.render(h.React.createElement(AvatarStudio, { active: true, client }));
+    await h.click('[data-avatar-tab="auto"]');
+    await h.click('[data-lock="top"]');
+    await h.click('[data-preset="stage"]');
+    assert.equal(h.require('[data-preset="stage"]').getAttribute('aria-pressed'), 'true');
+    assert.match(h.require('.auto-caption').textContent, /舞台演出/);
+    assert.equal(h.document.querySelectorAll('.recent-row').length, 1);
+    await h.click('.avatar-save-open');
+    await h.submit('.avatar-save');
+    assert.equal(saved.top, model.defaultConfig.top);
+    assert.equal(saved.theme, model.defaultConfig.theme);
+    assert.ok(model.catalog.presets.find((item) => item.id === 'stage').head.includes(saved.head));
+    assert.notEqual(saved.head, model.defaultConfig.head);
+  });
+});
+
+it('同会话切到其他标签再返回不重建工坊、取消草稿或重置预设与最近方案', async () => {
+  await withReactHarness(async (h) => {
+    const model = await load();
+    const { AvatarStudio } = await import('../frontend/src/features/avatar/AvatarStudio.tsx');
+    let reads = 0,
+      release;
+    const state = { viewerId: 1, context: 'A', outfits: [] };
+    const client = mockClient(model, {
+      read: async () => {
+        if (++reads === 1) return state;
+        return new Promise((done) => {
+          release = () => done(state);
+        });
+      },
+    });
+    await h.render(h.React.createElement(AvatarStudio, { active: true, client }));
+    await h.click('[data-avatar-tab="auto"]');
+    await h.click('[data-lock="top"]');
+    await h.click('[data-preset="stage"]');
+    await h.click('.auto-check input');
+    await h.click('.avatar-save-open');
+    await h.input('[aria-label="形象名称"]', '未提交的搭配');
+    const workroom = h.require('[data-avatar-view]');
+    const dialog = h.require('.avatar-source-dialog');
+    workroom.scrollTop = 123;
+    let hidden = true;
+    Object.defineProperty(h.document, 'hidden', { configurable: true, get: () => hidden });
+    h.document.dispatchEvent(new h.window.Event('visibilitychange'));
+    await h.wait();
+    assert.equal(h.require('[data-avatar-view]'), workroom);
+    hidden = false;
+    h.document.dispatchEvent(new h.window.Event('visibilitychange'));
+    h.window.dispatchEvent(new h.window.Event('focus'));
+    await h.wait();
+    assert.equal(reads, 2, '返页事件合并为一次后台校验');
+    assert.equal(h.require('.avatar-source-dialog'), dialog);
+    assert.equal(dialog.open, true);
+    release();
+    await h.wait();
+    assert.equal(h.require('[data-avatar-view]'), workroom);
+    assert.equal(workroom.scrollTop, 123);
+    assert.equal(h.require('[aria-label="形象名称"]').value, '未提交的搭配');
+    assert.equal(h.require('[data-preset="stage"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(h.require('[data-lock="top"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(h.require('.auto-check input').checked, false);
+    assert.equal(h.document.querySelectorAll('.recent-row').length, 1);
+  });
+});
+
+it('同会话后台校验不会取消保存，也不会用旧列表覆盖刚保存的形象', async () => {
+  await withReactHarness(async (h) => {
+    const model = await load();
+    const { AvatarStudio } = await import('../frontend/src/features/avatar/AvatarStudio.tsx');
+    let reads = 0,
+      releaseRead,
+      releaseSave,
+      savingSignal;
+    const state = { viewerId: 1, context: 'A', outfits: [] };
+    const client = mockClient(model, {
+      read: async () =>
+        ++reads === 1
+          ? state
+          : new Promise((done) => {
+              releaseRead = () => done(state);
+            }),
+      save: async (context, name, config, signal) => {
+        savingSignal = signal;
+        return new Promise((done) => {
+          releaseSave = () =>
+            done({ outfit: { id: 3, name, config, current: false, createdAt: '', updatedAt: '' } });
+        });
+      },
+    });
+    await h.render(h.React.createElement(AvatarStudio, { active: true, client }));
+    h.window.dispatchEvent(new h.window.Event('focus'));
+    await h.wait();
+    await h.click('.avatar-save-open');
+    await h.input('[aria-label="形象名称"]', '保存不能丢失');
+    await h.submit('.avatar-save');
+    const workroom = h.require('[data-avatar-view]');
+    assert.equal(savingSignal.aborted, false);
+    releaseSave();
+    await h.wait();
+    releaseRead();
+    await h.wait();
+    assert.equal(h.require('[data-avatar-view]'), workroom);
+    await h.click('[data-avatar-tab="saved"]');
+    assert.match(h.require('.saved-grid').textContent, /保存不能丢失/);
+  });
+});
+
+it('后台验证短暂断网保留草稿并提示，恢复后同一会话不丢失页面状态', async () => {
+  await withReactHarness(async (h) => {
+    const model = await load();
+    const { AvatarStudio } = await import('../frontend/src/features/avatar/AvatarStudio.tsx');
+    const { AvatarError } = await import('../frontend/src/services/avatar-studio.ts');
+    let offline = false;
+    const client = mockClient(model, {
+      read: async () => {
+        if (offline) throw new AvatarError('无法连接服务器', 0);
+        return { viewerId: 1, context: 'A', outfits: [] };
+      },
+    });
+    await h.render(h.React.createElement(AvatarStudio, { active: true, client }));
+    await h.click('[data-avatar-tab="auto"]');
+    await h.click('[data-preset="stage"]');
+    const workroom = h.require('[data-avatar-view]');
+    offline = true;
+    h.window.dispatchEvent(new h.window.Event('focus'));
+    await h.wait();
+    assert.equal(h.require('[data-avatar-view]'), workroom);
+    assert.match(h.require('[data-avatar-status]').textContent, /无法连接服务器/);
+    offline = false;
+    h.window.dispatchEvent(new h.window.Event('focus'));
+    await h.wait();
+    assert.equal(h.require('[data-avatar-view]'), workroom);
+    assert.equal(h.query('[data-avatar-status]'), null);
+    assert.equal(h.require('[data-preset="stage"]').getAttribute('aria-pressed'), 'true');
+  });
+});
+
+it('保存已确认旧会话失效后，迟到的后台读取不能恢复旧工坊', async () => {
+  await withReactHarness(async (h) => {
+    const model = await load();
+    const { AvatarStudio } = await import('../frontend/src/features/avatar/AvatarStudio.tsx');
+    const { AvatarError } = await import('../frontend/src/services/avatar-studio.ts');
+    let reads = 0,
+      release;
+    const state = { viewerId: 1, context: 'A', outfits: [] };
+    const client = mockClient(model, {
+      read: async () =>
+        ++reads === 1
+          ? state
+          : new Promise((done) => {
+              release = () => done(state);
+            }),
+      save: async () => {
+        throw new AvatarError('工坊会话已变化', 409);
+      },
+    });
+    await h.render(h.React.createElement(AvatarStudio, { active: true, client }));
+    h.window.dispatchEvent(new h.window.Event('focus'));
+    await h.wait();
+    await h.click('.avatar-save-open');
+    await h.submit('.avatar-save');
+    assert.equal(h.query('[data-avatar-view]'), null);
+    release();
+    await h.wait();
+    assert.equal(h.query('[data-avatar-view]'), null);
+    assert.match(h.require('[data-avatar-status]').textContent, /会话已变化/);
+  });
 });

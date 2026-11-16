@@ -180,7 +180,10 @@ function AvatarWorkroom({
               keepTheme={keepTheme}
               recent={recent}
               caption={caption}
-              onPreset={setPreset}
+              onPreset={(id) => {
+                setPreset(id);
+                roll(id);
+              }}
               onLock={(slot) =>
                 setLocks((previous) =>
                   previous.includes(slot)

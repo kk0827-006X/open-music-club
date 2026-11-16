@@ -91,11 +91,47 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
   await studio.locator('[data-avatar-tab="auto"]').click();
   await studio.locator('[data-lock="top"]').click();
   await expect(studio.locator('[data-lock="top"]')).toHaveAttribute('aria-pressed', 'true');
-  await studio.getByRole('button', { name: '一键换装', exact: true }).click();
+  await studio.locator('[data-preset="stage"]').click();
+  await expect(studio.locator('[data-preset="stage"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(studio.locator('.auto-caption')).toContainText('舞台演出');
   await expect(studio.locator('.recent-row')).toHaveCount(1);
+  await studio.locator('.avatar-save-open').click();
+  await page.getByRole('textbox', { name: '形象名称', exact: true }).fill('切回后保留的草稿');
+  await studio.evaluate((node) => {
+    node.dataset.preserved = 'yes';
+  });
+  const another = await page.context().newPage();
+  await another.goto('about:blank');
+  await another.bringToFront();
+  const validated = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/avatar-studio') && response.request().method() === 'GET',
+  );
+  await page.bringToFront();
+  // 无头 Chromium 切标签不一定产生操作系统 focus，显式补发返页事件并保留真实接口校验。
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await validated;
+  await expect(studio).toHaveAttribute('data-preserved', 'yes');
+  await expect(studio).toHaveAttribute('data-avatar-view', 'auto');
+  await expect(studio.locator('[data-preset="stage"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(studio.locator('[data-lock="top"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.avatar-source-dialog')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: '形象名称', exact: true })).toHaveValue(
+    '切回后保留的草稿',
+  );
+  await page
+    .locator('.avatar-source-dialog')
+    .getByRole('button', { name: '取消', exact: true })
+    .click();
+  await another.close();
+  await studio.getByRole('button', { name: '一键换装', exact: true }).click();
+  await expect(studio.locator('.recent-row')).toHaveCount(2);
   const auto = await save('原版锁定搭配');
   expect(auto.config.top).toBe('top-shirt');
   expect(auto.config.theme).toBe('rose');
+  expect(['head-crown', 'head-wing', 'head-pointy', 'head-buns', 'head-long']).toContain(
+    auto.config.head,
+  );
   await studio.locator('[data-avatar-tab="manual"]').click();
   await studio.getByRole('radio', { name: '雾蓝主题色' }).click();
   await studio.locator('[data-avatar-tab="auto"]').click();

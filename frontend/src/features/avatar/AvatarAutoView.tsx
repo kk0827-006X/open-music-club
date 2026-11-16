@@ -44,13 +44,14 @@ export function AvatarAutoView({
             <h2>
               风格预设 <em>Style Presets</em>
             </h2>
-            <p className="hint">每个预设限定可选的部件范围与配色主题，随机组合也能保持整套协调。</p>
+            <p className="hint">点击风格即可生成搭配；一键换装可按当前风格再换一套。</p>
           </div>
           <div className="style-grid" role="group" aria-label="风格预设">
             {catalog.presets.map((item) => (
               <button
                 key={item.id}
                 className="style-card"
+                data-preset={item.id}
                 type="button"
                 aria-pressed={preset === item.id}
                 onClick={() => onPreset(item.id)}

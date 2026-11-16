@@ -25,42 +25,86 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
     sessionRef.current = value;
     setSession(value);
   };
-  const reload = useCallback(async () => {
-    if (!enabled.current) return;
-    controller.current?.abort();
-    const pending = new AbortController();
-    controller.current = pending;
-    const serial = ++generation.current;
-    busyRef.current = false;
-    setBusy(false);
-    setPhase('loading');
-    setFeedbackError(false);
-    setNotice('正在验证工坊会话…');
-    try {
-      const next = await api.read(pending.signal);
-      if (pending.signal.aborted || generation.current !== serial || !enabled.current) return;
-      const changed =
-        next.context !== sessionRef.current?.context ||
-        next.viewerId !== sessionRef.current?.viewerId;
-      acceptSession(next);
-      if (changed) {
-        setConfig(next.outfits.find((item) => item.current)?.config ?? defaultConfig);
-        setName('我的音乐形象');
+  const readController = useRef<AbortController | null>(null);
+  const readSerial = useRef(0);
+  const validationFailed = useRef(false);
+  const reload = useCallback(
+    async (background = false) => {
+      if (!enabled.current) return;
+      // focus 和 visibilitychange 通常紧邻触发，同一次返页只保留一条校验请求。
+      if (background && readController.current && !readController.current.signal.aborted) return;
+      readController.current?.abort();
+      const pending = new AbortController();
+      readController.current = pending;
+      const request = ++readSerial.current;
+      const lifetime = background ? generation.current : ++generation.current;
+      const current = () =>
+        enabled.current &&
+        !pending.signal.aborted &&
+        request === readSerial.current &&
+        lifetime === generation.current;
+      if (!background) {
+        controller.current?.abort();
+        busyRef.current = false;
+        setBusy(false);
+        setPhase('loading');
+        setFeedbackError(false);
+        setNotice('正在验证工坊会话…');
       }
-      setPhase('ready');
-      setNotice('');
-    } catch (error) {
-      if (pending.signal.aborted || generation.current !== serial || !enabled.current) return;
-      acceptSession(null);
-      setFeedbackError(true);
-      setConfig(defaultConfig);
-      setName('我的音乐形象');
-      setPhase(
-        error instanceof AvatarError && [401, 403].includes(error.status) ? 'expired' : 'error',
-      );
-      setNotice(error instanceof Error ? error.message : '工坊读取失败');
-    }
-  }, [api]);
+      try {
+        const next = await api.read(pending.signal);
+        if (!current()) return;
+        const changed =
+          next.context !== sessionRef.current?.context ||
+          next.viewerId !== sessionRef.current?.viewerId;
+        if (background && !changed) {
+          // 同一会话只校验身份，不回写列表或草稿，不重建工坊，也不打断并发保存。
+          if (validationFailed.current) {
+            validationFailed.current = false;
+            setFeedbackError(false);
+            setNotice('');
+          }
+          return;
+        }
+        if (changed) {
+          controller.current?.abort();
+          generation.current += 1;
+          busyRef.current = false;
+          setBusy(false);
+          setConfig(next.outfits.find((item) => item.current)?.config ?? defaultConfig);
+          setName('我的音乐形象');
+        }
+        acceptSession(next);
+        validationFailed.current = false;
+        setFeedbackError(false);
+        setPhase('ready');
+        setNotice('');
+      } catch (error) {
+        if (!current()) return;
+        const invalidSession = error instanceof AvatarError && [401, 403].includes(error.status);
+        if (background && sessionRef.current && !invalidSession) {
+          // 短暂断网保留编辑成果；写请求仍由后端校验 Session 和工坊上下文。
+          validationFailed.current = true;
+          setFeedbackError(true);
+          setNotice(error instanceof Error ? error.message : '暂时无法验证登录状态，请稍后重试');
+          return;
+        }
+        controller.current?.abort();
+        generation.current += 1;
+        busyRef.current = false;
+        setBusy(false);
+        acceptSession(null);
+        setFeedbackError(true);
+        setConfig(defaultConfig);
+        setName('我的音乐形象');
+        setPhase(invalidSession ? 'expired' : 'error');
+        setNotice(error instanceof Error ? error.message : '工坊读取失败');
+      } finally {
+        if (readController.current === pending) readController.current = null;
+      }
+    },
+    [api],
+  );
 
   useEffect(() => {
     if (active) void reload();
@@ -69,26 +113,20 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
       setConfig(defaultConfig);
       setName('我的音乐形象');
     }
-    const onFocus = () => {
-      if (!document.hidden) void reload();
-    };
-    const onVisibility = () => {
-      if (document.hidden) {
-        // 切到其他标签页可能发生退出或身份切换；返回时先验证，再显示私人数据。
-        controller.current?.abort();
-        generation.current += 1;
-        setPhase('loading');
-      } else void reload();
+    const onReturn = () => {
+      if (!document.hidden) void reload(true);
     };
     if (active) {
-      window.addEventListener('focus', onFocus);
-      document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('focus', onReturn);
+      document.addEventListener('visibilitychange', onReturn);
     }
     return () => {
       controller.current?.abort();
+      readController.current?.abort();
       generation.current += 1;
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisibility);
+      readSerial.current += 1;
+      window.removeEventListener('focus', onReturn);
+      document.removeEventListener('visibilitychange', onReturn);
     };
   }, [active, reload]);
 
@@ -105,6 +143,7 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
     busyRef.current = true;
     setBusy(true);
     setFeedbackError(false);
+    validationFailed.current = false;
     setNotice('正在保存更改…');
     const current = () =>
       enabled.current &&
@@ -115,12 +154,18 @@ export function useAvatarStudio(active: boolean, api: ReturnType<typeof createAv
       const result = await action(owner.context, pending.signal);
       if (!current()) return false;
       acceptSession(apply(result, sessionRef.current!));
+      validationFailed.current = false;
+      setFeedbackError(false);
       setNotice(message);
       return true;
     } catch (error) {
       if (!current()) return false;
+      validationFailed.current = false;
       setFeedbackError(true);
       if (error instanceof AvatarError && [401, 403, 409].includes(error.status)) {
+        // 写入已确认会话失效，较早发出的后台读取不能再恢复旧身份。
+        readController.current?.abort();
+        readSerial.current += 1;
         acceptSession(null);
         setConfig(defaultConfig);
         setName('我的音乐形象');
