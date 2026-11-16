@@ -17,14 +17,25 @@ import { ErrorBoundary } from '../shared/react/ErrorBoundary.tsx'
 import { createFootprintClient } from '../services/music/footprint.ts'
 import type { FootprintPageHandle } from '../features/footprint/FootprintPage.tsx'
 import type { BlindBoxPageHandle } from '../features/blind-box/BlindBoxPage.tsx'
+import type { DanmakuPageHandle } from '../features/danmaku/DanmakuPage.tsx'
 
 const SearchPage = lazy(() => import('../features/search/SearchPage.tsx'))
 const UploadPage = lazy(() => import('../features/upload/UploadPage.tsx'))
 const UserPage = lazy(() => import('../features/user/UserPage.tsx'))
 const FootprintPage = lazy(() => import('../features/footprint/FootprintPage.tsx'))
 const BlindBoxPage = lazy(() => import('../features/blind-box/BlindBoxPage.tsx'))
-type Page = 'archive' | 'search' | 'upload' | 'user' | 'footprint' | 'blindbox'
-const tabs = [['library', '音乐库', 'library'], ['blindbox', '盲盒', 'dice'], ['search', '搜索', 'search'], ['upload', '上传音乐', 'upload'], ['footprint', '音乐足迹', 'route'], ['user', '用户', 'user']] as const
+const DanmakuPage = lazy(() => import('../features/danmaku/DanmakuPage.tsx'))
+type Page = 'archive' | 'search' | 'upload' | 'user' | 'footprint' | 'blindbox' | 'danmaku'
+const tabs = [['library', '音乐库', 'library'], ['blindbox', '盲盒', 'dice'], ['danmaku', '弹幕墙', 'danmaku'], ['search', '搜索', 'search'], ['upload', '上传音乐', 'upload'], ['footprint', '音乐足迹', 'route'], ['user', '用户', 'user']] as const
+
+// hash 路由：#/danmaku 等地址可以直达对应页面，刷新与分享链接都落在同一页。
+// SSR/无 window 环境没有地址栏，退回音乐库首页。
+function pageFromHash(): Page {
+  const key = (typeof window === 'undefined' ? '' : window.location.hash).replace(/^#\/?/, '')
+  if (!key || key === 'library') return 'archive'
+  const found = tabs.find(([id]) => id === key)
+  return found ? (found[0] as Page) : 'archive'
+}
 
 export interface WorkspaceProps {
   player: PlayerController
@@ -45,10 +56,14 @@ export default function Workspace({ player, queue, personalLibrary, footprintCli
   const search = useRef<SearchPageHandle>(null)
   const user = useRef<UserPageHandle>(null)
   const footprint = useRef<FootprintPageHandle>(null)
+  const danmaku = useRef<DanmakuPageHandle>(null)
   const reduced = useReducedMotion()
   const [scene, setScene] = useState<ReturnType<typeof mountArchiveScene> | null>(null)
-  const [page, setPage] = useState<Page>('archive')
-  const [visited, setVisited] = useState<Set<Page>>(() => new Set())
+  const [page, setPage] = useState<Page>(pageFromHash)
+  const [visited, setVisited] = useState<Set<Page>>(() => {
+    const initial = pageFromHash()
+    return initial === 'archive' ? new Set<Page>() : new Set<Page>([initial])
+  })
   const [selected, setSelected] = useState<DemoAlbum>(demoAlbums[initialIndex])
   const [expanded, setExpanded] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -78,7 +93,16 @@ export default function Workspace({ player, queue, personalLibrary, footprintCli
     }
     setPage(next)
     if (next === 'search') search.current?.focus()
+    // URL 与页面保持同步（replaceState 不产生历史记录，也不会触发 hashchange 循环）。
+    const hash = next === 'archive' ? '#/library' : `#/${next}`
+    if (window.location.hash !== hash) window.history.replaceState(window.history.state, '', hash)
   }, [])
+  // 用户手动改地址或浏览器导航时，页面跟随 hash 变化。
+  useEffect(() => {
+    const onHashChange = () => show(pageFromHash())
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [show])
   const actions = useMemo<MusicActions>(() => ({
     play: track => playerView.current?.play(track) ?? Promise.resolve(),
     enqueue: track => playerView.current?.enqueue(track),
@@ -131,6 +155,7 @@ export default function Workspace({ player, queue, personalLibrary, footprintCli
       <div data-search-host>{visited.has('search') && <SearchPage ref={search} active={page === 'search'} {...actions} />}</div>
       <div data-upload-host onClick={event => { if (event.target instanceof Element && event.target.closest('[data-upload-back]')) show('archive') }}>{visited.has('upload') && <UploadPage active={page === 'upload'} />}</div>
       <div data-blindbox-host>{visited.has('blindbox') && <BlindBoxPage active={page === 'blindbox'} {...actions} onNavigateUpload={() => show('upload')} />}</div>
+      <div data-danmaku-host>{visited.has('danmaku') && <DanmakuPage ref={danmaku} active={page === 'danmaku'} player={player} />}</div>
       <div data-user-host>{visited.has('user') && <UserPage ref={user} active={page === 'user'} {...actions} client={client} choosePlaylist={track => { void playerView.current?.choosePlaylist(track) }} changed={() => { void playerView.current?.syncLiked() }} />}</div>
       <div data-footprint-host>{visited.has('footprint') && <FootprintPage ref={footprint} active={page === 'footprint'} {...actions} client={footprints} revision={footprintRevision} />}</div>
     </Suspense></ErrorBoundary>
@@ -138,4 +163,3 @@ export default function Workspace({ player, queue, personalLibrary, footprintCli
     <SettingsDialog ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />
   </main>
 }
-
