@@ -94,6 +94,50 @@ describe('音乐足迹安全与持久化', () => {
     return { card: ownCard, id: response.body.postId };
   }
 
+  it('卡片风格白名单、本人权限、快照保存与分享详情保持一致', async () => {
+    const eventId = await event();
+    const created = await member
+      .post('/api/footprint/cards')
+      .send({ title: '配色测试', eventIds: [eventId], style: 'rose' })
+      .expect(201);
+    const id = created.body.card.id;
+    assert.equal(created.body.card.data.style, 'rose');
+    const snapshot = created.body.card.data;
+    await request(app)
+      .patch(`/api/footprint/cards/${id}/style`)
+      .send({ style: 'mint' })
+      .expect(401);
+    await other.patch(`/api/footprint/cards/${id}/style`).send({ style: 'mint' }).expect(404);
+    for (const style of ['bad', '#ffffff', null, {}, 3]) {
+      await member.patch(`/api/footprint/cards/${id}/style`).send({ style }).expect(400);
+      await member
+        .post('/api/footprint/cards')
+        .send({ title: '无效', eventIds: [eventId], style })
+        .expect(400);
+    }
+    const shared = await member
+      .post('/api/footprint/posts')
+      .send({ cardId: id, caption: '' })
+      .expect(201);
+    await member.patch(`/api/footprint/cards/${id}/style`).send({ style: 'mint' }).expect(200);
+    const fresh = await member.get(`/api/footprint/cards/${id}`).expect(200);
+    assert.deepEqual(fresh.body.card.data, { ...snapshot, style: 'mint' });
+    assert.equal(
+      JSON.parse(
+        database.prepare('SELECT card_data_json FROM footprint_cards WHERE id=?').get(id)
+          .card_data_json,
+      ).style,
+      'mint',
+    );
+    const detail = await other.get(`/api/footprint/posts/${shared.body.postId}`).expect(200);
+    assert.equal(detail.body.card.data.style, 'mint');
+    const automatic = await member
+      .patch(`/api/footprint/cards/${id}/style`)
+      .send({ style: 'auto' })
+      .expect(200);
+    assert.notEqual(automatic.body.card.data.style, 'auto');
+  });
+
   it('初始化幂等并保留既有账号，重开仍保留记录、随笔与快照', async () => {
     initializeSchema(database);
     const id = await event();
@@ -634,6 +678,7 @@ describe('音乐足迹安全与持久化', () => {
       ['delete', 'events/1/note'],
       ['post', 'cards'],
       ['delete', 'cards/1'],
+      ['patch', 'cards/1/style'],
       ['post', 'posts'],
       ['delete', 'posts/1'],
       ['put', 'posts/1/like'],

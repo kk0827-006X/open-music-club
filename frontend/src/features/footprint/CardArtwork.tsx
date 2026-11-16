@@ -1,93 +1,220 @@
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 import type { MemoryCard } from '../../services/music/footprint.ts';
-import { formatDate, formatDuration } from './format.ts';
+import { formatDate } from './format.ts';
+import { CardBackdrop } from './CardBackdrop.tsx';
+import { cardDuration, cardLayout, cardPalette } from './card-design.ts';
 
-const clip = (value: string, size: number) =>
-  value.length > size ? `${value.slice(0, size)}…` : value;
+const clip = (value: string, size: number) => {
+  const characters = Array.from(value);
+  return characters.length > size ? `${characters.slice(0, size).join('')}…` : value;
+};
 
-// 文本由 React 转义；卡片没有外链、脚本或用户传入的 SVG 属性。
+// 保留来源卡片排版，用 React 文本节点转义；渐变按组件实例隔离，预览和列表不会串色。
 export const CardArtwork = forwardRef<
   SVGSVGElement,
   { card: Pick<MemoryCard, 'title' | 'data'>; offset: number }
 >(function CardArtwork({ card, offset }, ref) {
+  const uid = `fp-card-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const data = card.data;
+  const {
+    tracks,
+    notes,
+    step,
+    noteSize,
+    height,
+    titleLines,
+    titleSize,
+    artistSize,
+    badgeRadius,
+    listTop,
+    footer,
+  } = cardLayout(card);
+  const notesTop = listTop + tracks.length * step;
   return (
     <svg
       ref={ref}
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 480 660"
+      viewBox={`0 0 480 ${height}`}
       width="480"
-      height="660"
+      height={height}
       role="img"
       aria-label={`${card.title}，音乐足迹回忆卡片`}
       className="fp-card-art"
+      data-card-palette={cardPalette(card, offset)}
+      fontFamily="Helvetica, Arial, sans-serif"
     >
-      <rect width="480" height="660" rx="18" fill="var(--paper)" />
+      <CardBackdrop uid={uid} height={height} />
       <rect
         x="16"
         y="16"
         width="448"
-        height="628"
-        rx="12"
+        height={height - 32}
+        rx="15"
         fill="none"
-        stroke="var(--amber)"
-        strokeOpacity=".5"
+        stroke="var(--fp-card-white)"
+        strokeOpacity=".7"
+        strokeWidth="1.5"
       />
-      <g fontFamily="Helvetica, Arial, sans-serif">
-        <text x="44" y="62" fill="var(--amber)" fontSize="11" letterSpacing="4">
-          MUSIC FOOTPRINT
+      <rect
+        x="24"
+        y="24"
+        width="432"
+        height={height - 48}
+        rx="10"
+        fill="none"
+        stroke="var(--fp-card-accent)"
+        strokeOpacity=".18"
+      />
+      <g fill="var(--fp-card-accent)" opacity=".26" aria-hidden="true">
+        {[7, 13, 21, 9, 16, 24, 11, 18, 8, 14, 22, 9].map((barHeight, index) => (
+          <rect
+            key={index}
+            x={328 + index * 9}
+            y={footer - 18 - barHeight}
+            width="3.4"
+            height={barHeight}
+            rx="1.7"
+            opacity={0.55 + (index % 3) * 0.2}
+          />
+        ))}
+      </g>
+      <circle cx="46" cy="60" r="3.2" fill="var(--fp-card-accent)" opacity=".85" />
+      <text
+        x="58"
+        y="64"
+        fill="var(--fp-card-accent)"
+        fontSize="9.5"
+        letterSpacing="4.2"
+        fontWeight="600"
+      >
+        MUSIC FOOTPRINT
+      </text>
+      <text x="436" y="64" textAnchor="end" fill="var(--fp-card-muted)" fontSize="10.5">
+        {formatDate(data.period.from, offset)} — {formatDate(data.period.to, offset)}
+      </text>
+      {titleLines.map((line, index) => (
+        <text
+          key={index}
+          x="44"
+          y={118 + index * 32}
+          fill="var(--fp-card-ink)"
+          fontSize="25"
+          fontWeight="700"
+          letterSpacing=".4"
+        >
+          {line}
         </text>
-        <text x="44" y="104" fill="var(--ink)" fontSize="27" fontWeight="700">
-          {clip(card.title, 16)}
-        </text>
-        <text x="44" y="132" fill="var(--muted)" fontSize="13">
-          {formatDate(data.period.from, offset)} — {formatDate(data.period.to, offset)}
-        </text>
-        <line x1="44" y1="152" x2="436" y2="152" stroke="var(--amber)" strokeOpacity=".3" />
-        <text x="44" y="180" fill="var(--muted)" fontSize="11" letterSpacing="2">
-          SELECTED TRACKS / {data.trackCount} 段声音
-        </text>
-        {data.tracks.slice(0, 6).map((track, index) => (
+      ))}
+      <line x1="44" y1="176" x2="436" y2="176" stroke="var(--fp-card-accent)" strokeOpacity=".26" />
+      <text
+        x="44"
+        y="202"
+        fill="var(--fp-card-muted)"
+        fontSize="9.5"
+        letterSpacing="2.4"
+        fontWeight="600"
+      >
+        精选片段 / SELECTED TRACKS
+      </text>
+      <text x="436" y="202" textAnchor="end" fill="var(--fp-card-accent)" fontSize="10">
+        {data.trackCount} 段声音
+      </text>
+      {tracks.map((track, index) => {
+        const y = listTop + index * step;
+        return (
           <g key={index}>
-            <text x="44" y={212 + index * 43} fill="var(--muted)" fontSize="13">
+            <circle
+              cx="56"
+              cy={y - 4}
+              r={badgeRadius}
+              fill="var(--fp-card-chip)"
+              stroke="var(--fp-card-accent)"
+              strokeOpacity=".22"
+            />
+            <text
+              x="56"
+              y={y}
+              textAnchor="middle"
+              fill="var(--fp-card-accent)"
+              fontSize={badgeRadius - 1.5}
+              fontWeight="600"
+            >
               {String(index + 1).padStart(2, '0')}
             </text>
-            <text x="78" y={212 + index * 43} fill="var(--ink)" fontSize="15">
-              {clip(track.title, 18)}
+            <text x="80" y={y} fill="var(--fp-card-ink)" fontSize={titleSize} fontWeight="550">
+              {clip(track.title, Math.floor(344 / titleSize))}
             </text>
-            <text x="78" y={230 + index * 43} fill="var(--muted)" fontSize="12">
-              {clip(track.artist, 24)}
+            <text x="80" y={y + titleSize + 3} fill="var(--fp-card-muted)" fontSize={artistSize}>
+              {clip(track.artist, 26)}
             </text>
           </g>
-        ))}
-        {data.notes.slice(0, 2).map((note, index) => (
-          <text key={index} x="44" y={486 + index * 22} fill="var(--muted)" fontSize="12">
-            「{clip(note.content, 30)}」
-          </text>
-        ))}
-        <line x1="44" y1="552" x2="436" y2="552" stroke="var(--amber)" strokeOpacity=".3" />
-        <text x="44" y="583" fill="var(--ink)" fontSize="25" fontWeight="700">
-          {data.trackCount}
-        </text>
-        <text x="44" y="604" fill="var(--muted)" fontSize="11">
-          次播放记录
-        </text>
-        <text x="178" y="583" fill="var(--ink)" fontSize="25" fontWeight="700">
-          {formatDuration(data.totalDurationMs)}
-        </text>
-        <text x="178" y="604" fill="var(--muted)" fontSize="11">
-          陪伴时长
-        </text>
-        <text x="340" y="583" fill="var(--ink)" fontSize="17" fontWeight="700">
-          {clip(data.highlight?.title || '—', 6)}
-        </text>
-        <text x="340" y="604" fill="var(--muted)" fontSize="11">
-          听得最多
-        </text>
-        <text x="436" y="634" textAnchor="end" fill="var(--muted)" fontSize="10" letterSpacing="2">
-          OPEN MUSIC CLUB
-        </text>
-      </g>
+        );
+      })}
+      {notes.map((note, index) => {
+        const y = notesTop + 8 + noteSize + index * (noteSize + 20);
+        return (
+          <g key={index}>
+            <rect
+              x="44"
+              y={y - noteSize}
+              width="3"
+              height={noteSize + 8}
+              rx="1.5"
+              fill="var(--fp-card-accent)"
+              opacity=".42"
+            />
+            <text
+              x="58"
+              y={y}
+              fill="var(--fp-card-muted)"
+              fontSize={noteSize}
+              fontStyle="italic"
+              fontFamily="Georgia, 'Songti SC', serif"
+            >
+              「{clip(note.content, Math.min(26, Math.floor(378 / noteSize) - 3))}」
+            </text>
+          </g>
+        );
+      })}
+      <line
+        x1="44"
+        y1={footer}
+        x2="436"
+        y2={footer}
+        stroke="var(--fp-card-accent)"
+        strokeOpacity=".26"
+      />
+      <text x="44" y={footer + 42} fill="var(--fp-card-ink)" fontSize="27" fontWeight="700">
+        {data.trackCount}
+      </text>
+      <text x="44" y={footer + 62} fill="var(--fp-card-muted)" fontSize="10.5">
+        段播放记录
+      </text>
+      <text x="186" y={footer + 42} fill="var(--fp-card-ink)" fontSize="24" fontWeight="700">
+        {cardDuration(data.totalDurationMs)}
+      </text>
+      <text x="186" y={footer + 62} fill="var(--fp-card-muted)" fontSize="10.5">
+        陪伴时长
+      </text>
+      <text
+        x="436"
+        y={footer + 40}
+        textAnchor="end"
+        fill="var(--fp-card-ink)"
+        fontSize="15.5"
+        fontWeight="650"
+      >
+        {clip(data.highlight?.title || '—', 6)}
+      </text>
+      <text x="436" y={footer + 62} textAnchor="end" fill="var(--fp-card-muted)" fontSize="10.5">
+        听得最多{data.highlight ? ` · ${data.highlight.plays} 次` : ''}
+      </text>
+      <text x="44" y={footer + 92} fill="var(--fp-card-muted)" fontSize="9" letterSpacing="2.2">
+        OPEN MUSIC CLUB
+      </text>
+      <text x="436" y={footer + 92} textAnchor="end" fill="var(--fp-card-muted)" fontSize="9.5">
+        听歌回忆
+      </text>
     </svg>
   );
 });
@@ -99,7 +226,7 @@ export function downloadCardArtwork(svg: SVGSVGElement, title: string) {
   if (!Serializer) throw new Error('当前环境不支持卡片下载');
   const xml = new Serializer()
     .serializeToString(svg)
-    .replace(/var\((--(?:paper|amber|ink|muted))\)/g, (_, token: string) =>
+    .replace(/var\((--(?:fp-card-[\w-]+|paper|amber|ink|muted))\)/g, (_, token: string) =>
       theme.getPropertyValue(token).trim(),
     );
   const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }));

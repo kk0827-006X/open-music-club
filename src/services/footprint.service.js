@@ -1,3 +1,4 @@
+const { isCardStyle, resolveCardStyle } = require('./cardStyle');
 const { createFootprintRepository } = require('../db/footprint');
 
 const DEFAULT_TIMEZONE_OFFSET_MINUTES = 480;
@@ -269,14 +270,28 @@ function createFootprintService({
       cards: repository.listCards(userId, limit, offset).map(toCard),
     }),
     card: (userId, id) => toCard(repository.findCard(userId, id)),
-    createCard: (userId, title, eventIds) =>
+    createCard: (userId, title, eventIds, style = 'auto') =>
       repository.transaction(() => {
+        if (!isCardStyle(style)) throw new FootprintError(400, '卡片风格无效');
         const data = buildCardData(userId, eventIds);
+        data.style = resolveCardStyle(style, data, timezoneOffsetMinutes);
         if (JSON.stringify(data).length > 20000)
           throw new FootprintError(400, '所选记录内容过大，请减少记录或随笔');
         if (repository.countCards(userId) >= CARD_LIMIT)
           throw new FootprintError(409, '回忆卡片数量已达上限');
         const id = repository.createCard(userId, title, eventIds, data);
+        return toCard(repository.findCard(userId, id));
+      }),
+    updateCardStyle: (userId, id, style) =>
+      repository.transaction(() => {
+        if (!isCardStyle(style)) throw new FootprintError(400, '卡片风格无效');
+        const card = toCard(repository.findCard(userId, id));
+        if (!card) throw new FootprintError(404, '卡片不存在');
+        repository.updateCardStyle(
+          userId,
+          id,
+          resolveCardStyle(style, card.data, timezoneOffsetMinutes),
+        );
         return toCard(repository.findCard(userId, id));
       }),
     deleteCard: repository.deleteCard,

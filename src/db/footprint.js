@@ -146,6 +146,12 @@ function createFootprintRepository(database) {
         .all(userId, limit, offset),
     findCard: (userId, id) =>
       database.prepare('SELECT * FROM footprint_cards WHERE user_id=? AND id=?').get(userId, id),
+    updateCardStyle: (userId, id, style) =>
+      database
+        .prepare(
+          "UPDATE footprint_cards SET card_data_json=json_set(card_data_json, '$.style', ?) WHERE user_id=? AND id=?",
+        )
+        .run(style, userId, id).changes > 0,
     deleteCard: (userId, id) =>
       database.prepare('DELETE FROM footprint_cards WHERE user_id=? AND id=?').run(userId, id)
         .changes > 0,

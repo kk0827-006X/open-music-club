@@ -38,12 +38,15 @@ export type FootprintMilestone = {
   }[];
   timezoneOffsetMinutes?: number;
 };
+export type CardStyle =
+  'auto' | 'amber' | 'rose' | 'mint' | 'sky' | 'lilac' | 'butter' | 'peach' | 'paper';
 export type MemoryCard = {
   id: number;
   title: string;
   eventIds: number[];
   createdAt: string;
   data: {
+    style?: CardStyle;
     period: { from: string; to: string };
     trackCount: number;
     totalDurationMs: number;
@@ -235,12 +238,26 @@ export function createFootprintClient(fetcher: Fetcher = globalThis.fetch.bind(g
         undefined,
         signal,
       ),
-    createCard: async (title: string, eventIds: number[], signal?: AbortSignal) =>
+    createCard: async (
+      title: string,
+      eventIds: number[],
+      signal?: AbortSignal,
+      style: CardStyle = 'auto',
+    ) =>
       (
         await request<{ card: MemoryCard }>(
           '/api/footprint/cards',
           'POST',
-          { title, eventIds },
+          { title, eventIds, style },
+          signal,
+        )
+      ).card,
+    updateCardStyle: async (id: number, style: CardStyle, signal?: AbortSignal) =>
+      (
+        await request<{ card: MemoryCard }>(
+          `/api/footprint/cards/${id}/style`,
+          'PATCH',
+          { style },
           signal,
         )
       ).card,

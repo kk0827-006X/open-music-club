@@ -1,3 +1,4 @@
+const { isCardStyle } = require('../services/cardStyle');
 const express = require('express');
 const {
   createFootprintService,
@@ -108,6 +109,8 @@ function createFootprintRouter({ database, timezoneOffsetMinutes } = {}) {
     return res.json({ success: true, ...service.cards(req.user.id, page.limit, page.offset) });
   });
   router.post('/cards', (req, res) => {
+    const style = req.body?.style === undefined ? 'auto' : req.body.style;
+    if (!isCardStyle(style)) return invalid(res, '卡片风格无效');
     const title = readText(req.body?.title, 60),
       ids = req.body?.eventIds;
     if (title === null || !Array.isArray(ids) || !ids.length || ids.length > CARD_EVENT_LIMIT)
@@ -117,7 +120,15 @@ function createFootprintRouter({ database, timezoneOffsetMinutes } = {}) {
       return invalid(res, '所选记录无效');
     return res
       .status(201)
-      .json({ success: true, card: service.createCard(req.user.id, title, eventIds) });
+      .json({ success: true, card: service.createCard(req.user.id, title, eventIds, style) });
+  });
+  router.patch('/cards/:id/style', (req, res) => {
+    const id = idOf(req);
+    if (!id || !isCardStyle(req.body?.style)) return invalid(res, '卡片风格无效');
+    return res.json({
+      success: true,
+      card: service.updateCardStyle(req.user.id, id, req.body.style),
+    });
   });
   router.get('/cards/:id', (req, res) => {
     const id = idOf(req);

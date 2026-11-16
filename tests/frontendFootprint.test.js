@@ -403,6 +403,40 @@ it('卡片下载只序列化 React SVG，转义标题并及时撤销临时地址
   }
 });
 
+it('同一回忆卡片的列表与预览渐变独立，跨时区表示保持配色一致且长标题按字符换行', async () => {
+  await withReactHarness(async (h) => {
+    const { CardArtwork } = await import('../frontend/src/features/footprint/CardArtwork.tsx');
+    const makeCard = (playedAt) => ({
+      ...card,
+      title: '🎵'.repeat(32),
+      data: { ...card.data, tracks: [{ ...event, playedAt }] },
+    });
+    await h.render(
+      h.React.createElement(
+        h.React.Fragment,
+        null,
+        h.React.createElement(CardArtwork, { card: makeCard('2026-11-12T22:00:00Z'), offset: 480 }),
+        h.React.createElement(CardArtwork, {
+          card: makeCard('2026-11-13T06:00:00+08:00'),
+          offset: 480,
+        }),
+      ),
+    );
+    const svgs = [...h.document.querySelectorAll('svg')];
+    const ids = [...h.document.querySelectorAll('[id]')].map((node) => node.id);
+    assert.equal(new Set(ids).size, ids.length, '同卡多实例不能复用渐变 ID');
+    for (const svg of svgs) {
+      assert.equal(svg.dataset.cardPalette, 'mint');
+      for (const shape of svg.querySelectorAll('[fill^="url("]')) {
+        const id = shape.getAttribute('fill').slice(5, -1);
+        assert.ok([...svg.querySelectorAll('[id]')].some((node) => node.id === id));
+      }
+      assert.ok(svg.textContent.includes('🎵'.repeat(14)));
+      assert.doesNotMatch(svg.textContent, /\uFFFD/);
+    }
+  });
+});
+
 it('SQLite UTC 原串与 ISO 在不同本机时区都按站点偏移显示，偏移范围与后端一致', async () => {
   const { dayKey, formatDate, formatClock, siteOffset } =
     await import('../frontend/src/features/footprint/format.ts');
@@ -632,5 +666,62 @@ it('足迹侧栏各子页不再重复展示介绍标题，保留计数、内容�
     assert.match(h.require('.fp-detail-head').textContent, /十月回忆/);
     await h.click('[data-fp-back]');
     assert.ok(h.query('[data-fp-open-post="4"]'));
+  });
+});
+
+it('独立风格组件保存已有卡片，失败保持原色，重新读取仍保留服务端风格', async () => {
+  let saved = { ...card, data: { ...card.data, style: 'rose' } };
+  let failure = false;
+  const api = client({
+    cards: async () => ({ total: 1, cards: [saved] }),
+    updateCardStyle: async (id, style) => {
+      assert.equal(id, card.id);
+      if (failure) throw new Error('保存失败');
+      saved = { ...saved, data: { ...saved.data, style } };
+      return saved;
+    },
+  });
+  await withReactHarness(async (h) => {
+    const { default: FootprintPage } =
+      await import('../frontend/src/features/footprint/FootprintPage.tsx');
+    await h.render(h.React.createElement(FootprintPage, { active: true, client: api }));
+    await h.click('[data-fp-tab="studio"]');
+    await h.click('[data-fp-open-card="9"]');
+    await h.click('.fp-style-picker input[value="mint"]');
+    assert.equal(h.require('.fp-card-preview svg').dataset.cardPalette, 'mint');
+    assert.equal(h.require('.fp-card-mini svg').dataset.cardPalette, 'mint');
+    failure = true;
+    await h.click('.fp-style-picker input[value="sky"]');
+    assert.equal(h.require('.fp-card-preview svg').dataset.cardPalette, 'mint');
+    assert.equal(h.require('.fp-style-picker input[value="mint"]').checked, true);
+    await h.click('[data-fp-tab="timeline"]');
+    await h.click('[data-fp-tab="studio"]');
+    await h.click('[data-fp-open-card="9"]');
+    assert.equal(h.require('.fp-style-picker input[value="mint"]').checked, true);
+  });
+});
+
+it('换色请求迟到时更新原卡列表，不覆盖用户新打开的卡片', async () => {
+  let finish;
+  const second = { ...card, id: 10, data: { ...card.data, style: 'sky' } };
+  await withReactHarness(async (h) => {
+    const { default: FootprintPage } =
+      await import('../frontend/src/features/footprint/FootprintPage.tsx');
+    const api = client({
+      cards: async () => ({ total: 2, cards: [card, second] }),
+      updateCardStyle: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    await h.render(h.React.createElement(FootprintPage, { active: true, client: api }));
+    await h.click('[data-fp-tab="studio"]');
+    await h.click('[data-fp-open-card="9"]');
+    await h.click('.fp-style-picker input[value="mint"]');
+    await h.click('[data-fp-open-card="10"]');
+    finish({ ...card, data: { ...card.data, style: 'mint' } });
+    await h.flush();
+    assert.equal(h.require('.fp-card-preview svg').dataset.cardPalette, 'sky');
+    assert.equal(h.require('[data-fp-open-card="9"] svg').dataset.cardPalette, 'mint');
   });
 });

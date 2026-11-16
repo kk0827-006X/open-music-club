@@ -1,3 +1,5 @@
+import { CardStylePicker } from './CardStylePicker.tsx';
+import { useCardStyles } from './use-card-styles.ts';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Icon, IconButton, Modal } from '../../shared/react/ui.tsx';
 import { motion } from 'motion/react';
@@ -25,7 +27,6 @@ import {
   siteOffset,
   toFootprintSong,
 } from './format.ts';
-
 type Tab = 'timeline' | 'milestone' | 'studio' | 'square' | 'mine';
 type Dialog = { kind: 'share'; card: MemoryCard } | { kind: 'card' | 'post'; id: number } | null;
 export interface FootprintPageHandle {
@@ -283,6 +284,17 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
         }
       }
     };
+    const cardStyles = useCardStyles({
+      api,
+      preview,
+      setPreview,
+      setCards,
+      setCardTotal,
+      setSelected,
+      title,
+      selected,
+      mutate,
+    });
     const playTrack = (track: Parameters<typeof toFootprintSong>[0]) => {
       const generation = serial.current;
       void Promise.resolve()
@@ -773,33 +785,17 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
                           disabled={busy}
                         />
                       </label>
+                      <CardStylePicker
+                        value={cardStyles.value}
+                        disabled={disabled}
+                        onChange={cardStyles.change}
+                      />
                       <div className="fp-studio-actions">
                         <button
                           type="button"
                           data-fp-generate
                           disabled={disabled || !selected.length}
-                          onClick={() => {
-                            void mutate(
-                              async (signal) => {
-                                const card = await api.createCard(
-                                  title.trim() || '我的听歌回忆',
-                                  selected,
-                                  signal,
-                                );
-                                if (signal.aborted) return;
-                                setPreview(card);
-                                setCards((previous) => [
-                                  card,
-                                  ...previous.filter((item) => item.id !== card.id),
-                                ]);
-                                setCardTotal((value) => value + 1);
-                                setSelected([]);
-                              },
-                              '回忆卡片已生成',
-                              undefined,
-                              false,
-                            );
-                          }}
+                          onClick={() => void cardStyles.generate()}
                         >
                           生成回忆卡片
                         </button>
@@ -888,6 +884,7 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
                           <button
                             type="button"
                             data-fp-open-card={card.id}
+                            aria-pressed={preview?.id === card.id}
                             onClick={() => setPreview(card)}
                           >
                             <span className="fp-card-mini">

@@ -597,32 +597,59 @@
 }
 .footprint-page .fp-card-shelf {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(168px, 100%), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.footprint-page .fp-card-chip {
+  min-width: 0;
 }
 .footprint-page .fp-card-chip button {
   display: grid;
   gap: 8px;
   width: 100%;
-  padding: 10px;
+  padding: 12px;
   border: 1px solid var(--color-line-01);
   border-radius: 12px;
-  background: transparent;
+  background: var(--paper);
+  color: var(--ink);
   text-align: left;
   cursor: pointer;
 }
-.footprint-page .fp-card-chip button:hover {
+.footprint-page .fp-card-chip button:hover,
+.footprint-page .fp-card-chip button[aria-pressed='true'] {
   border-color: var(--amber);
+}
+.footprint-page .fp-card-chip button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+.footprint-page .fp-card-mini {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: 12px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: var(--color-surface-04);
 }
 .footprint-page .fp-card-mini svg {
   width: 100%;
+  max-width: 220px;
+  border-radius: 6px;
 }
 .footprint-page .fp-card-chip strong {
-  font-size: 0.68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 .footprint-page .fp-card-chip small {
   color: var(--muted);
-  font-size: 0.56rem;
+  font-size: 0.58rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 .footprint-page .fp-square-grid {
   display: grid;
@@ -880,4 +907,33 @@
     left: 18px;
     overflow-x: auto;
   }
+}
+
+/* 风格入口独立布局，沿用站点按钮与主题配色。 */
+.footprint-page .fp-style-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+.footprint-page .fp-style-picker legend,
+.footprint-page .fp-style-picker small {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+.footprint-page .fp-style-picker small {
+  flex-basis: 100%;
+}
+.footprint-page .fp-style-picker label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+.footprint-page .fp-style-picker input {
+  accent-color: var(--amber);
 }
