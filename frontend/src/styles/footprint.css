@@ -385,12 +385,6 @@
   background: var(--amber);
   color: var(--on-action);
 }
-.footprint-page .fp-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
-  gap: 12px;
-}
-.footprint-page .fp-stat,
 .footprint-page .fp-panel,
 .footprint-page .fp-picker,
 .footprint-page .fp-comments {
@@ -399,96 +393,11 @@
   border-radius: 14px;
   background: var(--color-surface-07);
 }
-.footprint-page .fp-stat small {
-  color: var(--muted);
-  font-size: 0.6rem;
-}
-.footprint-page .fp-stat strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 1.5rem;
-  letter-spacing: -0.04em;
-}
 .footprint-page .fp-panel h4,
 .footprint-page .fp-picker-head h4,
 .footprint-page .fp-comment-head h4 {
   margin: 0 0 12px;
   font-size: 0.8rem;
-}
-.footprint-page .fp-hours {
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  height: 92px;
-}
-.footprint-page .fp-hours i {
-  flex: 1;
-  min-width: 0;
-  border-radius: 3px 3px 0 0;
-  background: var(--amber);
-}
-.footprint-page .fp-hours-axis {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 0.54rem;
-}
-.footprint-page .fp-months {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  min-height: 100px;
-  overflow-x: auto;
-}
-.footprint-page .fp-month {
-  flex: 1 0 54px;
-  display: grid;
-  justify-items: center;
-  align-items: end;
-}
-.footprint-page .fp-month i {
-  width: 22px;
-  border-radius: 4px 4px 0 0;
-  background: var(--amber);
-  opacity: 0.8;
-}
-.footprint-page .fp-month b,
-.footprint-page .fp-month small {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 0.54rem;
-  font-weight: 500;
-}
-.footprint-page .fp-top-tracks {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.footprint-page .fp-top-tracks li {
-  display: grid;
-  grid-template-columns: 26px 42px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-}
-.footprint-page .fp-top-tracks img {
-  width: 42px;
-  height: 42px;
-  border-radius: 8px;
-  object-fit: cover;
-}
-.footprint-page .fp-top-tracks strong {
-  display: block;
-  font-size: 0.76rem;
-}
-.footprint-page .fp-top-tracks small,
-.footprint-page .fp-rank,
-.footprint-page .fp-panel-foot p {
-  color: var(--muted);
-  font-size: 0.65rem;
 }
 .footprint-page .fp-studio-body,
 .footprint-page .fp-detail-body {

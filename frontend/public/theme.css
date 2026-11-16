@@ -714,6 +714,31 @@
   --fp-card-chip: rgba(255, 255, 255, 0.78);
 }
 /* 首屏底色不等待应用模块下载。 */
+.fp-milestone {
+  --fp-ms-vinyl-core: rgba(183, 121, 34, 0.95);
+  --fp-ms-vinyl-groove: rgba(151, 118, 66, 0.38);
+  --fp-ms-gold: #d9a153;
+  --fp-ms-gold-end: #a9711f;
+  --fp-ms-source-0: rgba(217, 161, 83, 0.18);
+  --fp-ms-source-1: #a9711f;
+  --fp-ms-source-2: rgba(217, 161, 83, 0.14);
+  --fp-ms-source-3: rgba(183, 121, 34, 0.32);
+  --fp-ms-source-4: #e0b269;
+  --fp-ms-source-5: rgba(183, 121, 34, 0.3);
+  --fp-ms-source-6: rgba(151, 118, 66, 0.12);
+  --fp-ms-source-7: rgba(151, 118, 66, 0.1);
+  --fp-ms-source-8: #e8c063;
+  --fp-ms-source-9: #c08a2a;
+  --fp-ms-source-10: #fdf8ef;
+  --fp-ms-source-11: rgba(192, 138, 42, 0.8);
+  --fp-ms-source-12: #c9cdd2;
+  --fp-ms-source-13: #97a0aa;
+  --fp-ms-source-14: #d9a88a;
+  --fp-ms-source-15: #a9714f;
+  --fp-ms-source-16: rgba(96, 72, 30, 0.6);
+  --fp-ms-source-17: #d9a153;
+  --fp-ms-source-18: rgba(183, 121, 34, 0.25);
+}
 :root {
   background: var(--paper);
   color: var(--ink);

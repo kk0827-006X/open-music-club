@@ -725,3 +725,59 @@ it('换色请求迟到时更新原卡列表，不覆盖用户新打开的卡片'
     assert.equal(h.require('[data-fp-open-card="9"] svg').dataset.cardPalette, 'mint');
   });
 });
+
+it('独立里程视图展示曲线圆环和奖牌，播放保持来源与单曲时长，空态可用', async () => {
+  await withReactHarness(async (h) => {
+    const { MilestoneView } = await import('../frontend/src/features/footprint/MilestoneView.tsx');
+    const played = [];
+    const track = {
+      title: '<img src=x>',
+      artist: '隔离',
+      trackKey: 'local:8',
+      source: 'local',
+      sourceId: '8',
+      coverUrl: 'javascript:alert(1)',
+      durationMs: 65000,
+      plays: 5,
+    };
+    const data = {
+      totalPlays: 12,
+      totalDurationMs: 780000,
+      distinctTracks: 2,
+      distinctArtists: 1,
+      activeDays: 3,
+      streakDays: 2,
+      noteCount: 1,
+      firstPlayedAt: null,
+      busiestDay: null,
+      hourly: Array.from({ length: 24 }, (_, hour) => (hour === 19 ? 12 : 0)),
+      monthly: [{ month: '2026-11', plays: 12 }],
+      topTracks: [track],
+    };
+    await h.render(
+      h.React.createElement(MilestoneView, {
+        data,
+        active: true,
+        loading: false,
+        offset: 480,
+        play: (item) => played.push(item),
+      }),
+    );
+    assert.ok(h.query('.fp-hours-line'));
+    assert.match(h.require('.fp-hours-peak-label').textContent, /19 点 · 12 次/);
+    assert.ok(h.query('.fp-ring-progress'));
+    assert.equal(h.require('.fp-rank-1').textContent, '1');
+    assert.equal(h.query('.fp-top-body img'), null);
+    await h.click('button[aria-label="播放 <img src=x>"]');
+    assert.deepEqual(played, [track]);
+    await h.render(
+      h.React.createElement(MilestoneView, {
+        data: null,
+        active: false,
+        loading: false,
+        offset: 480,
+      }),
+    );
+    assert.match(h.require('.fp-empty').textContent, /还没有听歌里程/);
+  });
+});

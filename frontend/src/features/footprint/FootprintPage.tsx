@@ -1,3 +1,4 @@
+import { MilestoneView } from './MilestoneView.tsx';
 import { CardStylePicker } from './CardStylePicker.tsx';
 import { useCardStyles } from './use-card-styles.ts';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
@@ -626,107 +627,13 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
               )}
 
               {postId === null && tab === 'milestone' && (
-                <section className="fp-view fp-milestone">
-                  {!milestone || !milestone.totalPlays ? (
-                    !loading && <p className="fp-empty">还没有听歌里程，播放一首歌开启旅程。</p>
-                  ) : (
-                    <>
-                      <div className="fp-stat-grid">
-                        {[
-                          ['播放次数', `${milestone.totalPlays} 次`],
-                          ['陪伴时长', formatDuration(milestone.totalDurationMs)],
-                          ['不同歌曲', `${milestone.distinctTracks} 首`],
-                          ['不同艺术家', `${milestone.distinctArtists} 位`],
-                          ['活跃天数', `${milestone.activeDays} 天`],
-                          ['连续聆听', `${milestone.streakDays} 天`],
-                        ].map(([label, value]) => (
-                          <article className="fp-stat" key={label}>
-                            <small>{label}</small>
-                            <strong>{value}</strong>
-                          </article>
-                        ))}
-                      </div>
-                      <section className="fp-panel">
-                        <h4>一天中的听歌时刻</h4>
-                        <div className="fp-hours" role="img" aria-label="每小时播放次数">
-                          {milestone.hourly.map((count, hour) => (
-                            <i
-                              key={hour}
-                              title={`${hour}时：${count} 次`}
-                              style={{
-                                height: `${8 + (count / Math.max(1, ...milestone.hourly)) * 84}px`,
-                              }}
-                            />
-                          ))}
-                        </div>
-                        <div className="fp-hours-axis">
-                          <span>00:00</span>
-                          <span>06:00</span>
-                          <span>12:00</span>
-                          <span>18:00</span>
-                          <span>23:00</span>
-                        </div>
-                      </section>
-                      <section className="fp-panel">
-                        <h4>每月聆听</h4>
-                        <div className="fp-months">
-                          {milestone.monthly.map((month) => (
-                            <div className="fp-month" key={month.month}>
-                              <i
-                                style={{
-                                  height: `${10 + (month.plays / Math.max(1, ...milestone.monthly.map((item) => item.plays))) * 60}px`,
-                                }}
-                              />
-                              <b>{month.month}</b>
-                              <small>
-                                {month.plays} 次 · {formatDuration(month.durationMs)}
-                              </small>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                      <section className="fp-panel">
-                        <h4>听得最多的歌曲</h4>
-                        <ol className="fp-top-tracks">
-                          {milestone.topTracks.map((track, index) => (
-                            <li key={track.trackKey}>
-                              <span className="fp-rank">{String(index + 1).padStart(2, '0')}</span>
-                              <img src={safeCoverUrl(track.coverUrl)} alt="" />
-                              <div>
-                                <strong>{track.title}</strong>
-                                <small>
-                                  {track.artist} · {track.plays} 次
-                                </small>
-                              </div>
-                              <IconButton
-                                icon="play"
-                                className="fp-icon"
-                                aria-label={`播放 ${track.title}`}
-                                disabled={!play}
-                                onClick={() => playTrack(track)}
-                              />
-                            </li>
-                          ))}
-                        </ol>
-                      </section>
-                      <section className="fp-panel fp-panel-foot">
-                        {milestone.firstPlayedAt && (
-                          <p>第一段足迹：{formatDate(milestone.firstPlayedAt, offset)}</p>
-                        )}
-                        {milestone.lastPlayedAt && (
-                          <p>最近一次：{formatDate(milestone.lastPlayedAt, offset)}</p>
-                        )}
-                        {milestone.busiestDay && (
-                          <p>
-                            最热闹的一天：{milestone.busiestDay.date} · {milestone.busiestDay.plays}{' '}
-                            次
-                          </p>
-                        )}
-                        <p>写下了 {milestone.noteCount} 篇随笔</p>
-                      </section>
-                    </>
-                  )}
-                </section>
+                <MilestoneView
+                  data={milestone}
+                  loading={loading}
+                  active={active}
+                  offset={offset}
+                  play={play ? playTrack : undefined}
+                />
               )}
 
               {postId === null && tab === 'studio' && (
