@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 
@@ -86,19 +86,11 @@ export function usePlayerVisibility({
     [cancelPlayerHide, schedulePlayerHide, setQueueOpen, setVisible],
   );
 
-  useEffect(() => {
-    let entry: HTMLButtonElement | null = null;
-    if (expanded) entry = closeButtonRef.current;
-    else if (restoreFocusRef.current) {
+  // 在绘制前完成焦点交接，避免场景恢复后的耗时 effect 先占用这一帧。
+  useLayoutEffect(() => {
+    if (!expanded && restoreFocusRef.current) {
       restoreFocusRef.current = false;
-      const openButton = openButtonRef.current;
-      // 窄屏隐藏了右侧文字入口，焦点应返回仍可见的歌曲信息按钮。
-      const tail = openButton?.parentElement;
-      entry =
-        tail && window.getComputedStyle(tail).display === 'none'
-          ? compactOpenButtonRef.current
-          : openButton;
-    } else {
+    } else if (!expanded) {
       const active = document.activeElement;
       if (expandedSectionRef.current?.contains(active) && active instanceof HTMLElement)
         active.blur();
@@ -109,6 +101,14 @@ export function usePlayerVisibility({
     const deadline = performance.now() + 1200;
     // 可见性可能仍处于退出/进入过渡；只在本次过渡内短暂重试，用户另选焦点即停止。
     const restoreEntryFocus = () => {
+      const openButton = openButtonRef.current;
+      const tail = openButton?.parentElement;
+      // 重试时重新读取断点布局，不能一直向已经隐藏的桌面入口归焦。
+      const entry = expanded
+        ? closeButtonRef.current
+        : tail && window.getComputedStyle(tail).display === 'none'
+          ? compactOpenButtonRef.current
+          : openButton;
       const active = document.activeElement;
       if (active !== previousFocus && active !== document.body && active !== entry) return;
       entry?.focus({ preventScroll: true });

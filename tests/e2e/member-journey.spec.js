@@ -1,9 +1,19 @@
 const { test, expect } = require('@playwright/test');
 const { generateSync } = require('otplib');
-const { ADMIN, MEMBER, wave, readApplicationLink } = require('./fixtures');
+const { ADMIN, MEMBER, wave, readApplicationLink: readLink } = require('./fixtures');
 const { graphicsProfile } = require('./graphics-profile');
+const { startIsolatedServer } = require('./isolated-server');
 
-const origin = 'http://127.0.0.1:4317';
+const origin = 'http://127.0.0.1:4328';
+const readApplicationLink = (email, purpose) => readLink(email, purpose, 4328);
+test.use({ baseURL: origin });
+let stopServer;
+test.beforeAll(async () => {
+  stopServer = await startIsolatedServer(4328);
+});
+test.afterAll(async () => {
+  await stopServer?.();
+});
 async function post(client, url, data) {
   const csrf = await client.get('/api/security/csrf-token');
   expect(csrf.ok()).toBeTruthy();
@@ -281,7 +291,13 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await expect(footprint.locator('.fp-comment-list')).toContainText('评论同样保存到隔离数据库');
       const download = page.waitForEvent('download');
       await footprint.locator('[data-fp-download]').click();
-      expect((await download).suggestedFilename()).toBe('隔离验收回忆卡片.svg');
+      const exported = await download;
+      expect(exported.suggestedFilename()).toBe('隔离验收回忆卡片.png');
+      // 同时验证实际文件签名，避免只修改扩展名而未导出 PNG。
+      const bytes = require('node:fs').readFileSync(await exported.path());
+      expect(bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(
+        true,
+      );
       await capture(page, info, 'footprint-detail-light.png');
       await page.locator('[data-nav="settings"]').click();
       await page.locator('[data-theme-preference="dark"]').click();

@@ -6,8 +6,14 @@ const bcrypt = require('bcrypt');
 const { createNeteaseService } = require('../../src/services/netease.service');
 const { createApp } = require('../../src/app');
 const { createUser } = require('../../src/db/users');
-const { ADMIN, REVIEWER, PASSWORD, QRADMIN, CLOUD } = require('./fixtures');
-const mailbox = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json');
+const { ADMIN, REVIEWER, PASSWORD, AVATAR, AVATAR_OTHER, QRADMIN, CLOUD } = require('./fixtures');
+// 独立业务流程可使用单独端口和邮箱产物，数据库、Session 和限流仍由各进程独立持有。
+const port = Number(process.argv[2] || 4317);
+if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('验收端口无效');
+const mailbox = path.resolve(
+  __dirname,
+  `../../artifacts/e2e/${port === 4317 ? 'mailbox' : `mailbox-${port}`}.json`,
+);
 
 async function start() {
   if (process.env.NODE_ENV === 'production') throw new Error('隔离验收服务禁止在生产环境启动');
@@ -69,7 +75,7 @@ async function start() {
     },
     security: {
       production: false,
-      publicOrigin: 'http://127.0.0.1:4317',
+      publicOrigin: `http://127.0.0.1:${port}`,
       csrfEnabled: true,
       rateLimitEnabled: true,
       logger: {
@@ -133,6 +139,16 @@ async function start() {
     status: 'active',
     mustChangePassword: false,
   });
+  for (const account of [AVATAR, AVATAR_OTHER]) {
+    createUser(app.locals.database, {
+      ...account,
+      nickname: '工坊隔离验收成员',
+      passwordHash: await bcrypt.hash(account.password, 4),
+      role: 'user',
+      status: 'active',
+      mustChangePassword: false,
+    });
+  }
   await qrBackend.initialize();
   const web = express();
   app.locals.accessLifecycle.start();
@@ -151,7 +167,12 @@ async function start() {
     if (path.extname(req.path) || !req.accepts('html')) return next();
     res.sendFile(path.join(dist, 'index.html'));
   });
-  const server = web.listen(4317, '127.0.0.1');
+  const server = web.listen(port, '127.0.0.1');
+  server.on('listening', () => process.send?.({ ready: true }));
+  server.on('error', () => {
+    console.error('隔离验收服务监听失败');
+    close();
+  });
   let closing = false;
   const close = () => {
     if (closing) return;

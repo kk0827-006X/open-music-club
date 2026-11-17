@@ -9,6 +9,15 @@ const PASSWORD = {
   email: 'acceptance-password@example.com',
   password: 'Acceptance-password-only-2026!',
 };
+// 工坊会反复切换账号，不复用会被其他流程绑定 2FA 或修改密码的账号。
+const AVATAR = {
+  email: 'acceptance-avatar@example.com',
+  password: 'Acceptance-avatar-only-2026!',
+};
+const AVATAR_OTHER = {
+  email: 'acceptance-avatar-other@example.com',
+  password: 'Acceptance-avatar-other-only-2026!',
+};
 const QRADMIN = {
   email: 'acceptance-qr-admin@example.com',
   password: 'Acceptance-qr-admin-only-2026!',
@@ -37,23 +46,25 @@ function wave() {
   buffer.writeUInt32LE(buffer.length - 44, 40);
   return buffer;
 }
-module.exports = { ADMIN, MEMBER, REVIEWER, PASSWORD, QRADMIN, CLOUD, wave };
+module.exports = { ADMIN, MEMBER, REVIEWER, PASSWORD, AVATAR, AVATAR_OTHER, QRADMIN, CLOUD, wave };
 
 // 仅从隔离服务的模拟邮件产物读取，不增加生产路由或发送真实邮件。
-function readApplicationLink(email, purpose) {
+function readApplicationLink(email, purpose, port = 4317) {
   const fs = require('node:fs'),
     path = require('node:path');
-  const file = path.resolve(__dirname, '../../artifacts/e2e/mailbox.json');
+  const file = path.resolve(
+    __dirname,
+    `../../artifacts/e2e/${port === 4317 ? 'mailbox' : `mailbox-${port}`}.json`,
+  );
   const route = purpose === 'verify' ? 'verify-email' : 'activate';
   try {
     const message = JSON.parse(fs.readFileSync(file, 'utf8'))
       .filter((item) => item.to === email && item.text.includes(`/${route}#`))
       .at(-1);
-    return (
-      message?.text.match(
-        /http:\/\/127\.0\.0\.1:4317\/(?:verify-email|activate)#token=[A-Za-z0-9_-]+/,
-      )?.[0] || ''
-    );
+    const link = message?.text.match(
+      /http:\/\/127\.0\.0\.1:\d+\/(?:verify-email|activate)#token=[A-Za-z0-9_-]+/,
+    )?.[0];
+    return link && new URL(link).origin === `http://127.0.0.1:${port}` ? link : '';
   } catch {
     return '';
   }

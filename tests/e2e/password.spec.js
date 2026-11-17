@@ -4,7 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { PASSWORD } = require('./fixtures');
 const { graphicsProfile } = require('./graphics-profile');
-const origin = 'http://127.0.0.1:4317';
+const { startIsolatedServer } = require('./isolated-server');
+const origin = 'http://127.0.0.1:4327';
+test.use({ baseURL: origin });
+let stopServer;
+test.beforeAll(async () => {
+  stopServer = await startIsolatedServer(4327);
+});
+test.afterAll(async () => {
+  await stopServer?.();
+});
 async function post(client, url, data) {
   const csrf = await client.get('/api/security/csrf-token');
   return client.post(url, {
@@ -14,13 +23,13 @@ async function post(client, url, data) {
 }
 function resetLink() {
   const messages = JSON.parse(
-    fs.readFileSync(path.resolve(__dirname, '../../artifacts/e2e/mailbox.json'), 'utf8'),
+    fs.readFileSync(path.resolve(__dirname, '../../artifacts/e2e/mailbox-4327.json'), 'utf8'),
   );
   return (
     messages
       .filter((m) => m.to === PASSWORD.email && m.subject.includes('重置密码'))
       .at(-1)
-      ?.text.match(/http:\/\/127\.0\.0\.1:4317\/reset-password#token=[\w-]{43}/)?.[0] || ''
+      ?.text.match(/http:\/\/127\.0\.0\.1:4327\/reset-password#token=[\w-]{43}/)?.[0] || ''
   );
 }
 async function fillPassword(page, password, oldPassword, code) {

@@ -243,6 +243,32 @@ describe('底部播放器与歌词画面（真实 React 组件）', () => {
     });
   });
 
+  it('收起期间响应式布局改变后，焦点重试改用仍可见的歌曲入口', async () => {
+    await withPlayerHarness(async (h) => {
+      const { player, queue } = await setupPlayer(h);
+      const { view } = await renderPlayer(h, { player, queue });
+      const desktop = h.require('[data-player-open]');
+      const focus = desktop.focus;
+      try {
+        await h.React.act(async () => view.current.setExpanded(true));
+        // 模拟退出过渡尚不允许桌面入口获得焦点，下一帧又切换到窄屏布局。
+        desktop.focus = () => {};
+        await h.React.act(async () => view.current.setExpanded(false, true));
+        desktop.parentElement.style.display = 'none';
+        // 测试 harness 不自动驱动帧，显式推进退出重试这一帧。
+        await h.React.act(async () => {
+          const frames = [...h.frames.values()];
+          h.frames.clear();
+          for (const frame of frames) frame(performance.now());
+        });
+        assert.ok(h.document.activeElement === h.require('[data-player-open-compact]'));
+      } finally {
+        desktop.focus = focus;
+        player.destroy();
+      }
+    });
+  });
+
   it('按时间解析多时间戳歌词，忽略元信息与空行', async () => {
     const { parseLyrics, currentLyricIndex } = await load('player-lyrics.ts');
     const lines = parseLyrics(

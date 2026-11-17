@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { PASSWORD, REVIEWER } = require('./fixtures');
+const { AVATAR, AVATAR_OTHER } = require('./fixtures');
 const { graphicsProfile } = require('./graphics-profile');
 test.use({ deviceScaleFactor: 1 });
 
@@ -17,7 +17,13 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
       data,
     });
   }
-  expect((await write(client, 'post', '/api/auth/login', PASSWORD)).ok()).toBeTruthy();
+  async function login(agent, account) {
+    const response = await write(agent, 'post', '/api/auth/login', account);
+    expect(response.status()).toBe(200);
+    expect((await response.json()).requiresTwoFactor).not.toBe(true);
+    expect((await (await agent.get('/api/auth/me')).json()).authenticated).toBe(true);
+  }
+  await login(client, AVATAR);
   await page.route('https://*.music.126.net/**', (route) => route.abort());
   await page.route('**/assets/scene-*.js*', (route) => {
     const url = new URL(route.request().url());
@@ -182,8 +188,10 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
 
   const other = await browser.newContext();
   try {
-    expect((await write(other.request, 'post', '/api/auth/login', REVIEWER)).ok()).toBeTruthy();
-    const privateState = await (await other.request.get('/api/avatar-studio')).json();
+    await login(other.request, AVATAR_OTHER);
+    const privateResponse = await other.request.get('/api/avatar-studio');
+    expect(privateResponse.status()).toBe(200);
+    const privateState = await privateResponse.json();
     expect(privateState.outfits).toEqual([]);
     expect(
       (
@@ -204,7 +212,7 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
     await reading;
   }
   await write(client, 'post', '/api/auth/logout', {});
-  await write(client, 'post', '/api/auth/login', REVIEWER);
+  await login(client, AVATAR_OTHER);
   await refreshLibrary();
   await expect(studio).toHaveAttribute('data-avatar-view', 'manual');
   await studio.locator('[data-avatar-tab="saved"]').click();
@@ -217,7 +225,7 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
     ).status(),
   ).toBe(409);
   await write(client, 'post', '/api/auth/logout', {});
-  await write(client, 'post', '/api/auth/login', PASSWORD);
+  await login(client, AVATAR);
   await refreshLibrary();
   await expect(studio).toHaveAttribute('data-avatar-view', 'manual');
   await studio.locator('[data-avatar-tab="saved"]').click();
