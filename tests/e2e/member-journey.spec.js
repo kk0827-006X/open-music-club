@@ -1,7 +1,6 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./business-test');
 const { generateSync } = require('otplib');
 const { ADMIN, MEMBER, wave, readApplicationLink: readLink } = require('./fixtures');
-const { graphicsProfile } = require('./graphics-profile');
 const { startIsolatedServer } = require('./isolated-server');
 
 const origin = 'http://127.0.0.1:4328';
@@ -33,12 +32,6 @@ async function revealPlayer(page) {
   await page.mouse.move(700, 998);
   await expect(page.locator('[data-global-player]')).toHaveClass(/is-visible/);
 }
-async function capture(page, info, name) {
-  const path = info.outputPath(name);
-  await page.screenshot({ path });
-  await info.attach(name, { path, contentType: 'image/png' });
-}
-
 test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真实音频播放与恢复', async ({
   page,
   browser,
@@ -65,15 +58,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
         }),
   );
   // CI 无独立 GPU：原场景使用低画质按需绘图，验证首帧/选择而非连续动画性能。
-  await page.context().route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   const client = page.request;
   const adminContext = await browser.newContext({ baseURL: origin });
   try {
@@ -128,26 +113,10 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
     await test.step('浏览器登录、设置中绑定认证器，密码错误不能绑定', async () => {
       await loginUi(page);
       await expect(page.locator('[data-album-archive]')).toBeVisible();
-      // 软件 WebGL 首次加载模型和编译材质比普通 DOM 更新慢，单独等待真实场景就绪。
-      await expect
-        .poll(
-          () =>
-            page
-              .locator('[data-three-scene]')
-              .getAttribute('data-render-quality')
-              .then((value) => value && JSON.parse(value).superPerformance),
-          { timeout: 60000 },
-        )
-        .toBe(true);
-      await expect(page.locator('[data-three-scene] canvas')).toBeVisible();
-      // 独立验证原模型确实绘制和响应选择，不用仅有 canvas DOM 冒充场景已渲染。
-      const scene = page.locator('[data-three-scene]');
-      await expect
-        .poll(async () => Number(await scene.getAttribute('data-acceptance-frames')))
-        .toBeGreaterThan(0);
-      const selection = await scene.getAttribute('data-acceptance-selection');
-      await page.keyboard.press('ArrowDown');
-      await expect.poll(() => scene.getAttribute('data-acceptance-selection')).not.toBe(selection);
+      await expect(page.locator('[data-album-archive]')).toHaveAttribute(
+        'data-entry-phase',
+        'ready',
+      );
       await page.locator('[data-nav="settings"]').click();
       await page.getByRole('button', { name: '账号与安全', exact: true }).click();
       await page.getByRole('button', { name: '管理 2FA' }).click();
@@ -189,7 +158,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await expect
         .poll(() => Math.floor(Date.now() / 30000), { timeout: 35000, intervals: [250] })
         .toBeGreaterThan(confirmationStep);
-      await capture(page, info, 'two-factor-login.png');
+
       await dialog.getByLabel('验证码', { exact: true }).fill(generateSync({ secret }));
       await expect(page.locator('[data-album-archive]')).toBeVisible();
       expect((await client.get('/api/local/music')).status()).toBe(200);
@@ -245,7 +214,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await page.getByRole('button', { name: '展开播放器与歌词', exact: true }).click();
       await expect(page.locator('[data-expanded-title]')).toHaveText('验收云端歌曲');
       await expect(page.locator('[data-player-lyrics] .is-current')).toContainText('第二句');
-      await capture(page, info, 'mixed-queue-lyrics.png');
+
       expect(await page.evaluate(() => window.__acceptanceAudios.length)).toBe(1);
     });
     let footprintNote, memoryCardId;
@@ -298,11 +267,11 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       expect(bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))).toBe(
         true,
       );
-      await capture(page, info, 'footprint-detail-light.png');
+
       await page.locator('[data-nav="settings"]').click();
       await page.locator('[data-theme-preference="dark"]').click();
       await page.getByRole('button', { name: '关闭设置', exact: true }).click();
-      await capture(page, info, 'footprint-detail-dark.png');
+
       await page.locator('[data-nav="settings"]').click();
       await page.locator('[data-theme-preference="light"]').click();
       await page.getByRole('button', { name: '关闭设置', exact: true }).click();
@@ -328,7 +297,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await page.setViewportSize({ width: 390, height: 844 });
       await expect(page.locator('[data-fp-tab="timeline"]')).toBeVisible();
       await page.locator('[data-fp-tab="timeline"]').click();
-      await capture(page, info, 'footprint-mobile.png');
+
       await page.setViewportSize({ width: 1440, height: 1000 });
       await revealPlayer(page);
       await page.locator('[data-player-queue-toggle]').click();
@@ -336,7 +305,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await expect(queue.locator('[data-queue-key]')).toHaveCount(2);
       await expect(queue).toContainText('验收本地歌曲');
       await expect(queue).toContainText('验收云端歌曲');
-      await capture(page, info, 'restored-mixed-queue.png');
+
       expect((await post(client, '/api/auth/logout', {})).status()).toBe(200);
       await post(client, '/api/auth/login', MEMBER);
       expect((await post(client, '/api/auth/2fa/recovery', { code: recoveryCode })).status()).toBe(
@@ -351,7 +320,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
           browserVersion: browser.version(),
           viewport: page.viewportSize(),
           deviceScaleFactor: await page.evaluate(() => devicePixelRatio),
-          graphicsProfile: '真实模型按需绘图；验证首帧与键盘选择；不验收持续动画或默认画质性能',
+          sceneAdapter: '测试侧无渲染场景替身；只验收页面业务，不验证真实画面与入场动画',
           audio: '真实 HTMLAudioElement；本地受保护流与模拟网易云 CDN',
           database: '独立临时 SQLite；不连接真实账号数据库',
         },

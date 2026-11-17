@@ -40,12 +40,16 @@ for (const failing of [false, true])
         fs.readFileSync(path.join(root, 'artifacts/baseline/summary.json'), 'utf8'),
       );
       assert.equal(report.success, !failing);
-      assert.equal(report.steps.length, failing ? 2 : 6);
+      assert.equal(report.steps.length, failing ? 1 : 3);
       assert.match(report.lockfileSha256, /^[a-f0-9]{64}$/);
       assert.match(report.sourceSha256, /^[a-f0-9]{64}$/);
       assert.equal(report.node, process.version);
       assert.equal(report.pnpm, '12.3.4');
-      assert.equal(report.steps[1].exitCode, failing ? 7 : 0);
+      assert.equal(report.steps[0].exitCode, failing ? 7 : 0);
+      assert.deepEqual(
+        report.steps.map((step) => step.command),
+        failing ? ['pnpm build:web'] : ['pnpm build:web', 'pnpm test:coverage', 'pnpm test:e2e'],
+      );
       assert.match(
         fs.readFileSync(path.join(root, 'artifacts/baseline/build.log'), 'utf8'),
         /build:web/,

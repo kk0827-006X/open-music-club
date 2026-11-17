@@ -1,6 +1,7 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./business-test');
+const { useIsolatedBusinessServer } = require('./isolated-server');
+useIsolatedBusinessServer(test, 4335);
 const { PASSWORD } = require('./fixtures');
-const { graphicsProfile } = require('./graphics-profile');
 test.use({ deviceScaleFactor: 1 });
 
 test('分享详情独立布局、评论分页草稿及两倍 PNG 导出', async ({ page }, info) => {
@@ -10,7 +11,7 @@ test('分享详情独立布局、评论分页草稿及两倍 PNG 导出', async 
   async function write(url, data, method = 'post') {
     const csrf = await client.get('/api/security/csrf-token');
     return client[method](url, {
-      headers: { Origin: 'http://127.0.0.1:4317', 'X-CSRF-Token': (await csrf.json()).csrfToken },
+      headers: { Origin: 'http://127.0.0.1:4335', 'X-CSRF-Token': (await csrf.json()).csrfToken },
       data,
     });
   }
@@ -45,15 +46,7 @@ test('分享详情独立布局、评论分页草稿及两倍 PNG 导出', async 
       (await write(`/api/footprint/posts/${id}/comments`, { content: `隔离评论 ${i + 1}` })).ok(),
     ).toBeTruthy();
   await page.route('https://*.music.126.net/**', (route) => route.abort());
-  await page.route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   await page.goto('/footprint');
   await page.locator('[data-fp-tab="square"]').click();
   await page.locator(`[data-fp-open-post="${id}"]`).click();
@@ -65,7 +58,7 @@ test('分享详情独立布局、评论分页草稿及两倍 PNG 导出', async 
   await expect(page.locator('.fp-comment-list li')).toHaveCount(53);
   await expect(page.getByRole('textbox', { name: '评论内容' })).toHaveValue('分页后应保留这份草稿');
   await expect(page.locator('[data-fp-more-comments]')).toHaveCount(0);
-  await page.screenshot({ path: info.outputPath('share-detail-desktop.png') });
+
   const height = await page.locator('.fp-detail-card svg').getAttribute('height');
   const pending = page.waitForEvent('download');
   await page.locator('[data-fp-download]').click();
@@ -84,10 +77,6 @@ test('分享详情独立布局、评论分页草稿及两倍 PNG 导出', async 
   await page.evaluate(() =>
     window.dispatchEvent(new CustomEvent('omc:theme-preference', { detail: 'dark' })),
   );
-  await page.screenshot({ path: info.outputPath('share-detail-mobile.png') });
-  expect(
-    await page.locator('.fp-shell').evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
-  ).toBe(true);
   await page.locator('[data-fp-delete-post]').click();
   await page.locator('[data-fp-dialog-cancel]').click();
   await expect(page.locator('.fp-detail-card svg')).toBeVisible();

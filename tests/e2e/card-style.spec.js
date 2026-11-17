@@ -1,6 +1,7 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./business-test');
+const { useIsolatedBusinessServer } = require('./isolated-server');
+useIsolatedBusinessServer(test, 4332);
 const { PASSWORD } = require('./fixtures');
-const { graphicsProfile } = require('./graphics-profile');
 test.use({ deviceScaleFactor: 1 });
 
 // 使用真实隔离 SQLite/API/Session，仅替换图形负载与外部封面。
@@ -11,7 +12,7 @@ test('卡片工坊独立风格入口创建、修改并在刷新及分享详情�
   async function write(url, data) {
     const csrf = await client.get('/api/security/csrf-token');
     return client.post(url, {
-      headers: { Origin: 'http://127.0.0.1:4317', 'X-CSRF-Token': (await csrf.json()).csrfToken },
+      headers: { Origin: 'http://127.0.0.1:4332', 'X-CSRF-Token': (await csrf.json()).csrfToken },
       data,
     });
   }
@@ -28,15 +29,7 @@ test('卡片工坊独立风格入口创建、修改并在刷新及分享详情�
     ).ok(),
   ).toBeTruthy();
   await page.route('https://*.music.126.net/**', (route) => route.abort());
-  await page.route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   await page.goto('/footprint');
   await page.locator('[data-fp-tab="studio"]').click();
   await page.locator('[data-fp-pick]').first().check();
@@ -57,14 +50,10 @@ test('卡片工坊独立风格入口创建、修改并在刷新及分享详情�
   expect((await (await client.get(`/api/footprint/posts/${postId}`)).json()).card.data.style).toBe(
     'mint',
   );
-  await page
-    .locator('.fp-studio-side')
-    .screenshot({ path: info.outputPath('style-picker-desktop.png') });
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('radio', { name: '月光蓝调' }).click();
   await expect(page.locator('.fp-card-preview svg')).toHaveAttribute('data-card-palette', 'sky');
-  await page
-    .locator('.fp-style-picker')
-    .screenshot({ path: info.outputPath('style-picker-mobile.png') });
+
   expect(errors).toEqual([]);
 });

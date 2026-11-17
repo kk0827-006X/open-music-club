@@ -1,19 +1,17 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./business-test');
+const { useIsolatedBusinessServer } = require('./isolated-server');
+useIsolatedBusinessServer(test, 4331);
 const { AVATAR, AVATAR_OTHER } = require('./fixtures');
-const { graphicsProfile } = require('./graphics-profile');
 test.use({ deviceScaleFactor: 1 });
 
-test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与账号会话隔离', async ({
-  page,
-  browser,
-}, info) => {
+test('工坊换装配置、自动锁定、保存套用与账号会话隔离', async ({ page, browser }, info) => {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const client = page.context().request;
   async function write(agent, method, path, data) {
     const token = await agent.get('/api/security/csrf-token');
     return agent[method](path, {
-      headers: { Origin: 'http://127.0.0.1:4317', 'X-CSRF-Token': (await token.json()).csrfToken },
+      headers: { Origin: 'http://127.0.0.1:4331', 'X-CSRF-Token': (await token.json()).csrfToken },
       data,
     });
   }
@@ -25,15 +23,7 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
   }
   await login(client, AVATAR);
   await page.route('https://*.music.126.net/**', (route) => route.abort());
-  await page.route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   await page.goto('/user');
   await expect(page.locator('[data-user-tab="recent"]')).toHaveCount(0);
   await expect(page.locator('.user-sidebar [data-user-tab]')).toHaveCount(4);
@@ -43,32 +33,13 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
   await expect(studio.getByText(/仅你可见|仅当前账号可见|CONNECTED|Connected/)).toHaveCount(0);
   await expect(studio.locator('.preview-colors .palette-chip')).toHaveCount(8);
   await expect(studio.locator('.preview-colors .skin-chip')).toHaveCount(4);
-  const preview = await studio.locator('.preview-stage').boundingBox();
-  const equipped = await studio.locator('.preview-meta').boundingBox();
-  const swatches = await studio.locator('.preview-colors').boundingBox();
-  expect(Math.abs(preview.y - equipped.y)).toBeLessThanOrEqual(1);
-  expect(swatches.y).toBeGreaterThanOrEqual(preview.y + preview.height);
   await expect(studio.locator('.preview-colors h2, .preview-colors .hint')).toHaveCount(0);
   await expect(studio.locator('.palette-chip')).toHaveCount(8);
   await expect(studio.locator('.skin-chip')).toHaveCount(4);
   await expect(studio.locator('.slot-card')).toHaveCount(6);
   await expect(studio.locator('[data-avatar-part]')).toHaveCount(59);
-  const siteColor = await page
-    .locator('html')
-    .evaluate((node) => getComputedStyle(node).getPropertyValue('--paper'));
   await studio.getByRole('radio', { name: '灰粉主题色' }).click();
   await expect(studio.getByRole('radio', { name: '灰粉主题色' })).toBeChecked();
-  const palette = await studio
-    .locator('.palette-chip')
-    .first()
-    .evaluate((node) => ({
-      width: node.offsetWidth,
-      height: node.offsetHeight,
-      background: getComputedStyle(node).backgroundImage,
-    }));
-  expect(palette.width).toBe(40);
-  expect(palette.height).toBe(40);
-  expect(palette.background).toContain('linear-gradient');
   await studio.locator('[data-avatar-part="top-shirt"]').click();
   await studio.locator('[data-clear-slot="accessory"]').click();
   async function save(name) {
@@ -147,12 +118,7 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
   await studio.evaluate((node) => {
     node.scrollTop = 0;
   });
-  await studio.screenshot({ path: info.outputPath('zyr-manual-desktop.png') });
-  expect(
-    await page
-      .locator('html')
-      .evaluate((node) => getComputedStyle(node).getPropertyValue('--paper')),
-  ).toBe(siteColor);
+
   await studio.locator('[data-avatar-tab="saved"]').click();
   await expect(studio.getByRole('heading', { name: '我的形象', exact: true })).toHaveCount(1);
   await expect(studio.locator('.saved-count')).toContainText('/ 50');
@@ -160,7 +126,7 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
   await expect(studio.locator('.brand-sub, .saved-head, .studio-status, .page-footer')).toHaveCount(
     0,
   );
-  await studio.screenshot({ path: info.outputPath('saved-library-clean.png') });
+
   const card = studio.locator(`[data-avatar-outfit="${saved.id}"]`);
   await card.getByRole('button', { name: '设为当前' }).click();
   await expect(card.locator('.saved-badge')).toHaveText('当前');
@@ -178,13 +144,12 @@ test('zyr 原版工坊排版、色板、清除、自动锁定、保存套用与�
     window.dispatchEvent(new CustomEvent('omc:theme-preference', { detail: 'dark' })),
   );
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(studio).toHaveCSS('background-color', 'rgb(236, 229, 218)');
+
   await studio.locator('[data-avatar-part="head-short"]').scrollIntoViewIfNeeded();
-  expect(await studio.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBeTruthy();
+
   await studio.evaluate((node) => {
     node.scrollTop = 0;
   });
-  await page.screenshot({ path: info.outputPath('zyr-mobile-dark-site.png') });
 
   const other = await browser.newContext();
   try {

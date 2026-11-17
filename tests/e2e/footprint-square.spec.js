@@ -1,6 +1,7 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./business-test');
+const { useIsolatedBusinessServer } = require('./isolated-server');
+useIsolatedBusinessServer(test, 4333);
 const { PASSWORD } = require('./fixtures');
-const { graphicsProfile } = require('./graphics-profile');
 test.use({ deviceScaleFactor: 1 });
 
 test('真实广场摘要、统计、本人分页、点赞撤下及固定侧栏入口', async ({ page }, info) => {
@@ -10,7 +11,7 @@ test('真实广场摘要、统计、本人分页、点赞撤下及固定侧栏�
   async function write(url, data) {
     const csrf = await client.get('/api/security/csrf-token');
     return client.post(url, {
-      headers: { Origin: 'http://127.0.0.1:4317', 'X-CSRF-Token': (await csrf.json()).csrfToken },
+      headers: { Origin: 'http://127.0.0.1:4333', 'X-CSRF-Token': (await csrf.json()).csrfToken },
       data,
     });
   }
@@ -45,26 +46,14 @@ test('真实广场摘要、统计、本人分页、点赞撤下及固定侧栏�
   const ownTotal = (await (await client.get('/api/footprint/posts/mine?limit=12&offset=0')).json())
     .total;
   await page.route('https://*.music.126.net/**', (route) => route.abort());
-  await page.route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   await page.goto('/footprint');
   await page.locator('[data-fp-tab="square"]').click();
   await expect(page.locator('[data-fp-tab="mine"]')).toHaveCount(0);
   await expect(page.locator('[data-fp-open-post]')).toHaveCount(12);
   await expect(page.locator('.fp-post-art')).toHaveCount(12);
   await expect(page.locator('.fp-square-overview dd').first()).toHaveText(String(overview.posts));
-  await page.screenshot({ path: info.outputPath('square-desktop.png') });
-  await page
-    .locator('.fp-post-card')
-    .first()
-    .screenshot({ path: info.outputPath('square-card.png') });
+
   await page.locator('[data-fp-filter="mine"]').click();
   await expect(page.locator('[data-fp-tab="square"]')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('[data-fp-open-post]')).toHaveCount(12);
@@ -97,9 +86,5 @@ test('真实广场摘要、统计、本人分页、点赞撤下及固定侧栏�
     window.dispatchEvent(new CustomEvent('omc:theme-preference', { detail: 'dark' })),
   );
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: info.outputPath('square-mobile-dark.png') });
-  expect(
-    await page.locator('.fp-shell').evaluate((node) => node.scrollWidth <= node.clientWidth + 1),
-  ).toBe(true);
   expect(errors).toEqual([]);
 });

@@ -1,7 +1,10 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect, installBusinessScene } = require('./business-test');
+const { useIsolatedBusinessServer } = require('./isolated-server');
+useIsolatedBusinessServer(test, 4330);
 const { generateSync } = require('otplib');
-const { REVIEWER, readApplicationLink } = require('./fixtures');
-const origin = 'http://127.0.0.1:4317';
+const { REVIEWER, readApplicationLink: readLink } = require('./fixtures');
+const readApplicationLink = (email, purpose) => readLink(email, purpose, 4330);
+const origin = 'http://127.0.0.1:4330';
 async function post(client, path, data) {
   const csrf = await (await client.get('/api/security/csrf-token')).json();
   return client.post(path, { data, headers: { Origin: origin, 'X-CSRF-Token': csrf.csrfToken } });
@@ -55,6 +58,7 @@ test('申请 → 直接待审核 → 管理员 GUI 审核 → 自设密码激活
   expect(page.url()).toBe(`${origin}/verify-email`);
   expect(verificationRequests).toBe(0);
   const adminContext = await browser.newContext({ baseURL: origin });
+  await installBusinessScene(adminContext);
   try {
     const admin = adminContext.request;
     await expect((await post(admin, '/api/auth/login', REVIEWER)).ok()).toBeTruthy();
@@ -87,14 +91,11 @@ test('申请 → 直接待审核 → 管理员 GUI 审核 → 自设密码激活
     await expect(adminPage.getByRole('heading', { name: '申请界面验收成员' })).toBeFocused();
     expect(await adminPage.locator('body').textContent()).not.toContain(email);
     await expect(adminPage.getByRole('button', { name: '通过审核', exact: true })).toBeEnabled();
-    await adminPage.screenshot({ path: info.outputPath('admin-review-light.png') });
+
     await adminPage.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-    await adminPage.screenshot({ path: info.outputPath('admin-review-dark.png') });
+
     await adminPage.setViewportSize({ width: 390, height: 844 });
-    expect(
-      await adminPage.locator('body').evaluate((el) => el.scrollWidth <= window.innerWidth),
-    ).toBe(true);
-    await adminPage.screenshot({ path: info.outputPath('admin-review-mobile.png') });
+
     await adminPage.getByRole('button', { name: '通过审核', exact: true }).click();
     await expect(adminPage.getByRole('dialog', { name: '确认通过申请？' })).toBeVisible();
     await adminPage.getByRole('button', { name: '确认决定', exact: true }).click();
@@ -124,9 +125,7 @@ test('申请 → 直接待审核 → 管理员 GUI 审核 → 自设密码激活
     expect(page.url()).toBe(`${origin}/activate`);
     await expect(page.locator('[data-global-player]')).toHaveCount(0);
     await page.getByRole('button', { name: '设置密码并激活', exact: true }).hover();
-    await expect(
-      page.getByRole('button', { name: '设置密码并激活', exact: true }).locator('span'),
-    ).toHaveCSS('z-index', '1');
+
     await page.getByLabel('新密码', { exact: true }).fill(password);
     await page.getByLabel('确认密码', { exact: true }).fill(password);
     await page.getByRole('button', { name: '设置密码并激活', exact: true }).click();

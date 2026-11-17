@@ -47,4 +47,15 @@ async function startIsolatedServer(port) {
   }
 }
 
-module.exports = { startIsolatedServer };
+function useIsolatedBusinessServer(test, port) {
+  test.use({ baseURL: `http://127.0.0.1:${port}` });
+  let stop;
+  test.beforeAll(async () => {
+    stop = await startIsolatedServer(port);
+  });
+  test.afterAll(async () => {
+    await stop?.();
+  });
+}
+
+module.exports = { startIsolatedServer, useIsolatedBusinessServer };
