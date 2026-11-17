@@ -5,6 +5,7 @@ const { initializeNeteaseSessionSchema } = require('./neteaseSession');
 const { initializeFootprintSchema } = require('./footprint');
 const { initializeApplicationNotificationSchema } = require('./applicationNotifications');
 const { initializeAccessLifecycleSchema } = require('./accessLifecycle');
+const { initializeAvatarStudioSchema } = require('./avatarStudio');
 
 function createDatabase(databasePath) {
   if (!databasePath) {
@@ -193,6 +194,7 @@ function initializeSchema(database) {
   initializeFootprintSchema(database);
   initializeApplicationNotificationSchema(database);
   initializeAccessLifecycleSchema(database);
+  initializeAvatarStudioSchema(database);
 }
 
 module.exports = {

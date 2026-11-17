@@ -1,10 +1,18 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./business-test');
 const { generateSync } = require('otplib');
 const fs = require('node:fs');
 const path = require('node:path');
 const { PASSWORD } = require('./fixtures');
-const { graphicsProfile } = require('./graphics-profile');
-const origin = 'http://127.0.0.1:4317';
+const { startIsolatedServer } = require('./isolated-server');
+const origin = 'http://127.0.0.1:4327';
+test.use({ baseURL: origin });
+let stopServer;
+test.beforeAll(async () => {
+  stopServer = await startIsolatedServer(4327);
+});
+test.afterAll(async () => {
+  await stopServer?.();
+});
 async function post(client, url, data) {
   const csrf = await client.get('/api/security/csrf-token');
   return client.post(url, {
@@ -14,13 +22,13 @@ async function post(client, url, data) {
 }
 function resetLink() {
   const messages = JSON.parse(
-    fs.readFileSync(path.resolve(__dirname, '../../artifacts/e2e/mailbox.json'), 'utf8'),
+    fs.readFileSync(path.resolve(__dirname, '../../artifacts/e2e/mailbox-4327.json'), 'utf8'),
   );
   return (
     messages
       .filter((m) => m.to === PASSWORD.email && m.subject.includes('重置密码'))
       .at(-1)
-      ?.text.match(/http:\/\/127\.0\.0\.1:4317\/reset-password#token=[\w-]{43}/)?.[0] || ''
+      ?.text.match(/http:\/\/127\.0\.0\.1:4327\/reset-password#token=[\w-]{43}/)?.[0] || ''
   );
 }
 async function fillPassword(page, password, oldPassword, code) {
@@ -45,15 +53,7 @@ test('真实隔离账号：设置修改密码、旧设备失效、登录页邮�
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"/>',
     }),
   );
-  await page.route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   const other = await browser.newContext({ baseURL: origin });
   const changed = 'Changed-password-2026!',
     reset = 'Reset-password-2026!';
@@ -75,11 +75,11 @@ test('真实隔离账号：设置修改密码、旧设备失效、登录页邮�
     await page.locator('[data-nav="settings"]').click();
     await page.locator('[data-settings-category="account"]').click();
     await page.locator('[data-settings-password]').click();
-    await page.screenshot({ path: info.outputPath('settings-password-light.png') });
+
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: '确认更新密码', exact: true }).scrollIntoViewIfNeeded();
     await expect(page.getByRole('button', { name: '确认更新密码', exact: true })).toBeInViewport();
-    await page.screenshot({ path: info.outputPath('settings-password-mobile.png') });
+
     await page.setViewportSize({ width: 1440, height: 1000 });
     await fillPassword(page, changed, 'Wrong-password1!');
     await expect(page.locator('[data-password-panel] [role="status"]')).toContainText(
@@ -87,7 +87,13 @@ test('真实隔离账号：设置修改密码、旧设备失效、登录页邮�
     );
     await expect(page.getByLabel('原密码', { exact: true })).toHaveValue('');
     await fillPassword(page, changed, PASSWORD.password, codes[0]);
-    await expect(page).toHaveURL(/\/login$/);
+    // 改密退出后，路由可附带站内默认返回地址；仍必须停留在登录页且撤销旧会话。
+    await expect(page).toHaveURL(
+      (url) =>
+        url.origin === origin &&
+        url.pathname === '/login' &&
+        (url.search === '' || url.search === '?next=%2Flibrary'),
+    );
     await expect(page.locator('[data-login-form]')).toBeVisible();
     expect((await other.request.get('/api/protected')).status()).toBe(401);
     expect((await post(other.request, '/api/auth/login', PASSWORD)).status()).toBe(401);
@@ -109,7 +115,7 @@ test('真实隔离账号：设置修改密码、旧设备失效、登录页邮�
     await fillPassword(page, reset, undefined, codes[1]);
     await expect(page.locator('[data-password-panel] [role="status"]')).toContainText('密码已更新');
     expect((await (await page.request.get('/api/auth/me')).json()).authenticated).toBe(false);
-    await page.screenshot({ path: info.outputPath('password-reset-complete.png') });
+
     await page.goto(link);
     await fillPassword(page, 'Replay-password-2026!', undefined, codes[2]);
     await expect(page.locator('[data-password-panel] [role="status"]')).toContainText('链接失效');

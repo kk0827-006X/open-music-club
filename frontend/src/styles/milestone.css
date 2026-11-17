@@ -1,0 +1,492 @@
+.footprint-page .fp-milestone .fp-hero,
+.footprint-page .fp-milestone .fp-stat {
+  border: 1px solid var(--color-line-01);
+  background: var(--color-surface-07);
+}
+.footprint-page .fp-milestone .fp-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  overflow: hidden;
+  padding: 22px 26px;
+  border-radius: 17px;
+}
+.footprint-page .fp-milestone .fp-hero::before {
+  position: absolute;
+  top: -70%;
+  right: -6%;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fp-ms-source-0), transparent 68%);
+  content: '';
+  pointer-events: none;
+}
+.footprint-page .fp-milestone .fp-hero-label {
+  margin: 0;
+  color: var(--amber);
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.2em;
+}
+.footprint-page .fp-milestone .fp-hero-num {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.footprint-page .fp-milestone .fp-hero-num b {
+  background: linear-gradient(100deg, var(--ink) 28%, var(--fp-ms-source-1) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-size: clamp(2.4rem, 5.4vh, 3.4rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+.footprint-page .fp-milestone .fp-hero-num span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+}
+.footprint-page .fp-milestone .fp-hero-sub {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.8;
+}
+.footprint-page .fp-milestone .fp-hero-sub b {
+  color: var(--amber);
+}
+.footprint-page .fp-milestone .fp-hero-ring {
+  display: grid;
+  place-items: center;
+}
+.footprint-page .fp-milestone .fp-ring-num {
+  fill: var(--ink);
+  font-size: 26px;
+  font-weight: 700;
+  font-family: inherit;
+}
+.footprint-page .fp-milestone .fp-ring-cap {
+  fill: var(--muted);
+  font-size: 9px;
+  letter-spacing: 2px;
+}
+.footprint-page .fp-milestone .fp-ring-progress {
+  animation: fp-ms-ring-in 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes fp-ms-ring-in {
+  from {
+    stroke-dasharray: 0 999;
+  }
+}
+.footprint-page .fp-milestone .fp-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+}
+.footprint-page .fp-milestone .fp-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 16px;
+  border-radius: 15px;
+  transition:
+    transform 260ms ease,
+    border-color 260ms ease;
+}
+.footprint-page .fp-milestone .fp-stat::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--amber), transparent 70%);
+  content: '';
+  opacity: 0.55;
+}
+.footprint-page .fp-milestone .fp-stat::after {
+  position: absolute;
+  top: -46%;
+  right: -14%;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--fp-ms-source-2), transparent 70%);
+  content: '';
+  pointer-events: none;
+}
+.footprint-page .fp-milestone .fp-stat:hover {
+  transform: translateY(-2px);
+  border-color: var(--fp-ms-source-3);
+}
+.footprint-page .fp-milestone .fp-stat small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.57rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.footprint-page .fp-milestone .fp-stat strong {
+  display: block;
+  margin-top: 10px;
+  background: linear-gradient(100deg, var(--ink) 30%, var(--fp-ms-source-1) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-size: 1.6rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05em;
+  line-height: 1.15;
+}
+.footprint-page .fp-milestone .fp-stat strong i {
+  display: inline;
+  font-style: normal;
+}
+.footprint-page .fp-milestone .fp-stat span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.59rem;
+}
+.footprint-page .fp-milestone .fp-panel {
+  padding: 18px;
+  border-radius: 15px;
+}
+.footprint-page .fp-milestone .fp-panel h4 {
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-size: 0.79rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.footprint-page .fp-milestone .fp-hours-svg {
+  display: block;
+  overflow: visible;
+}
+.footprint-page .fp-milestone .fp-hours-line {
+  stroke-dasharray: 1700;
+  stroke-dashoffset: 1700;
+  animation: fp-ms-draw 1.5s cubic-bezier(0.3, 0.6, 0.2, 1) 0.15s forwards;
+}
+.footprint-page .fp-milestone .fp-hours-area {
+  opacity: 0;
+  animation: fp-ms-fade 900ms ease 0.7s forwards;
+}
+.footprint-page .fp-milestone .fp-hours-peak {
+  opacity: 0;
+  animation: fp-ms-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 1.45s forwards;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.footprint-page .fp-milestone .fp-hours-peak-label {
+  fill: var(--amber);
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0;
+  animation: fp-ms-fade 400ms ease 1.6s forwards;
+}
+@keyframes fp-ms-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes fp-ms-fade {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fp-ms-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.footprint-page .fp-milestone .fp-hours-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.53rem;
+  letter-spacing: 0.08em;
+}
+.footprint-page .fp-milestone .fp-months {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  min-height: 116px;
+}
+.footprint-page .fp-milestone .fp-month {
+  display: grid;
+  flex: 1;
+  grid-template-rows: 1fr auto auto;
+  justify-items: center;
+  align-items: end;
+  width: 100%;
+}
+.footprint-page .fp-milestone .fp-month i {
+  width: min(100%, 22px);
+  height: calc(10px + var(--fp-ratio, 0) * 66px);
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(180deg, var(--fp-ms-source-4), var(--fp-ms-source-5));
+  transform-origin: bottom;
+  animation: fp-ms-grow 760ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  animation-delay: var(--fp-delay, 0ms);
+  transition: filter 200ms ease;
+}
+.footprint-page .fp-milestone .fp-month:hover i {
+  filter: brightness(1.1);
+}
+@keyframes fp-ms-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+.footprint-page .fp-milestone .fp-month b {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.53rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.footprint-page .fp-milestone .fp-month small {
+  color: var(--muted);
+  font-size: 0.49rem;
+  opacity: 0.75;
+}
+.footprint-page .fp-milestone .fp-top-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.footprint-page .fp-milestone .fp-top-tracks li {
+  display: grid;
+  grid-template-columns: 26px 44px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--fp-ms-source-6);
+}
+.footprint-page .fp-milestone .fp-top-tracks li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.footprint-page .fp-milestone .fp-rank {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--fp-ms-source-7);
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.footprint-page .fp-milestone .fp-rank-1 {
+  background: linear-gradient(135deg, var(--fp-ms-source-8), var(--fp-ms-source-9));
+  color: var(--fp-ms-source-10);
+  box-shadow: 0 4px 10px -5px var(--fp-ms-source-11);
+}
+.footprint-page .fp-milestone .fp-rank-2 {
+  background: linear-gradient(135deg, var(--fp-ms-source-12), var(--fp-ms-source-13));
+  color: var(--fp-ms-source-10);
+}
+.footprint-page .fp-milestone .fp-rank-3 {
+  background: linear-gradient(135deg, var(--fp-ms-source-14), var(--fp-ms-source-15));
+  color: var(--fp-ms-source-10);
+}
+.footprint-page .fp-milestone .fp-top-tracks img {
+  width: 44px;
+  height: 44px;
+  border-radius: 9px;
+  object-fit: cover;
+  background: var(--muted);
+  box-shadow: 0 6px 14px -8px var(--fp-ms-source-16);
+}
+.footprint-page .fp-milestone .fp-top-body {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.footprint-page .fp-milestone .fp-top-body strong {
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+.footprint-page .fp-milestone .fp-top-body small {
+  color: var(--muted);
+  font-size: 0.59rem;
+}
+.footprint-page .fp-milestone .fp-top-bar {
+  display: block;
+  width: min(100%, 220px);
+  height: 4px;
+  border-radius: 99px;
+  background: linear-gradient(
+    90deg,
+    var(--fp-ms-source-17),
+    var(--fp-ms-source-18) 78%,
+    transparent
+  );
+  transform-origin: left;
+  animation: fp-ms-bar 900ms cubic-bezier(0.2, 0.8, 0.25, 1) both;
+  animation-delay: var(--fp-delay, 0ms);
+}
+@keyframes fp-ms-bar {
+  from {
+    transform: scaleX(0);
+  }
+}
+.footprint-page .fp-milestone .fp-milestone-heading p {
+  margin: 0;
+  color: var(--amber);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+}
+.footprint-page .fp-milestone .fp-milestone-heading h3 {
+  margin: 8px 0;
+  font-size: 1.4rem;
+}
+.footprint-page .fp-milestone .fp-milestone-heading span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+.footprint-page .fp-milestone .fp-hero-main {
+  position: relative;
+  min-width: 0;
+}
+.footprint-page .fp-milestone .fp-hero-num b > span {
+  color: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+}
+.footprint-page .fp-milestone .fp-stat strong > span {
+  display: inline;
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+}
+.footprint-page .fp-milestone .fp-top-bar {
+  background-size: calc(var(--fp-ratio) * 100%) 100%;
+  background-repeat: no-repeat;
+}
+.footprint-page .fp-milestone .fp-top-body strong {
+  overflow-wrap: anywhere;
+}
+.footprint-page .fp-milestone .fp-top-body small {
+  overflow-wrap: anywhere;
+}
+.footprint-page .fp-milestone .fp-months {
+  overflow-x: auto;
+}
+.footprint-page .fp-milestone .fp-month {
+  min-width: 36px;
+}
+.footprint-page .fp-milestone .fp-hero::before {
+  animation: fp-ms-drift 11s ease-in-out infinite alternate;
+}
+@keyframes fp-ms-drift {
+  to {
+    transform: translate(-12px, 16px) scale(1.08);
+  }
+}
+@media (max-width: 600px) {
+  .footprint-page .fp-milestone .fp-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px;
+  }
+  .footprint-page .fp-milestone .fp-hero-ring {
+    justify-items: start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .footprint-page .fp-milestone,
+  .footprint-page .fp-milestone *,
+  .footprint-page .fp-milestone::before,
+  .footprint-page .fp-milestone *::before {
+    animation: none !important;
+    transition: none !important;
+  }
+  .footprint-page .fp-milestone .fp-hours-line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .footprint-page .fp-milestone .fp-hours-area,
+  .footprint-page .fp-milestone .fp-hours-peak,
+  .footprint-page .fp-milestone .fp-hours-peak-label {
+    opacity: 1;
+  }
+}
+.footprint-page .fp-milestone[data-motion-active='false'] *,
+.footprint-page .fp-milestone[data-motion-active='false'] *::before {
+  animation-play-state: paused !important;
+}
+.footprint-page .fp-milestone .fp-vinyl {
+  position: absolute;
+  right: 31%;
+  bottom: -54px;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  opacity: 0.26;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, var(--fp-ms-vinyl-core) 0 9%, transparent 9.6%),
+    repeating-radial-gradient(circle, var(--fp-ms-vinyl-groove) 0 2px, transparent 2px 6px);
+  animation: fp-ms-spin 32s linear infinite;
+}
+@keyframes fp-ms-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.footprint-page .fp-milestone .fp-hours-peak {
+  animation:
+    fp-ms-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 1.45s forwards,
+    fp-ms-peak 3s ease-in-out 2.4s infinite;
+}
+@keyframes fp-ms-peak {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.4);
+  }
+}
+.footprint-page .fp-milestone .fp-top-tracks li {
+  border-radius: 10px;
+  transition: background 220ms ease;
+}
+.footprint-page .fp-milestone .fp-top-tracks li:hover {
+  background: var(--color-surface-04);
+}
+.footprint-page .fp-milestone .fp-top-tracks img {
+  transition: transform 340ms cubic-bezier(0.2, 0.8, 0.3, 1.15);
+}
+.footprint-page .fp-milestone .fp-top-tracks li:hover img {
+  transform: scale(1.07);
+}
+@media (prefers-reduced-motion: reduce) {
+  .footprint-page .fp-milestone .fp-vinyl {
+    display: none;
+  }
+  .footprint-page .fp-milestone .fp-hours-peak {
+    animation: none;
+    opacity: 1;
+  }
+}

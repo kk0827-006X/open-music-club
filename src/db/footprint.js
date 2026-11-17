@@ -73,11 +73,11 @@ function initializeFootprintSchema(database) {
 function createFootprintRepository(database) {
   const events = `SELECT e.*, n.id AS note_id, n.content AS note_content, n.updated_at AS note_updated_at
     FROM playback_events e LEFT JOIN footprint_notes n ON n.event_id=e.id AND n.user_id=e.user_id`;
-  const posts = `SELECT p.*, u.nickname AS author_nickname,
+  const posts = `SELECT p.*, u.nickname AS author_nickname, c.title AS card_title, c.card_data_json,
     (SELECT COUNT(*) FROM footprint_likes l WHERE l.post_id=p.id) AS like_count,
     (SELECT COUNT(*) FROM footprint_comments c WHERE c.post_id=p.id) AS comment_count,
     EXISTS(SELECT 1 FROM footprint_likes l WHERE l.post_id=p.id AND l.user_id=?) AS liked
-    FROM footprint_posts p JOIN users u ON u.id=p.user_id`;
+    FROM footprint_posts p JOIN users u ON u.id=p.user_id JOIN footprint_cards c ON c.id=p.card_id AND c.user_id=p.user_id`;
   return {
     transaction: (operation) => database.transaction(operation)(),
     countEvents: (userId) =>
@@ -146,12 +146,30 @@ function createFootprintRepository(database) {
         .all(userId, limit, offset),
     findCard: (userId, id) =>
       database.prepare('SELECT * FROM footprint_cards WHERE user_id=? AND id=?').get(userId, id),
+    updateCardStyle: (userId, id, style) =>
+      database
+        .prepare(
+          "UPDATE footprint_cards SET card_data_json=json_set(card_data_json, '$.style', ?) WHERE user_id=? AND id=?",
+        )
+        .run(style, userId, id).changes > 0,
     deleteCard: (userId, id) =>
       database.prepare('DELETE FROM footprint_cards WHERE user_id=? AND id=?').run(userId, id)
         .changes > 0,
     findPost: (viewerId, id) => database.prepare(`${posts} WHERE p.id=?`).get(viewerId, id),
     findPostByCard: (cardId) =>
       database.prepare('SELECT id FROM footprint_posts WHERE card_id=?').get(cardId),
+    overview: () =>
+      database
+        .prepare(
+          `SELECT
+      (SELECT COUNT(*) FROM footprint_posts) AS posts,
+      (SELECT COUNT(*) FROM footprint_likes) AS likes,
+      (SELECT COUNT(*) FROM footprint_comments) AS comments,
+      (SELECT COUNT(DISTINCT user_id) FROM footprint_posts) AS authors`,
+        )
+        .get(),
+    countOwnPosts: (userId) =>
+      database.prepare('SELECT COUNT(*) AS n FROM footprint_posts WHERE user_id=?').get(userId).n,
     countPosts: () => database.prepare('SELECT COUNT(*) AS n FROM footprint_posts').get().n,
     listPosts: (viewerId, limit, offset) =>
       database

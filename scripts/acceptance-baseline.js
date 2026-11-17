@@ -13,7 +13,7 @@ const sourceHash = createHash('sha256');
 const inputs = (git('ls-files', '-z', '--cached', '--others', '--exclude-standard') || '')
   .split('\0')
   .filter((name) =>
-    /^(src\/|frontend\/(src\/|public\/|package\.json$|tsconfig\.json$|vite\.config\.ts$)|tests\/|scripts\/|\.github\/|package\.json$|pnpm-(lock|workspace)\.yaml$|\.node-version$|playwright\.config\.js$)/.test(
+    /^(src\/|frontend\/(src\/|public\/|package\.json$|tsconfig\.json$|vite\.config\.ts$)|tests\/|scripts\/|\.github\/|package\.json$|pnpm-(lock|workspace)\.yaml$|\.node-version$|playwright(?:\.visual)?\.config\.js$)/.test(
       name,
     ),
   )
@@ -43,11 +43,8 @@ const report = {
 const save = () =>
   fs.writeFileSync(path.join(output, 'summary.json'), `${JSON.stringify(report, null, 2)}\n`);
 const steps = [
-  ['install', ['install', '--frozen-lockfile']],
   ['build', ['build:web']],
-  ['unit-integration', ['test']],
   ['coverage', ['test:coverage']],
-  ['browser-install', ['exec', 'playwright', 'install', '--only-shell', 'chromium']],
   ['browser', ['test:e2e']],
 ];
 save();

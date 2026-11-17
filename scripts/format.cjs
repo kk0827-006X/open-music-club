@@ -9,6 +9,7 @@ const exactFiles = new Set([
   'package.json',
   'components.json',
   'playwright.config.js',
+  'playwright.visual.config.js',
   '.pnpmfile.cjs',
   'pnpm-workspace.yaml',
   '.github/workflows/acceptance.yml',

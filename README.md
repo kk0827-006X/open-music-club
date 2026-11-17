@@ -71,6 +71,14 @@ NETEASE_SESSION_ENCRYPTION_KEY=
 
 两种账号模式都不提供公开的网易云密码登录入口，不接入下载接口，不把 `NETEASE_COOKIE` 当作配置入口。第三方请求由独立工作线程承载，其原始stdout/stderr被消费丢弃，防止Cookie或内部错误写入日志；硬超时会终止线程并拒绝后续请求，需要人工处理后重启服务。不修改vendor、不新增HTTP服务或依赖。
 
+## 像素小人工坊
+
+像素小人工坊入口位于「用户 → 像素工坊」，配色与基础换装流程沿用 zyr 原版，布局按本站用户页适配：六类部件并列选择与清除、八套渐变调色板、四套肤色，自动换装点击风格预设即可生成搭配，支持部件锁定、保持当前主题及最近六个生成方案套用；形象库支持保存、套用、设为当前和二次点击确认删除。最多保存 50 个形象，使用本站登录会话按账号隔离；退出或重新登录后旧工坊上下文失效，返回标签页时在后台核验会话，同一会话保留页面、草稿及历史，仅身份变化或登录失效时清理旧状态。草稿与搭配历史仅保存在组件内存，离开工坊后清理；当前工坊形象不自动替换站内头像。照片定制、音频分析和识曲尚未接入。
+
+静态像素图案及色板参考 [jy111-ctrl/zyr-open-music-club 的 studio/app.js](https://github.com/jy111-ctrl/zyr-open-music-club/blob/17caadf9af51a6b5103752a461008b0f8e1ec5a2/studio/app.js)，预设参考同版本 `studio/views.js`。原版布局、色板、样式与交互由本站独立 React 组件承载，样式限定在工坊内部并按可用容器宽度响应，接口统一接入 Express；不使用独立子站、共享形象数据库或浏览器离线形象库。
+
+用户页布局中，调色板与肤色色块位于左侧形象下方，右侧当前穿搭与形象顶部对齐；正常界面不展示连接状态和隐私说明。“我的形象”保留一处标题与数量，卡片支持套用、设为当前及删除；不提供重复的刷新或保存当前形象按钮，返回标签页时只后台核验会话，不自动重建页面或覆盖编辑成果。
+
 ## 常用命令
 
 | 命令 | 用途 |
@@ -78,30 +86,35 @@ NETEASE_SESSION_ENCRYPTION_KEY=
 | `pnpm dev` | 同时启动 API 和前端开发服务 |
 | `pnpm dev:api` / `pnpm dev:web` | 单独启动后端或前端 |
 | `pnpm build:web` | TypeScript 检查与前端生产构建 |
-| `pnpm test` | 单元/集成测试 |
+| `pnpm test` | 业务、安全与工程约束的单元/集成测试 |
+| `pnpm test:all` | 本地完整单元/集成测试，包含图形与动效 |
+| `pnpm test:visual:unit` | 手动运行图形与动效单元测试 |
 | `pnpm test:coverage` | 后端 `src/**` 覆盖率，行/函数/分支/语句门槛均为 80% |
-| `pnpm test:e2e` | 独立服务上的 Playwright 浏览器流程 |
-| `pnpm verify:baseline` | 顺序执行安装、构建、测试、覆盖率、Chromium 安装和浏览器验收 |
+| `pnpm test:e2e` | 独立服务上的业务浏览器流程，不加载真实 3D 场景 |
+| `pnpm test:e2e:visual` | 手动运行视觉、3D、入场及动效浏览器测试，不进入 CI |
+| `pnpm verify:baseline` | 构建、业务单元/集成测试及覆盖率、业务浏览器验收；不重复安装或测试 |
 
-`pnpm verify:baseline` 任一步失败都会返回非零退出码，不用重试掩盖失败。
+运行前先执行 `pnpm install --frozen-lockfile` 和 `pnpm exec playwright install --only-shell chromium`；Linux 首次使用加上 `--with-deps`。`pnpm verify:baseline` 任一步失败都会返回非零退出码，不用重试掩盖失败。覆盖率步骤已执行全部业务单元/集成测试，无需再跑一次 `pnpm test`。
 
 ## 验收边界与报告
 
-- 浏览器验收使用生产构建 `frontend/dist`，独立服务绑定 `127.0.0.1:4317`；SQLite 和音乐存储位于系统临时目录，不读取真实 `.env`、Redis、SMTP、网易云或用户数据。网易云上游和音频使用固定白名单响应与合成资源。
+- 浏览器验收使用生产构建 `frontend/dist`，基础服务绑定 `127.0.0.1:4317`，真实 API 业务流程使用各自独立的回环端口、数据库、Session、邮箱产物及限流实例；SQLite 和音乐存储位于系统临时目录，不读取真实 `.env`、Redis、SMTP、网易云或用户数据。网易云上游和音频使用固定白名单响应与合成资源。
+- 业务浏览器文件为普通 `*.spec.js`，统一使用 `business-test` 夹具，只在测试网络层替换场景模块；React 页面、真实 API 流程、音频、权限和数据断言保留。尺寸、颜色、入场镜头、帧和动效断言放在 `*.visual.spec.js`，由独立配置手动运行。新浏览器测试默认进入业务组；新增单元测试也默认进入业务门禁，纯图形测试需在 `tests/helpers/test-suites.cjs` 明确归组。
+- CI 业务测试不证明真实 3D 渲染或视觉表现正确；修改图形时应手动运行 `pnpm test:visual:unit`、`pnpm test:e2e:visual` 并查看结果。不要用业务场景替身代替真实图形验收。
 - 这些结果不能替代真实网易云账号/VIP、真实邮件送达、真实 HTTPS/反向代理/Redis 或公网部署验收。
 - 覆盖率口径是后端 `src/**`，不是整个 React UI 覆盖率。
-- 产物位于忽略目录：`artifacts/baseline/`（summary.json、日志）和 `artifacts/e2e/`（results.json、HTML 报告、截图和失败 trace）。CI 保留 14 天；不要上传数据库、Session、`.env`、真实上传文件或生产 trace。
-- 常见问题：子模块未初始化会导致后端测试加载失败；首次浏览器验收需 `pnpm exec playwright install --only-shell chromium`（约 100 MB）；依赖安装重建 `node_modules` 时不要并行构建或测试；4317 端口被占用会直接失败，不复用开发服务器。
+- 产物位于忽略目录：`artifacts/baseline/`（summary.json、日志）、`artifacts/e2e/`（业务结果、HTML 报告及失败诊断）和 `artifacts/visual/`（手动视觉结果）。CI 仅上传指定业务报告、安全报告及覆盖率，保留 14 天；不上传测试邮箱、数据库、Session、`.env`、真实上传文件或生产 trace。
+- 常见问题：子模块未初始化会导致后端测试加载失败；首次浏览器验收需 `pnpm exec playwright install --only-shell chromium`（约 100 MB）；依赖安装重建 `node_modules` 时不要并行构建或测试；4317 端口被占用会直接失败，不复用开发服务器。本地可用 `OMC_E2E_PORT=4347 pnpm test:e2e` 指定其他基础端口，此变量仅用于测试配置，不影响生产服务；真实 API 流程各自使用的 4327～4336 端口也需要空闲。
 
 ## CI 与安全门禁
 
-`.github/workflows/acceptance.yml` 在 push、PR 和手动触发时运行，只读仓库权限且不部署。`acceptance` 作业递归检出子模块后执行 `pnpm verify:baseline`；`dependency-security` 作业单独执行官方源审计：
+`.github/workflows/acceptance.yml` 在 PR、`main` 推送和手动触发时运行；功能分支推送不再与 PR 重复执行整套检查。固定 Ubuntu 24.04，Node 按 `.node-version`，pnpm 按 `packageManager`。只读仓库权限且不部署。`business` 作业递归检出子模块，只安装一次锁文件依赖及 Chromium，随后执行 lint、官方源安全审计和 `pnpm verify:baseline`：
 
 ```bash
 pnpm audit --registry=https://registry.npmjs.org --audit-level=high --json
 ```
 
-不使用 `continue-on-error` 或漏洞忽略列表。既有高危依赖未处理时，安全作业会失败；公网开放前必须修复或明确记录风险。当前改动尚未提交或推送，远程 GitHub Actions 结果不能视为已经通过。
+不使用 `continue-on-error` 或漏洞忽略列表。既有高危依赖未处理时，业务作业会失败；公网开放前必须修复或明确记录风险。最终 `merge-gate` 始终汇总 `business` 结果，仅 `success` 放行，失败、取消、跳过或缺失均返回非零退出码。仓库分支保护/Ruleset 应将必需状态检查设为 `merge-gate`，并启用通过 PR 合并；只添加工作流不会自动修改 GitHub 的远程保护设置。移除旧的 `acceptance`、`dependency-security` 必需项前应确认新的检查已在 PR 上实际运行。远程尚未运行的新配置不能视为已通过。
 
 ## 文档
 

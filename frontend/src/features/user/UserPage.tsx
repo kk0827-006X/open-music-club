@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  Suspense,
 } from 'react';
 import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
@@ -36,6 +37,7 @@ export interface UserPageProps {
   choosePlaylist?: (song: SearchItem) => void;
   changed?: () => void;
   client?: ReturnType<typeof createPersonalLibraryClient>;
+  renderAvatar?: (active: boolean, onDialogChange: (open: boolean) => void) => ReactNode;
 }
 
 export interface UserPageHandle {
@@ -44,7 +46,7 @@ export interface UserPageHandle {
 }
 
 export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserPage(
-  { active, role = 'user', play, enqueue, changed, client },
+  { active, role = 'user', play, enqueue, changed, client, renderAvatar },
   ref,
 ) {
   const pageMotion = usePageMotion(active);
@@ -64,6 +66,10 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   const { section, selectedId, pageIndex, lists, tracks, busy, loading, changing, feedback } = data;
   const openDialogRef = useRef(false);
   const adminDialogRef = useRef(false);
+  const avatarDialogRef = useRef(false);
+  const avatarDialogChanged = useCallback((open: boolean) => {
+    avatarDialogRef.current = open;
+  }, []);
   const adminDialogChanged = useCallback((open: boolean) => {
     adminDialogRef.current = open;
   }, []);
@@ -73,7 +79,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
     () => ({
       refresh: () => data.refreshRef.current(),
       get hasOpenDialog() {
-        return openDialogRef.current || adminDialogRef.current;
+        return openDialogRef.current || adminDialogRef.current || avatarDialogRef.current;
       },
     }),
     [],
@@ -122,7 +128,13 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   }
 
   let contentBody: ReactNode;
-  if (section === 'admin') {
+  if (section === 'avatar') {
+    contentBody = (
+      <Suspense fallback={<p role="status">正在打开像素工坊…</p>}>
+        {renderAvatar?.(active, avatarDialogChanged)}
+      </Suspense>
+    );
+  } else if (section === 'admin') {
     contentBody =
       active && role === 'admin' ? (
         <AdminApplicationsPage embedded onDialogChange={adminDialogChanged} />
@@ -142,14 +154,6 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
           onCreate={mutations.openCreateDialog}
         />
       </>
-    );
-  } else if (section === 'recent') {
-    contentBody = (
-      <div className="user-empty-state">
-        <span className="user-empty-symbol">↺</span>
-        <h3>播放记录尚未开启</h3>
-        <p>历史记录功能将单独接入，不使用临时队列冒充记录。</p>
-      </div>
     );
   } else {
     contentBody = (
@@ -221,7 +225,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
             role="status"
             data-error={String(feedback.error)}
           >
-            {section === 'admin' ? '' : feedback.message}
+            {section === 'admin' || section === 'avatar' ? '' : feedback.message}
           </p>
         </div>
       </CollapsibleSidebarLayout>

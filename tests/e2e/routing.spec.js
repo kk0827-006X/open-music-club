@@ -1,5 +1,4 @@
-const { test, expect } = require('@playwright/test');
-const { graphicsProfile } = require('./graphics-profile');
+const { test, expect } = require('./business-test');
 const { wave } = require('./fixtures');
 
 async function prepare(page, authenticated = true) {
@@ -22,15 +21,7 @@ async function prepare(page, authenticated = true) {
     };
     window.Audio.prototype = Original.prototype;
   });
-  await page.route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   const track = {
     source: 'local',
     sourceId: '1',
@@ -76,7 +67,7 @@ async function expectPage(page, name) {
   await expect(view(page)).toHaveAttribute('data-view', name === 'library' ? 'archive' : name);
   await expect(view(page)).toHaveAttribute('data-entry-phase', 'ready', { timeout: 60000 });
   if (name !== 'library') await expect(page.locator(`[data-${name}-page]`)).toBeVisible();
-  await expect(page.locator('[data-archive-navigation]')).toHaveCSS('opacity', '1');
+
   await expect(page.locator('[data-archive-navigation]')).not.toHaveAttribute('inert', '');
   await expect(page.locator('[data-nav="library"]')).toBeInViewport();
   await expect(page.locator('[data-entry-start]')).toHaveCount(0);
@@ -114,7 +105,7 @@ test('四个主页面支持直达、刷新、前进后退；切页保留正在�
     .poll(() => page.evaluate(() => window.__routingAudios[0].currentTime))
     .toBeGreaterThan(0);
   expect(await page.evaluate(() => window.__routingAudios[0].paused)).toBe(false);
-  await page.screenshot({ path: info.outputPath('routing-user.png') });
+
   expect((await request.get('/assets/missing-router-chunk.js')).status()).toBe(404);
   const missingApi = await request.get('/api/route-does-not-exist');
   expect(missingApi.status()).toBe(404);
@@ -157,31 +148,4 @@ test('登录后回到原页面，退出后刷新不放行；外站返回参数�
   await page.goto('/admin/applications');
   await expect(page.getByRole('heading', { name: '无权访问申请审核' })).toBeVisible();
   expect(errors).toEqual([]);
-});
-
-test.describe('普通动效下的共享 Dock', () => {
-  test.use({ reducedMotion: 'no-preference' });
-  test('非音乐库页面直达和刷新不等待隐藏场景，Dock 可见可点击且返回音乐库恢复入场', async ({
-    page,
-  }) => {
-    const { errors } = await prepare(page);
-    expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(
-      false,
-    );
-    for (const name of ['upload', 'user', 'footprint']) {
-      await page.goto(`/${name}`);
-      await expectPage(page, name);
-      await page.reload();
-      await expectPage(page, name);
-      await page.locator('[data-nav="settings"]').click();
-      await expect(page.locator('[data-settings-dialog]')).toBeVisible();
-      await page.locator('[data-settings-close]').click();
-    }
-    await page.locator('[data-nav="library"]').click();
-    await expectPage(page, 'library');
-    await page.locator('[data-nav="user"]').click();
-    await expectPage(page, 'user');
-    expect(await page.evaluate(() => window.__routingAudios.length)).toBe(1);
-    expect(errors).toEqual([]);
-  });
 });

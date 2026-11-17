@@ -1,0 +1,70 @@
+/* 复用已有时光轴入场和里程弹出关键帧，只定义缺少的流光与奖牌落入。 */
+.footprint-page .fp-milestone .fp-stat-grid .fp-stat {
+  animation: fp-timeline-rise 460ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--fp-i, 0) * 75ms);
+}
+.footprint-page .fp-milestone .fp-stat-grid .fp-stat:nth-child(2) {
+  --fp-i: 1;
+}
+.footprint-page .fp-milestone .fp-stat-grid .fp-stat:nth-child(3) {
+  --fp-i: 2;
+}
+.footprint-page .fp-milestone .fp-stat:hover {
+  box-shadow: 0 18px 30px -26px var(--fp-ms-source-16);
+}
+.footprint-page .fp-milestone .fp-ring-num {
+  opacity: 0;
+  animation: fp-ms-pop 560ms cubic-bezier(0.2, 0.9, 0.3, 1.4) 0.85s forwards;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+.footprint-page .fp-milestone .fp-hero-num b {
+  background-size: 220% 100%;
+  animation: fp-ms-shine 3.6s ease 1.4s infinite;
+}
+@keyframes fp-ms-shine {
+  0%,
+  100% {
+    background-position: 0% 0;
+  }
+  50% {
+    background-position: 100% 0;
+  }
+}
+.footprint-page .fp-milestone .fp-rank {
+  animation: fp-ms-medal 560ms cubic-bezier(0.2, 0.9, 0.3, 1.45) both;
+  animation-delay: calc(min(var(--fp-i, 0), 8) * 70ms);
+}
+@keyframes fp-ms-medal {
+  from {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.45);
+  }
+}
+.footprint-page .fp-milestone .fp-month i {
+  transition:
+    filter 200ms ease,
+    transform 240ms cubic-bezier(0.2, 0.8, 0.3, 1.2);
+}
+.footprint-page .fp-milestone .fp-month:hover i {
+  transform: scaleY(1.05);
+  filter: brightness(1.07) saturate(1.08);
+}
+.footprint-page .fp-milestone .fp-month small {
+  animation: fp-timeline-rise 480ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(min(var(--fp-i, 0), 10) * 55ms + 460ms);
+}
+@media (prefers-reduced-motion: reduce) {
+  .footprint-page .fp-milestone .fp-stat-grid .fp-stat,
+  .footprint-page .fp-milestone .fp-ring-num,
+  .footprint-page .fp-milestone .fp-hero-num b,
+  .footprint-page .fp-milestone .fp-rank,
+  .footprint-page .fp-milestone .fp-month small {
+    animation: none !important;
+    opacity: 1;
+  }
+  .footprint-page .fp-milestone .fp-stat:hover,
+  .footprint-page .fp-milestone .fp-month:hover i {
+    transform: none;
+  }
+}

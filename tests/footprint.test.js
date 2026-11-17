@@ -94,6 +94,96 @@ describe('音乐足迹安全与持久化', () => {
     return { card: ownCard, id: response.body.postId };
   }
 
+  it('卡片风格白名单、本人权限、快照保存与分享详情保持一致', async () => {
+    const eventId = await event();
+    const created = await member
+      .post('/api/footprint/cards')
+      .send({ title: '配色测试', eventIds: [eventId], style: 'rose' })
+      .expect(201);
+    const id = created.body.card.id;
+    assert.equal(created.body.card.data.style, 'rose');
+    const snapshot = created.body.card.data;
+    await request(app)
+      .patch(`/api/footprint/cards/${id}/style`)
+      .send({ style: 'mint' })
+      .expect(401);
+    await other.patch(`/api/footprint/cards/${id}/style`).send({ style: 'mint' }).expect(404);
+    for (const style of ['bad', '#ffffff', null, {}, 3]) {
+      await member.patch(`/api/footprint/cards/${id}/style`).send({ style }).expect(400);
+      await member
+        .post('/api/footprint/cards')
+        .send({ title: '无效', eventIds: [eventId], style })
+        .expect(400);
+    }
+    const shared = await member
+      .post('/api/footprint/posts')
+      .send({ cardId: id, caption: '' })
+      .expect(201);
+    await member.patch(`/api/footprint/cards/${id}/style`).send({ style: 'mint' }).expect(200);
+    const fresh = await member.get(`/api/footprint/cards/${id}`).expect(200);
+    assert.deepEqual(fresh.body.card.data, { ...snapshot, style: 'mint' });
+    assert.equal(
+      JSON.parse(
+        database.prepare('SELECT card_data_json FROM footprint_cards WHERE id=?').get(id)
+          .card_data_json,
+      ).style,
+      'mint',
+    );
+    const detail = await other.get(`/api/footprint/posts/${shared.body.postId}`).expect(200);
+    assert.equal(detail.body.card.data.style, 'mint');
+    const automatic = await member
+      .patch(`/api/footprint/cards/${id}/style`)
+      .send({ style: 'auto' })
+      .expect(200);
+    assert.notEqual(automatic.body.card.data.style, 'auto');
+  });
+
+  it('广场只输出已发布摘要、社区统计与本人真实分页，撤下后统计同步', async () => {
+    await request(app).get('/api/footprint/overview').expect(401);
+    const privateCard = await card();
+    const first = await member
+      .post('/api/footprint/posts')
+      .send({ cardId: privateCard.id, caption: '公开' })
+      .expect(201);
+    const eventId = await event(member, { sourceId: '2' });
+    const second = await card(member, [eventId]);
+    await member
+      .post('/api/footprint/posts')
+      .send({ cardId: second.id, caption: '第二张' })
+      .expect(201);
+    for (let i = 0; i < 13; i++) {
+      const otherCard = await card(other, [await event(other, { sourceId: String(100 + i) })]);
+      await other
+        .post('/api/footprint/posts')
+        .send({ cardId: otherCard.id, caption: '其他成员' })
+        .expect(201);
+    }
+    await other.put(`/api/footprint/posts/${first.body.postId}/like`).expect(200);
+    await other
+      .post(`/api/footprint/posts/${first.body.postId}/comments`)
+      .send({ content: '评论' })
+      .expect(201);
+    const list = await member.get('/api/footprint/posts?limit=12&offset=0').expect(200);
+    assert.equal(list.body.total, 15);
+    assert.equal(list.body.posts.length, 12);
+    const summary = list.body.posts[0].card;
+    assert.equal(summary.trackCount, 1);
+    assert.equal(summary.notes, undefined);
+    assert.equal(summary.tracks[0].sourceId, undefined);
+    assert.equal(summary.tracks[0].filePath, undefined);
+    const mine = await member.get('/api/footprint/posts/mine?limit=1&offset=1').expect(200);
+    assert.equal(mine.body.total, 2);
+    assert.equal(mine.body.posts[0].id, first.body.postId);
+    assert.equal(mine.body.viewerId, mine.body.posts[0].authorId);
+    const counts = await member.get('/api/footprint/overview').expect(200);
+    assert.deepEqual(counts.body.overview, { posts: 15, likes: 1, comments: 1, authors: 2 });
+    await other.delete(`/api/footprint/posts/${first.body.postId}`).expect(404);
+    await member.delete(`/api/footprint/posts/${first.body.postId}`).expect(200);
+    const after = await member.get('/api/footprint/overview').expect(200);
+    assert.deepEqual(after.body.overview, { posts: 14, likes: 0, comments: 0, authors: 2 });
+    await member.get(`/api/footprint/cards/${privateCard.id}`).expect(200);
+  });
+
   it('初始化幂等并保留既有账号，重开仍保留记录、随笔与快照', async () => {
     initializeSchema(database);
     const id = await event();
@@ -634,6 +724,7 @@ describe('音乐足迹安全与持久化', () => {
       ['delete', 'events/1/note'],
       ['post', 'cards'],
       ['delete', 'cards/1'],
+      ['patch', 'cards/1/style'],
       ['post', 'posts'],
       ['delete', 'posts/1'],
       ['put', 'posts/1/like'],

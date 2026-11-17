@@ -1,0 +1,1261 @@
+const { test, expect } = require('@playwright/test');
+const { mockWorkspace: prepareWorkspace, showQueue, order } = require('./workspace-fixture');
+const mockWorkspace = (page, role = 'user', queue, skip = false) =>
+  prepareWorkspace(page, role, queue, skip, true);
+test.use({ deviceScaleFactor: 1 });
+
+test('LineSidebar 两页复用主题，真实拖拽收展及左缘箭头不丢草稿，窄屏菜单仍可用', async ({
+  page,
+}, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockWorkspace(page);
+  for (const name of ['user', 'footprint']) {
+    await page.locator(`[data-nav="${name}"]`).click();
+    const view = page.locator(`[data-${name}-page]`);
+    await expect(view).toBeVisible();
+    const layout = view.locator('.sidebar-layout'),
+      divider = layout.locator('.sidebar-divider');
+    const menu = view.locator('.line-sidebar');
+    await expect(menu).toBeVisible();
+    await expect(menu.locator('.line-sidebar__index')).toHaveCount(0);
+    await expect(menu.locator('button[aria-current="page"]')).toHaveCount(1);
+    const item = menu.locator('button').nth(1);
+    await item.hover();
+    await expect
+      .poll(() =>
+        item.locator('..').evaluate((node) => Number(node.style.getPropertyValue('--effect'))),
+      )
+      .toBeGreaterThan(0.2);
+    await item.focus();
+    await page.keyboard.press('Enter');
+    await expect(item).toHaveAttribute('aria-current', 'page');
+    const contentSelector = name === 'user' ? '.user-content-shell' : '.fp-shell';
+    await view.locator(contentSelector).evaluate((element) => {
+      element.dataset.retained = 'yes';
+    });
+    const before = await view.locator(contentSelector).boundingBox();
+    const bounds = await divider.boundingBox();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(45, bounds.y + bounds.height / 2, { steps: 24 });
+    await page.mouse.up();
+    await expect(layout).toHaveAttribute('data-collapsed', 'true');
+    await expect(view.locator('aside')).toHaveAttribute('inert', '');
+    await expect
+      .poll(async () => (await view.locator(contentSelector).boundingBox()).width)
+      .toBeGreaterThan(before.width + 100);
+    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes');
+    await page.mouse.move(1100, 200);
+    // 离开竖线后箭头不可见；只在展开入口悬停/聚焦时出现。
+    await page.locator('[data-nav="' + name + '"]').focus();
+    await expect
+      .poll(() =>
+        divider
+          .locator('.sidebar-divider-arrow')
+          .evaluate((node) => Number(getComputedStyle(node).opacity)),
+      )
+      .toBe(0);
+    await divider.hover();
+    await expect
+      .poll(() =>
+        divider
+          .locator('.sidebar-divider-arrow')
+          .evaluate((node) => Number(getComputedStyle(node).opacity)),
+      )
+      .toBe(1);
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-collapsed.png`) });
+    await divider.click();
+    await expect(layout).toHaveAttribute('data-collapsed', 'false');
+    await expect(menu).toBeVisible();
+    await expect
+      .poll(async () =>
+        Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width),
+      )
+      .toBeLessThan(2);
+    await divider.focus();
+    await page.keyboard.press('Enter');
+    await expect(layout).toHaveAttribute('data-collapsed', 'true');
+    await page.keyboard.press('Enter');
+    await expect(layout).toHaveAttribute('data-collapsed', 'false');
+    await expect(view.locator(contentSelector)).toHaveAttribute('data-retained', 'yes');
+    await expect
+      .poll(async () =>
+        Math.abs((await view.locator(contentSelector).boundingBox()).width - before.width),
+      )
+      .toBeLessThan(2);
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-expanded.png`) });
+    // 已收起时进入窄屏，菜单不能因 inert 残留而无法操作。
+    await divider.press('Home');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(view.locator('aside')).not.toHaveAttribute('inert', '');
+    await expect(divider).toBeHidden();
+    const mobileItem = menu.locator('button').last();
+    await mobileItem.click();
+    await expect(mobileItem).toHaveAttribute('aria-current', 'page');
+    await page.screenshot({ path: info.outputPath(`sidebar-${name}-mobile.png`) });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  await page.locator('[data-nav="settings"]').click();
+  await page.locator('[data-theme-preference="dark"]').click();
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const colors = await page.locator('[data-footprint-page] .line-sidebar').evaluate((element) => ({
+    accent: getComputedStyle(element).getPropertyValue('--accent-color').trim(),
+    site: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim(),
+  }));
+  expect(colors.accent).toBe(colors.site);
+  const backgrounds = await page.evaluate(() =>
+    ['user', 'footprint'].map(
+      (name) => getComputedStyle(document.querySelector(`[data-${name}-page]`)).background,
+    ),
+  );
+  expect(backgrounds[0]).toBe(backgrounds[1]);
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('[data-footprint-page]')).toBeHidden();
+  await expect
+    .poll(() =>
+      page.locator('[data-user-page]').evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  await page.locator('[data-nav="footprint"]').click();
+  await expect(page.locator('[data-user-page]')).toBeHidden();
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-footprint-page]')
+        .evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('退出重进释放旧场景与音频；后台页面不持续驱动场景，资源不逐轮增长', async ({ page }, info) => {
+  // 本用例按完整封面负载比较 GPU 资源，测试包装器需响应晚到的贴图。
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { created: 0, frames: [], resourceReadiness: true };
+  });
+  await mockWorkspace(page);
+  const samples = [];
+  for (let cycle = 0; cycle < 3; cycle++) {
+    // 登录会恢复退出前的上传页；每轮先返回音乐库，不能比较隐藏场景的半加载状态。
+    if (cycle > 0) await page.locator('[data-nav="library"]').click();
+    await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive');
+    await expect
+      .poll(() => page.evaluate(() => window.__migrationScenes?.at(-1)?.geometries || 0), {
+        timeout: 60000,
+      })
+      .toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const scene = window.__archiveEntryProbe.scene;
+            return (
+              scene.runtime.assets.coverTextures.length ===
+                scene.runtime.options.coverUrls.length &&
+              scene.runtime.assets.coverTextures.every(
+                (texture) =>
+                  texture !== scene.runtime.assets.fallbackCover &&
+                  Boolean(scene.renderer.properties.get(texture).__webglTexture),
+              )
+            );
+          }),
+        { timeout: 60000 },
+      )
+      .toBe(true);
+    await page.locator('[data-nav="upload"]').click();
+    await expect(page.locator('[data-upload-page]')).toBeVisible();
+    const sample = await page.evaluate(async () => {
+      const scene = window.__migrationScenes.at(-1),
+        before = scene.updates;
+      // 这是明确的 300ms 资源观察窗口，不是用固定等待替代 UI 就绪条件。
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return {
+        ...scene,
+        hiddenUpdates: scene.updates - before,
+        liveScenes: window.__migrationScenes.filter((item) => item.live).length,
+      };
+    });
+    expect(sample.hiddenUpdates).toBe(0);
+    expect(sample.liveScenes).toBe(1);
+    samples.push(sample);
+    if (cycle === 2) break;
+    await page.locator('[data-nav="settings"]').click();
+    await page.locator('[data-settings-category="account"]').click();
+    await page.locator('[data-settings-logout]').click();
+    await expect(page.locator('[data-login-form]')).toBeVisible();
+    expect(
+      await page.evaluate(() => window.__migrationScenes.filter((item) => item.live).length),
+    ).toBe(0);
+    expect(
+      await page.evaluate(() =>
+        window.__migrationAudios.every((audio) => audio.paused && !audio.getAttribute('src')),
+      ),
+    ).toBe(true);
+    await page.locator('#email').fill('isolated@example.test');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect(page.locator('.letter-glitch canvas')).toBeAttached();
+    await page.locator('.letter-glitch canvas').evaluate((node) => {
+      node.dataset.continuity = 'login-background';
+    });
+    await page.locator('#email').focus();
+    await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+      'data-continuity',
+      'login-background',
+    );
+    await page.locator('#password').fill('synthetic-secret');
+    await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+      'data-continuity',
+      'login-background',
+    );
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.locator('[data-login-form] [type="submit"]').click();
+    await expect(page.locator('[data-album-archive]')).toBeVisible();
+  }
+  expect(samples.map((sample) => sample.geometries)).toEqual(Array(3).fill(samples[0].geometries));
+  expect(
+    Math.max(...samples.map((sample) => sample.textures)) -
+      Math.min(...samples.map((sample) => sample.textures)),
+  ).toBeLessThanOrEqual(1);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(3);
+  await info.attach('react-resource-samples.json', {
+    contentType: 'application/json',
+    body: JSON.stringify(samples, null, 2),
+  });
+});
+
+test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与登录字符背景不遮挡操作', async ({
+  page,
+}, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await mockWorkspace(page);
+  await page.locator('[data-nav="user"]').click();
+  await page.locator('[data-user-tab="uploads"]').click();
+  await page.locator('[data-user-enqueue]').first().click();
+  await expect(page.locator('.queue-add-flight')).toHaveCount(1);
+  await expect(page.locator('.queue-add-flight')).toHaveCount(0);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/);
+  await expect
+    .poll(() =>
+      page
+        .locator('.player-expanded-content')
+        .evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  const bounds = await page.locator('[data-player-expanded]').boundingBox();
+  expect(bounds.y).toBe(0);
+  expect(bounds.width).toBe(1440);
+  await page.screenshot({ path: info.outputPath('react-expanded-player-motion.png') });
+  await page.locator('[data-player-close]').click();
+  await page.locator('[data-nav="upload"]').click();
+  await expect(page.locator('[data-user-page]')).toBeHidden();
+  await expect(page.locator('[data-upload-page]')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('react-upload.png') });
+  await page.setViewportSize({ width: 800, height: 900 });
+  await expect(page.locator('[data-nav="user"]')).toBeInViewport();
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('[data-user-page]')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('react-narrow-user.png') });
+  // 沿用原响应式：900px 以下设置入口本就隐藏，恢复桌面后再操作，不改变产品布局。
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('[data-nav="settings"]').click();
+  await page.locator('[data-settings-category="account"]').click();
+  await page.locator('[data-settings-logout]').click();
+  await expect(page.locator('[data-login-form]')).toBeVisible();
+  // 可见边界盒不等于入场动画已完成；截图必须等待真实表单透明度达到最终值。
+  await expect
+    .poll(() =>
+      page.locator('.access-stack').evaluate((node) => Number(getComputedStyle(node).opacity)),
+    )
+    .toBe(1);
+  await expect(page.locator('.letter-glitch canvas')).toBeAttached();
+  await page.locator('.letter-glitch canvas').evaluate((node) => {
+    node.dataset.continuity = 'login-background';
+  });
+  await page.locator('#email').focus();
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+    'data-continuity',
+    'login-background',
+  );
+  await page.locator('#password').fill('synthetic-secret');
+  await expect(page.locator('.letter-glitch canvas')).toHaveAttribute(
+    'data-continuity',
+    'login-background',
+  );
+  await page.locator('[data-reveal-password]').click();
+  await expect(page.locator('#password')).toHaveAttribute('type', 'text');
+  await expect(page.locator('#password')).toHaveValue('synthetic-secret');
+  await page.locator('#password').blur();
+  await expect(page.locator('.letter-glitch')).toBeAttached();
+  await page.screenshot({ path: info.outputPath('react-login-letter-glitch.png') });
+  expect(errors).toEqual([]);
+});
+
+test('歌单进入及返回沿用分类淡出淡入，等待详情期间内容保持透明', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page);
+  const list = { id: 1, name: '过渡验收歌单', trackCount: 0, coverUrl: null };
+  let releaseDetail;
+  await page.route('**/api/me/playlists**', async (route) => {
+    if (new URL(route.request().url()).pathname === '/api/me/playlists')
+      return route.fulfill({ json: { playlists: [list] } });
+    await new Promise((resolve) => {
+      releaseDetail = resolve;
+    });
+    return route.fulfill({ json: { playlist: list, tracks: [] } });
+  });
+  await page.locator('[data-nav="user"]').click();
+  const content = page.locator('[data-user-content]');
+  await expect(page.locator('[data-user-list="1"]')).toBeEnabled();
+  await page.locator('[data-user-list="1"]').click();
+  await expect(content).toHaveClass(/is-changing/);
+  await expect.poll(() => Boolean(releaseDetail)).toBe(true);
+  await expect(content).toHaveCSS('opacity', '0');
+  await expect(content).toHaveAttribute('inert', '');
+  releaseDetail();
+  await expect(content).not.toHaveClass(/is-changing/);
+  await expect(content).toHaveCSS('opacity', '1');
+  await page.locator('[data-user-back]').click();
+  await expect(content).toHaveClass(/is-changing/);
+  await expect(page.locator('[data-user-list="1"]')).toBeEnabled();
+  await expect(content).toHaveCSS('opacity', '1');
+  await expect(content).not.toHaveAttribute('inert', '');
+});
+
+test('用户与足迹右侧无重复标题和顶线，设置弹窗标题保持原样', async ({ page }, info) => {
+  await mockWorkspace(page);
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.locator('[data-nav="user"]').click();
+  await expect(page.locator('.user-content-header')).toHaveCSS('height', '0px');
+  await expect(page.locator('.user-content-header')).toHaveCSS('border-bottom-width', '0px');
+  await expect(page.locator('[data-user-heading]')).toHaveClass('sr-only');
+  await expect(page.locator('.user-content-header p, .user-content-header span')).toHaveCount(0);
+  await expect(page.locator('.user-collection-intro')).not.toContainText('MY PLAYLISTS');
+  await expect(page.locator('[data-user-create]')).toBeVisible();
+  await page.screenshot({ path: info.outputPath('user-without-repeated-headings.png') });
+  await page.locator('[data-nav="footprint"]').click();
+  await expect(page.locator('.fp-header')).toHaveCSS('height', '0px');
+  await expect(page.locator('.fp-header')).toHaveCSS('border-bottom-width', '0px');
+  await expect(page.locator('.fp-header h2')).toHaveClass('sr-only');
+  for (const tab of ['timeline', 'milestone', 'studio', 'square']) {
+    await page.locator(`[data-fp-tab="${tab}"]`).click();
+    await expect(page.locator(`.fp-view.fp-${tab}`)).toBeVisible();
+    await expect(page.locator('.fp-view > .fp-view-header')).toHaveCount(0);
+  }
+  await page.locator('[data-fp-tab="timeline"]').click();
+  await expect(page.locator('.fp-view-summary')).toContainText('播放记录');
+  await page.screenshot({ path: info.outputPath('footprint-without-repeated-headings.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.fp-header')).toHaveCSS('height', '0px');
+  await expect(page.locator('.fp-header')).toHaveCSS('border-bottom-width', '0px');
+  expect(await page.locator('body').evaluate((node) => node.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({
+    path: info.outputPath('footprint-without-repeated-headings-mobile.png'),
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.locator('[data-nav="settings"]').click();
+  await expect(page.locator('#settings-title')).toBeVisible();
+  await expect(page.locator('.settings-section-heading')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('上传页初始保留01和02，选择音频后03沿用页面动效显示，移除后隐藏', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page);
+  await page.locator('[data-nav="upload"]').click();
+  const form = page.locator('[data-upload-form]');
+  const workspace = page.locator('.upload-workspace');
+  await expect(workspace).toBeVisible();
+  await expect(page.locator('[data-upload-selected-row]')).toBeVisible();
+  await expect(form).toBeHidden();
+  await expect
+    .poll(() =>
+      page.locator('[data-upload-page]').evaluate((node) => getComputedStyle(node).opacity),
+    )
+    .toBe('1');
+  const before = await workspace.boundingBox();
+  await page.locator('[data-upload-file]').setInputFiles({
+    name: 'isolated.wav',
+    mimeType: 'audio/wav',
+    buffer: require('./fixtures').wave(),
+  });
+  await expect(form).toBeVisible();
+  await expect(form).toHaveCSS('opacity', '1');
+  await expect(form).toHaveCSS('transform', 'none');
+  const after = await workspace.boundingBox();
+  expect(Math.abs(before.x - after.x)).toBeLessThan(1);
+  expect(Math.abs(before.y - after.y)).toBeLessThan(1);
+  expect(Math.abs(before.width - after.width)).toBeLessThan(1);
+  await page.locator('[data-upload-remove]').click();
+  await expect(form).toHaveAttribute('inert', '');
+  await expect(form).toBeHidden();
+  await expect(page.locator('[data-upload-selected-row]')).toBeVisible();
+  await expect(page.locator('[data-upload-feedback]')).toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('[data-upload-file]').setInputFiles({
+    name: 'reduced.wav',
+    mimeType: 'audio/wav',
+    buffer: require('./fixtures').wave(),
+  });
+  await expect(form).toBeVisible();
+  await expect(form).toHaveCSS('opacity', '1');
+});
+
+test('登录 Code Slots 自动验证、错误重试、恢复码切换与窄屏主题正常', async ({ page }, info) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  let verified = false,
+    attempts = [];
+  await page.route('**/api/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let body = { success: true },
+      status = 200;
+    if (path === '/api/auth/me')
+      body = verified ? { authenticated: true, user: { role: 'user' } } : { authenticated: false };
+    else if (path === '/api/security/csrf-token') body = { csrfToken: 'isolated-token' };
+    else if (path === '/api/auth/login') body = { requiresTwoFactor: true };
+    else if (path === '/api/auth/2fa/verify') {
+      const code = route.request().postDataJSON().code;
+      attempts.push(code);
+      if (code === '000000') {
+        status = 401;
+        body = { message: '验证失败' };
+      } else {
+        verified = true;
+      }
+    }
+    await route.fulfill({ status, json: body });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: /点击进入/ }).click();
+  await page.locator('#email').fill('isolated@example.test');
+  await page.locator('#password').fill('synthetic-password');
+  await page.locator('[data-login-form] [type="submit"]').click();
+  const dialog = page.locator('[data-login-factor-dialog]');
+  const input = dialog.getByLabel('验证码', { exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.code-slots__slot')).toHaveCount(6);
+  await expect(dialog.locator('.factor-confirm')).toHaveCount(0);
+  await input.fill('000000');
+  await expect(dialog.locator('[data-factor-feedback]')).toContainText('验证失败');
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0);
+  expect(attempts).toEqual(['000000']);
+  await dialog.locator('[name=recovery]').check();
+  await expect(dialog.getByLabel('恢复码', { exact: true })).toBeVisible();
+  await expect(dialog.locator('.factor-confirm')).toBeVisible();
+  await dialog.getByLabel('恢复码', { exact: true }).fill('synthetic-unused-code');
+  await dialog.locator('[name=recovery]').uncheck();
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(0);
+  await input.fill('123');
+  await expect(dialog.locator('.code-slots__slot[data-filled]')).toHaveCount(3);
+  await expect(dialog.locator('.code-slots__digit').nth(2)).toHaveCSS('opacity', '1');
+  await expect(dialog.locator('.code-slots__fill').nth(2)).toHaveCSS(
+    'transform',
+    'matrix(1, 0, 0, 1, 0, 0)',
+  );
+  await page.screenshot({ path: info.outputPath('code-slots-light.png') });
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  const bounds = await dialog.boundingBox();
+  const slots = await dialog.locator('.code-slots').boundingBox();
+  expect(slots.x).toBeGreaterThanOrEqual(bounds.x);
+  expect(slots.x + slots.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+  await expect(dialog.locator('.code-slots__slot').nth(4)).toHaveCSS(
+    'background-color',
+    'rgba(24, 33, 38, 0.75)',
+  );
+  await page.screenshot({ path: info.outputPath('code-slots-dark-mobile.png') });
+  await dialog.locator('[data-login-factor-close]').click();
+  await expect(dialog).not.toBeVisible();
+});
+
+test('展开播放器封面环境取色、交叉淡入、缓存与收藏正常，CORS失败不影响播放', async ({
+  page,
+}, info) => {
+  await mockWorkspace(page, 'user', []);
+  const errors = [],
+    extractions = [],
+    likes = [];
+  let ambientLiked = false;
+  page.on('pageerror', (error) => errors.push(error.message));
+  const colors = { 101: '#d62b49', 102: '#246ac2', 103: '#369963' };
+  await page.route('https://p.music.126.net/ambient-*.svg', async (route) => {
+    const id = Number(
+      route
+        .request()
+        .url()
+        .match(/ambient-(\d+)/)[1],
+    );
+    const headers = await route.request().allHeaders();
+    if (headers['sec-fetch-mode'] === 'cors' || headers.origin) extractions.push(id);
+    // 明确拒绝来源；Playwright 对缺省 CORS 头会自动放行，不能用空 headers 模拟失败。
+    await route.fulfill({
+      contentType: 'image/svg+xml',
+      headers: { 'Access-Control-Allow-Origin': id === 103 ? 'https://blocked.invalid' : '*' },
+      body: `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${colors[id]}"/></svg>`,
+    });
+  });
+  await page.route('https://e2e.music.126.net/ambient.wav', (route) =>
+    route.fulfill({ contentType: 'audio/wav', body: require('./fixtures').wave() }),
+  );
+  await page.route('**/api/netease/search?**', (route) =>
+    route.fulfill({
+      json: {
+        code: 200,
+        result: {
+          songs: [101, 102, 103].map((id) => ({
+            id,
+            name: `ambient ${id}`,
+            ar: [{ name: '隔离歌手' }],
+            al: { name: '环境背景测试', picUrl: `https://p.music.126.net/ambient-${id}.svg` },
+            dt: 60000,
+          })),
+        },
+      },
+    }),
+  );
+  await page.route('**/api/netease/song/url/v1?**', (route) =>
+    route.fulfill({
+      json: { code: 200, data: [{ url: 'https://e2e.music.126.net/ambient.wav' }] },
+    }),
+  );
+  await page.route('**/api/netease/lyric?**', (route) =>
+    route.fulfill({
+      json: {
+        code: 200,
+        lrc: {
+          lyric:
+            '[00:00.00]音乐让颜色缓慢流动\n[00:05.00]当这句很长的歌词缓缓唱起，愿每一个音符都能自然换行，留在恰好舒适的阅读位置\n[00:10.00]沿着时间的方向\n[00:15.00]听见远处的回响\n[00:20.00]让旋律继续流淌\n[00:30.00]保留原来的声音',
+        },
+      },
+    }),
+  );
+  await page.route('**/api/me/likes/netease/*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      likes.push(route.request().method());
+      ambientLiked = route.request().method() === 'PUT';
+    }
+    await route.fulfill({ json: { success: true, liked: ambientLiked } });
+  });
+  await page.locator('[data-nav="search"]').click();
+  await page.getByRole('searchbox', { name: '搜索音乐' }).fill('ambient');
+  await page.getByRole('searchbox', { name: '搜索音乐' }).press('Enter');
+  const play = async (id) => {
+    await page.getByRole('button', { name: `播放 ambient ${id}`, exact: true }).click();
+    await expect(page.locator('[data-expanded-title]')).toHaveText(`ambient ${id}`);
+  };
+  await play(101);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  const background = page.locator('[data-album-ambient]');
+  const palette = () =>
+    background
+      .locator('[data-front="true"]')
+      .evaluate((node) => node.style.getPropertyValue('--ambient-color-1'));
+  await expect.poll(palette).toBe('rgb(214 43 73)');
+  await expect(page.locator('.player-expanded-content')).toHaveCSS('opacity', '1');
+  await expect(page.locator('[data-global-player]')).toHaveCSS('visibility', 'hidden');
+  await expect(page.locator('[data-global-player]')).toHaveAttribute('inert', '');
+  const columns = await page
+    .locator('.player-expanded-content')
+    .evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').length);
+  expect(columns).toBe(2);
+  await expect(page.locator('[data-expanded-queue]')).toHaveCount(0);
+  await expect(page.locator('[data-expanded-progress]')).toBeInViewport();
+  await page.locator('[data-expanded-toggle]').click();
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(true);
+  await page.locator('[data-expanded-toggle]').click();
+  await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false);
+  await page.locator('[data-expanded-progress]').press('Home');
+  await expect
+    .poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime))
+    .toBeLessThan(2);
+  await expect(page.locator('[data-lyric-distance="3"]').first()).toHaveCSS('filter', 'blur(2px)');
+  const longLine = page.locator('[data-player-lyrics] p').nth(1);
+  expect(
+    await longLine.evaluate(
+      (node) => node.getBoundingClientRect().height > parseFloat(getComputedStyle(node).lineHeight),
+    ),
+  ).toBe(true);
+  await longLine.locator('button').click();
+  await expect(page.locator('[data-player-lyrics] .is-current')).toContainText('当这句很长的歌词');
+  await expect(longLine.locator('button')).toHaveCSS('color', 'rgb(247, 244, 239)');
+  await expect
+    .poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime))
+    .toBeGreaterThanOrEqual(5);
+  const volume = await page.evaluate(() => window.__migrationAudios[0].volume);
+  await page.locator('.expanded-player-volume [role="slider"]').press('ArrowLeft');
+  await expect
+    .poll(() => page.evaluate(() => window.__migrationAudios[0].volume))
+    .toBeCloseTo(volume - 0.01);
+  await page.screenshot({ path: info.outputPath('ambient-album-red-desktop.png') });
+  const audioCount = await page.evaluate(() => window.__migrationAudios.length);
+  await page.locator('[data-expanded-like]').click();
+  await expect(page.locator('[data-expanded-like]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-player-like]')).toHaveAttribute('aria-pressed', 'true');
+  expect(likes).toEqual(['PUT']);
+  await expect(page.locator('[data-expanded-more]')).toBeDisabled();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect(background.locator('[data-front="true"] .ambient-album-blob').first()).toHaveCSS(
+    'animation-play-state',
+    'running',
+  );
+  await page.locator('[data-player-close]').click();
+  await play(102);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect.poll(palette).toBe('rgb(36 106 194)');
+  await expect(background.locator('[data-ambient-layer]')).toHaveCount(2);
+  const previous = background.locator('[data-front="false"]');
+  await expect
+    .poll(() =>
+      previous.evaluate((node) => {
+        const opacity = Number(getComputedStyle(node).opacity);
+        return opacity > 0 && opacity < 1;
+      }),
+    )
+    .toBe(true);
+  await expect(previous).toHaveCSS('opacity', '0');
+  await page.screenshot({ path: info.outputPath('ambient-album-blue-desktop.png') });
+  await page.locator('[data-expanded-previous]').click();
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 101');
+  await page.locator('[data-expanded-next]').click();
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 102');
+  const layoutBefore = await page.locator('.player-expanded-track').boundingBox();
+  const outerScroll = () =>
+    page
+      .locator('.album-archive')
+      .evaluate((node) => ({ top: node.scrollTop, left: node.scrollLeft }));
+  const scrollBefore = await outerScroll();
+  await page.locator('[data-expanded-queue-toggle]').click();
+  const drawer = page.locator('[data-player-queue-panel]');
+  await expect(drawer).toBeVisible();
+  await expect(drawer).toHaveCSS('opacity', '1');
+  await expect(drawer).toBeInViewport();
+  await expect(drawer).toHaveClass(/is-immersive/);
+  await expect(drawer.locator('[data-queue-key].is-active')).toHaveAttribute(
+    'data-queue-key',
+    'netease:102',
+  );
+  expect(await page.locator('.player-expanded-track').boundingBox()).toEqual(layoutBefore);
+  expect(await outerScroll()).toEqual(scrollBefore);
+  await expect(drawer.locator('[data-queue-close]')).toBeFocused();
+  await page.screenshot({ path: info.outputPath('immersive-queue-desktop.png') });
+  await page.locator('[data-queue-drag="netease:102"]').press('ArrowUp');
+  await expect.poll(() => order(page)).toEqual(['netease:102', 'netease:101']);
+  await page.locator('[data-queue-remove="netease:101"]').click();
+  await expect(drawer.locator('[data-queue-key]')).toHaveCount(1);
+  // 删除按钮的自动化点击可能先滚动页面；关闭只与关闭前的真实位置比较。
+  const layoutBeforeClose = await page.locator('.player-expanded-track').boundingBox();
+  const scrollBeforeClose = await outerScroll();
+  // locator.press 会先用默认 focus 聚焦，可能自行滚动外层；明确准备焦点后只发送按键。
+  const queueClose = drawer.locator('[data-queue-close]');
+  await queueClose.evaluate((button) => button.focus({ preventScroll: true }));
+  await expect(queueClose).toBeFocused();
+  expect(await outerScroll()).toEqual(scrollBeforeClose);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
+  await expect(page.locator('[data-expanded-queue-toggle]')).toBeFocused();
+  expect(await outerScroll()).toEqual(scrollBeforeClose);
+  expect(await page.locator('.player-expanded-track').boundingBox()).toEqual(layoutBeforeClose);
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/);
+  await page.locator('[data-player-close]').click();
+  await play(101);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect.poll(palette).toBe('rgb(214 43 73)');
+  expect(extractions.filter((id) => id === 101).length).toBe(1);
+  await page.locator('[data-player-close]').click();
+  await play(103);
+  await page.mouse.move(700, 998);
+  await page.locator('[data-player-open]').click();
+  await expect.poll(palette).toBe('rgb(109 74 88)');
+  await expect(page.locator('[data-expanded-title]')).toHaveText('ambient 103');
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(background.locator('.ambient-album-blob').first()).toHaveCSS(
+    'animation-name',
+    'none',
+  );
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('[data-expanded-like]')).toBeInViewport();
+  await expect(page.locator('[data-expanded-progress]')).toBeInViewport();
+  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport();
+  expect((await page.locator('[data-player-lyrics]').boundingBox()).height).toBeGreaterThan(100);
+  await page.screenshot({ path: info.outputPath('ambient-album-mobile-dark.png') });
+  await page.locator('[data-expanded-queue-toggle]').click();
+  await expect(page.locator('[data-queue-close]')).toBeInViewport();
+  await page.locator('[data-queue-close]').click();
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(page.locator('[data-expanded-toggle]')).toBeInViewport();
+  await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: info.outputPath('immersive-player-320.png') });
+  await page.locator('[data-player-close]').click();
+  await expect(page.locator('[data-global-player]')).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.locator('[data-player-open-compact]')).toBeFocused();
+  await page.locator('[data-player-open-compact]').press('Enter');
+  await expect(page.locator('[data-player-expanded]')).toHaveClass(/is-open/);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(audioCount);
+  expect(errors).toEqual([]);
+});
+
+test('档案阵列入场不聚焦特定专辑，结束后点击才显示资料并保持原高度', async ({ page }, info) => {
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { created: 0, frames: [] };
+  });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page);
+  const root = page.locator('[data-album-archive]');
+  await expect(root).toHaveAttribute('data-entry-phase', 'ready', { timeout: 45000 });
+  const cinema = await page.evaluate(() =>
+    window.__archiveEntryProbe.frames
+      .filter((frame) => frame.cinematic)
+      .map((frame) => frame.cinematic),
+  );
+  expect(cinema.length).toBeGreaterThanOrEqual(1);
+  expect(
+    await page.evaluate(() =>
+      window.__archiveEntryProbe.frames
+        .filter((frame) => frame.cinematic)
+        .every((frame) => frame.navigationInert && frame.informationHidden),
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        new Set(window.__archiveEntryProbe.frames.map((frame) => JSON.stringify(frame.camera)))
+          .size,
+    ),
+  ).toBeGreaterThan(1);
+  expect(cinema.every((frame) => frame.time < 25.05 && frame.lift === 0 && frame.zoom === 0)).toBe(
+    true,
+  );
+  const cameraFrames = await page.evaluate(() => window.__archiveEntryProbe.frames);
+  const first = cameraFrames.find((frame) => frame.cinematic);
+  const vector = first.camera.map((v, i) => v - first.aim[i]);
+  expect((Math.asin(vector[1] / Math.hypot(...vector)) * 180) / Math.PI).toBeGreaterThan(30);
+  const modelZ = cameraFrames.filter((frame) => frame.cinematic).map((frame) => frame.position[2]);
+  expect(Math.max(...modelZ) - Math.min(...modelZ)).toBeLessThan(0.001);
+  // settling 本身会插值相机；连续性交接应比较其末帧与 ready 首帧，不能跨整个过渡取样。
+  const settled = cameraFrames.filter((frame) => frame.phase === 'settling').at(-1);
+  const readyFrame = cameraFrames.find((frame) => frame.phase === 'ready');
+  expect(settled, '应采集到落定边界帧').toBeTruthy();
+  expect(readyFrame, '应采集到 ready 边界帧').toBeTruthy();
+  await info.attach('入场相机边界帧', {
+    body: JSON.stringify({ settled, readyFrame }),
+    contentType: 'application/json',
+  });
+  expect(Math.hypot(...settled.camera.map((v, i) => v - readyFrame.camera[i]))).toBeLessThan(0.001);
+  expect(Math.abs(settled.fov - readyFrame.fov)).toBeLessThan(0.001);
+
+  await expect(page.locator('[data-album-detail]')).toBeHidden();
+  await expect(page.locator('[data-album-information]')).toBeHidden();
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats());
+  // 用原波形和当前模拟状态计算未抬高的高度，排除波峰运动对测量的影响。
+  const {
+    archiveWave,
+    settlingWave,
+    columnStrength,
+    idleWave,
+  } = require('../../frontend/src/rhine/motion.ts');
+  const rise = async (subtractExtraction = false) => {
+    const state = await page.evaluate(() => {
+      const scene = window.__archiveEntryProbe.scene,
+        stats = scene.getStats();
+      return {
+        y: stats.modelPosition[1],
+        row: stats.selectedCell.row,
+        lane: stats.selectedCell.lane,
+        origin: stats.coordinateOrigin,
+        time: scene.state.timing.clock,
+        scanTime: scene.state.selection.scanTime,
+        scanBlend: scene.state.selection.scanBlend,
+        shoulder: scene.state.navigation.shoulder.value,
+        focus: scene.state.navigation.laneFocus.value,
+        idle: scene.state.selection.idleGain,
+        lift: scene.state.selection.lift.value,
+      };
+    });
+    const { row, lane, origin } = state;
+    const original =
+      -4.6 +
+      archiveWave(row + origin.row, lane + origin.lane, state.scanTime) * state.scanBlend +
+      settlingWave(row - state.shoulder, 26.56) * columnStrength(lane, state.focus) +
+      idleWave(row + origin.row, lane + origin.lane, state.time) * state.idle;
+    return state.y - original - (subtractExtraction ? state.lift : 0);
+  };
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  const point = await page.evaluate(() => window.__archiveEntryProbe.scene.projectCard(0, 3.5));
+  await page.mouse.move(point[0], point[1]);
+  await expect.poll(() => rise()).toBeCloseTo(0.68, 2);
+  await expect(page.locator('[data-album-information]')).toBeHidden();
+  await page.mouse.move(1400, 50);
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  await page.mouse.click(point[0], point[1]);
+  await expect(page.locator('[data-album-information]')).toBeVisible();
+  // 原选中逻辑会清空悬停；点击后恢复原预览高度，不保留额外增量。
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  await page.mouse.move(1400, 50);
+  await expect.poll(() => rise()).toBeCloseTo(0.4, 2);
+  await expect(page.locator('[data-album-detail]')).toBeHidden();
+  await page.screenshot({ path: info.outputPath('archive-selected-information.png') });
+  await page.locator('[data-open-selected]').click();
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = true;
+  });
+  await expect(page.locator('[data-album-detail]')).toBeVisible();
+  const { INSPECTION_LIFT } = require('../../frontend/src/rhine/motion.ts');
+  await expect.poll(async () => (await stats()).extraction).toBeGreaterThan(3.9);
+  expect((await stats()).extraction).toBeLessThanOrEqual(INSPECTION_LIFT + 0.001);
+  // 原详情展示完成会停帧；精确核对实际抽出进度对应的原公式，没有新增偏移。
+  await expect.poll(() => rise(true)).toBeCloseTo(0, 2);
+  // 软件 GPU 只在观察动画时连续渲染，避免闲置重绘阻塞真实按钮输入。
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = false;
+  });
+  await page.locator('[data-back-to-archive]').click();
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = true;
+  });
+  await expect(page.locator('[data-album-detail]')).toBeHidden();
+  await expect.poll(() => rise(), { timeout: 45000 }).toBeCloseTo(0.4, 2);
+  await page.evaluate(() => {
+    window.__archiveEntryProbe.animate = false;
+  });
+  await page.locator('[data-nav="search"]').click();
+  await page.locator('[data-nav="library"]').click();
+  expect(
+    await page.evaluate(
+      () => window.__archiveEntryProbe.frames.filter((frame) => frame.cinematic).length,
+    ),
+  ).toBe(cinema.length);
+  expect(await page.evaluate(() => window.__archiveEntryProbe.created)).toBe(1);
+  expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+});
+
+test('ENTER SYSTEM 只跳过 SVG，阵列仍正常入场且没有独立跳过入口', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__archiveEntryProbe = { created: 0, frames: [] };
+  });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await mockWorkspace(page, 'user', [], true);
+  await expect(page.locator('[data-archive-entry] button')).toHaveCount(0);
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', {
+    timeout: 45000,
+  });
+  expect(
+    await page.evaluate(() => window.__archiveEntryProbe.frames.some((frame) => frame.cinematic)),
+  ).toBe(true);
+  expect(await page.evaluate(() => window.__archiveEntryProbe.warmup.after)).toBeGreaterThan(0);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready');
+  await expect(page.locator('[data-album-information]')).toBeHidden();
+});
+
+test('Gooey 搜索就地展开，玻璃描边跟随悬停颜色，窄屏不越界', async ({ page }, info) => {
+  const requests = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/') && request.url().includes('search'))
+      requests.push(request.url());
+  });
+  await mockWorkspace(page);
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-entry-phase', 'ready', {
+    timeout: 45000,
+  });
+  const trigger = page.locator('[data-nav="search"]');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.mouse.move(500, 200);
+  const library = page.locator('[data-nav="library"]');
+  await expect(trigger).toHaveCSS(
+    'color',
+    await library.evaluate((el) => getComputedStyle(el).color),
+  );
+  await library.hover();
+  const hoverColor = await library.evaluate((el) => getComputedStyle(el).color);
+  await trigger.hover();
+  await expect(trigger).toHaveCSS('color', hoverColor);
+  await expect(trigger.locator('.ui-icon')).toHaveCSS('animation-name', 'ui-icon-bob');
+  const before = await page.locator('[data-nav="library"]').boundingBox();
+  await expect(page.locator('.gooey-search-field')).toHaveCSS(
+    'border-top-color',
+    'rgba(0, 0, 0, 0)',
+  );
+  await expect(page.locator('.gooey-search-field')).toHaveCSS(
+    'background-color',
+    'rgba(0, 0, 0, 0)',
+  );
+  await expect(page.locator('.gooey-search-fluid')).toHaveCSS('opacity', '0');
+  await trigger.click();
+  const input = page.getByRole('searchbox', { name: '搜索音乐' });
+  await expect(input).toBeFocused();
+  await input.fill('晴天');
+  await input.press('Enter');
+  await expect(page.locator('[data-album-archive]')).toHaveAttribute('data-view', 'archive');
+  await expect(page.locator('[data-search-page]')).toHaveCount(0);
+  await expect
+    .poll(() => page.locator('.gooey-search').evaluate((el) => el.getBoundingClientRect().width))
+    .toBeCloseTo(250, 0);
+  const after = await page.locator('[data-nav="library"]').boundingBox();
+  expect(after.x).toBeLessThan(before.x - 100);
+  const inline = await input.boundingBox(),
+    nav = await page.locator('[data-archive-navigation]').boundingBox();
+  expect(inline.y).toBeGreaterThanOrEqual(nav.y);
+  expect(inline.y + inline.height).toBeLessThanOrEqual(nav.y + nav.height + 1);
+  await expect(page.locator('.gooey-search [data-ui-icon]')).toHaveCount(0);
+  const styles = await page.evaluate(() => ({
+    color: getComputedStyle(document.querySelector('[data-nav="search"]')).color,
+    border: getComputedStyle(document.querySelector('.gooey-search-field')).borderTopColor,
+    blur: getComputedStyle(document.querySelector('.gooey-search-field')).backdropFilter,
+  }));
+  expect(styles.border).toBe(hoverColor);
+  expect(styles.blur).toContain('blur');
+  await page.screenshot({ path: info.outputPath('gooey-search-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const bounds = await page.locator('[data-archive-navigation]').boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await input.press('Escape');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(trigger).toBeFocused();
+  expect(requests.length).toBeGreaterThan(0);
+  await expect(page.locator('[data-song-search-panel]')).toBeVisible();
+});
+
+test.describe('音频响应图形验收', () => {
+  test.use({ deviceScaleFactor: 0.25 });
+
+  test('音乐响应阵列复用音频节点，跨来源切换及拖动、详情、减少动态效果平滑衔接', async ({
+    page,
+  }, info) => {
+    test.setTimeout(300000);
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.addInitScript(() => {
+      window.__archiveEntryProbe = { animate: false, frames: [], created: 0 };
+      const Original = window.AudioContext;
+      window.__audioGraph = { contexts: 0, sources: 0, reads: 0, closed: 0 };
+      window.AudioContext = class extends Original {
+        constructor(...args) {
+          super(...args);
+          window.__audioGraph.contexts++;
+        }
+        createMediaElementSource(...args) {
+          window.__audioGraph.sources++;
+          return super.createMediaElementSource(...args);
+        }
+        createAnalyser() {
+          const meter = super.createAnalyser(),
+            read = meter.getFloatFrequencyData.bind(meter);
+          meter.getFloatFrequencyData = (data) => {
+            window.__audioGraph.reads++;
+            return read(data);
+          };
+          return meter;
+        }
+        close() {
+          window.__audioGraph.closed++;
+          return super.close();
+        }
+      };
+    });
+    await mockWorkspace(page, 'user', [], true);
+    const tone = Buffer.alloc(44 + 8000 * 300 * 2);
+    require('./fixtures').wave().copy(tone, 0, 0, 44);
+    tone.writeUInt32LE(tone.length - 8, 4);
+    tone.writeUInt32LE(tone.length - 44, 40);
+    for (let i = 44; i < tone.length; i += 2)
+      tone.writeInt16LE(Math.round(12000 * Math.sin((((i - 44) / 2) * Math.PI * 220) / 8000)), i);
+    const treble = Buffer.from(tone);
+    for (let i = 44; i < treble.length; i += 2)
+      treble.writeInt16LE(
+        Math.round(12000 * Math.sin((((i - 44) / 2) * Math.PI * 5000) / 8000)),
+        i,
+      );
+    await page.route('**/api/local/music/1/stream', (route) =>
+      route.fulfill({ contentType: 'audio/wav', body: tone }),
+    );
+    await page.route('https://e2e.music.126.net/reactive.wav', (route) =>
+      route.fulfill({
+        contentType: 'audio/wav',
+        headers: { 'Access-Control-Allow-Origin': '*' },
+        body: treble,
+      }),
+    );
+    await page.route('**/api/netease/song/url/v1?**', (route) =>
+      route.fulfill({
+        json: { code: 200, data: [{ url: 'https://e2e.music.126.net/reactive.wav' }] },
+      }),
+    );
+    await page.route('**/api/netease/search?**', (route) =>
+      route.fulfill({
+        json: {
+          code: 200,
+          result: { songs: [{ id: 991, name: '音乐响应测试', ar: [], al: {}, dt: 60000 }] },
+        },
+      }),
+    );
+    await page.locator('[data-nav="user"]').click();
+    await page.locator('[data-user-tab="uploads"]').click();
+    await page.locator('[data-user-play="local:1"]').click();
+    await expect.poll(() => page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false);
+    await page.locator('[data-nav="library"]').click();
+    await page.evaluate(() => {
+      window.__archiveEntryProbe.animate = true;
+    });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const stats = () => page.evaluate(() => window.__archiveEntryProbe.scene.getStats());
+    await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(0.1);
+    await expect
+      .poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 })
+      .toBeGreaterThan(0.9);
+    const spectrumPeak = () =>
+      page.evaluate(() => {
+        const values = [...window.__archiveEntryProbe.scene.state.audio.audioBands.spectrum];
+        return values.indexOf(Math.max(...values));
+      });
+    expect(await spectrumPeak()).toBeLessThan(12);
+    await page.evaluate(() => {
+      window.__archiveEntryProbe.scene.state.interaction.holdingArchive = true;
+    });
+    await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(0.25);
+    await page.evaluate(() => {
+      window.__archiveEntryProbe.scene.state.interaction.holdingArchive = false;
+    });
+    await expect
+      .poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 })
+      .toBeGreaterThan(0.9);
+    await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('detail'));
+    await expect.poll(async () => (await stats()).audioReactiveGain).toBeLessThan(0.01);
+    await page.evaluate(() => window.__archiveEntryProbe.scene.setMode('archive'));
+    await expect
+      .poll(async () => (await stats()).audioReactiveGain, { timeout: 60000 })
+      .toBeGreaterThan(0.9);
+    await page.screenshot({ path: info.outputPath('audio-reactive-archive.png') });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect.poll(async () => (await stats()).spectrumActivity).toBe(0);
+    const reads = await page.evaluate(() => window.__audioGraph.reads);
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(reads);
+    await page.locator('[data-nav="search"]').click();
+    await page.getByRole('searchbox', { name: '搜索音乐' }).fill('音乐响应测试');
+    await page.getByRole('searchbox', { name: '搜索音乐' }).press('Enter');
+    await page.getByRole('button', { name: '播放 音乐响应测试', exact: true }).click();
+    await expect
+      .poll(() => page.evaluate(() => window.__migrationAudios[0].src))
+      .toContain('reactive.wav');
+    await page.locator('[data-search-close]').click();
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect.poll(async () => (await stats()).spectrumActivity).toBeGreaterThan(0.1);
+    await expect.poll(spectrumPeak).toBeGreaterThan(20);
+    expect(
+      await page.evaluate(() => ({
+        contexts: window.__audioGraph.contexts,
+        sources: window.__audioGraph.sources,
+        audio: window.__migrationAudios.length,
+        cors: window.__migrationAudios[0].crossOrigin,
+      })),
+    ).toEqual({ contexts: 1, sources: 1, audio: 1, cors: 'anonymous' });
+    await page.locator('[data-nav="user"]').click();
+    const hiddenReads = await page.evaluate(() => window.__audioGraph.reads);
+    await page.waitForTimeout(250);
+    expect(await page.evaluate(() => window.__audioGraph.reads)).toBe(hiddenReads);
+    expect(await page.evaluate(() => window.__migrationAudios[0].paused)).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
+  test('播放动效开关默认开启，关闭停采样但继续播放，键盘恢复并保存浏览器偏好', async ({ page }) => {
+    await page.addInitScript(() => {
+      const Original = window.AudioContext;
+      window.__preferenceReads = 0;
+      window.AudioContext = class extends Original {
+        createAnalyser() {
+          const meter = super.createAnalyser(),
+            read = meter.getFloatFrequencyData.bind(meter);
+          meter.getFloatFrequencyData = (data) => {
+            window.__preferenceReads++;
+            return read(data);
+          };
+          return meter;
+        }
+      };
+    });
+    await mockWorkspace(page, 'user', [], true);
+    const tone = require('./fixtures').wave();
+    for (let i = 44; i < tone.length; i += 2)
+      tone.writeInt16LE(Math.round(12000 * Math.sin((((i - 44) / 2) * Math.PI * 220) / 8000)), i);
+    await page.route('**/api/local/music/1/stream', (route) =>
+      route.fulfill({ contentType: 'audio/wav', body: tone }),
+    );
+    await page.locator('[data-nav="user"]').click();
+    await page.locator('[data-user-tab="uploads"]').click();
+    await page.locator('[data-user-play="local:1"]').click();
+    await page.locator('[data-nav="library"]').click();
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await expect.poll(() => page.evaluate(() => window.__preferenceReads)).toBeGreaterThan(0);
+    await page.locator('[data-nav="settings"]').click();
+    const toggle = page.getByRole('switch', { name: '播放动效', exact: true });
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await expect(toggle).toHaveClass('squish-switch');
+    // 验证真实 CSS 变量解析、两套主题和开关状态，避免只更新样式哈希却改变配色。
+    const switchColors = () =>
+      toggle.evaluate((button) => ({
+        track: getComputedStyle(button.querySelector('.squish-switch__track')).backgroundColor,
+        thumb: getComputedStyle(button.querySelector('.squish-switch__thumb')).backgroundColor,
+        width: getComputedStyle(button.querySelector('.squish-switch__track')).width,
+        height: getComputedStyle(button.querySelector('.squish-switch__track')).height,
+      }));
+    for (const [theme, active, inactive, thumb] of [
+      ['light', 'rgb(183, 121, 34)', 'rgba(32, 33, 30, 0.2)', 'rgb(239, 237, 231)'],
+      ['dark', 'rgb(217, 170, 107)', 'rgba(182, 193, 198, 0.24)', 'rgb(20, 27, 31)'],
+    ]) {
+      await page.locator(`button[data-theme-preference="${theme}"]`).click();
+      await expect
+        .poll(switchColors)
+        .toEqual({ track: active, thumb, width: '64px', height: '32px' });
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-checked', 'false');
+      await expect
+        .poll(switchColors)
+        .toEqual({ track: inactive, thumb, width: '64px', height: '32px' });
+      await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    }
+    await page.locator('button[data-theme-preference="light"]').click();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await page.locator('[data-settings-close]').click();
+    await expect(page.locator('[data-settings-dialog]')).not.toBeVisible();
+    const before = await page.evaluate(() => ({
+      reads: window.__preferenceReads,
+      time: window.__migrationAudios[0].currentTime,
+    }));
+    await expect
+      .poll(() => page.evaluate(() => window.__migrationAudios[0].currentTime))
+      .toBeGreaterThan(before.time + 0.2);
+    expect(await page.evaluate(() => window.__preferenceReads)).toBe(before.reads);
+    await page.locator('[data-nav="settings"]').click();
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await page.locator('[data-settings-close]').click();
+    await expect
+      .poll(() => page.evaluate(() => window.__preferenceReads))
+      .toBeGreaterThan(before.reads);
+    await page.locator('[data-nav="settings"]').click();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await page.reload();
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(page).toHaveURL(/\/library$/);
+    await expect(page.locator('[data-album-archive]')).toBeVisible();
+    await page.locator('[data-nav="settings"]').click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  });
+});
+
+test.describe('完整播放器 Wake Slider', () => {
+  test.use({ hasTouch: true });
+  test('仅替换展开页音量，键盘鼠标触屏同步原音频，保留迷你播放器', async ({ page }, info) => {
+    await mockWorkspace(page);
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const initial = await page.evaluate(() => ({
+      count: window.__migrationAudios.length,
+      src: window.__migrationAudios[0].src,
+      paused: window.__migrationAudios[0].paused,
+    }));
+    await page.mouse.move(700, 998);
+    await page.locator('[data-player-open]').click();
+    const wake = page.locator('.expanded-player-volume .wake-slider');
+    const handle = wake.getByRole('slider', { name: '音量' });
+    const audioVolume = () => page.evaluate(() => window.__migrationAudios[0].volume);
+    await expect(wake).toBeVisible();
+    await expect(wake.locator('.wake-slider__bar')).toHaveCount(28);
+    await expect(page.locator('[data-global-player] .wake-slider')).toHaveCount(0);
+    await expect(page.locator('[data-player-volume-input]')).toHaveClass(
+      /player-volume-slider-thumb/,
+    );
+    await handle.press('Home');
+    await expect.poll(audioVolume).toBe(0);
+    await expect(wake.locator('[data-on="true"]')).toHaveCount(0);
+    await handle.press('End');
+    await expect.poll(audioVolume).toBe(1);
+    await expect(wake.locator('[data-on="true"]')).toHaveCount(28);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    const track = wake.locator('.wake-slider__track');
+    const box = await track.boundingBox();
+    await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.8, box.y + box.height / 2, { steps: 6 });
+    const maxScale = () =>
+      wake
+        .locator('.wake-slider__bar')
+        .evaluateAll((bars) =>
+          Math.max(
+            ...bars.map((bar) => Number(bar.style.transform.match(/scaleY\(([^)]+)\)/)?.[1] ?? 0)),
+          ),
+        );
+    await expect.poll(maxScale, { intervals: [16, 32, 50], timeout: 3000 }).toBeGreaterThan(0.22);
+    await page.mouse.up();
+    await expect.poll(audioVolume).toBeCloseTo(0.8, 1);
+    await page.screenshot({ path: info.outputPath('wake-slider-desktop.png') });
+    await expect.poll(maxScale).toBeLessThan(0.18);
+    await page.locator('[data-player-close]').click();
+    const mini = page.locator('[data-player-volume-input]');
+    const before = await audioVolume();
+    await mini.press('ArrowLeft');
+    await expect.poll(audioVolume).toBeCloseTo(before - 0.01);
+    await page.locator('[data-player-open]').click();
+    await expect(handle).toHaveAttribute(
+      'aria-valuenow',
+      String(Math.round((before - 0.01) * 100)),
+    );
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    const touchBox = await track.boundingBox();
+    const session = await page.context().newCDPSession(page);
+    const point = (fraction) => ({
+      x: touchBox.x + touchBox.width * fraction,
+      y: touchBox.y + touchBox.height / 2,
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [point(0.15)],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [point(0.75)],
+    });
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await session.detach();
+    await expect.poll(audioVolume).toBeCloseTo(0.75, 1);
+    await expect.poll(maxScale).toBeLessThan(0.18);
+    await expect(wake).toBeInViewport();
+    await expect(page.locator('[data-expanded-queue-toggle]')).toBeInViewport();
+    await page.screenshot({ path: info.outputPath('wake-slider-mobile-dark.png') });
+    expect(
+      await page.evaluate(() => ({
+        count: window.__migrationAudios.length,
+        src: window.__migrationAudios[0].src,
+        paused: window.__migrationAudios[0].paused,
+      })),
+    ).toEqual(initial);
+    expect(errors).toEqual([]);
+  });
+});

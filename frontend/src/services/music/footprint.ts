@@ -38,12 +38,15 @@ export type FootprintMilestone = {
   }[];
   timezoneOffsetMinutes?: number;
 };
+export type CardStyle =
+  'auto' | 'amber' | 'rose' | 'mint' | 'sky' | 'lilac' | 'butter' | 'peach' | 'paper';
 export type MemoryCard = {
   id: number;
   title: string;
   eventIds: number[];
   createdAt: string;
   data: {
+    style?: CardStyle;
     period: { from: string; to: string };
     trackCount: number;
     totalDurationMs: number;
@@ -60,9 +63,20 @@ export type MemoryCard = {
     highlight: { title: string; artist: string; plays: number } | null;
   };
 };
+export type FootprintOverview = { posts: number; likes: number; comments: number; authors: number };
+export type FootprintPostCard = {
+  title: string;
+  style: CardStyle;
+  period: { from: string; to: string };
+  trackCount: number;
+  totalDurationMs: number;
+  highlight: { title: string; artist: string; plays: number } | null;
+  tracks: { title: string; artist: string }[];
+};
 export type FootprintPost = {
   id: number;
   cardId: number;
+  card?: FootprintPostCard | null;
   authorId: number;
   authorNickname: string;
   caption: string;
@@ -235,19 +249,49 @@ export function createFootprintClient(fetcher: Fetcher = globalThis.fetch.bind(g
         undefined,
         signal,
       ),
-    createCard: async (title: string, eventIds: number[], signal?: AbortSignal) =>
+    createCard: async (
+      title: string,
+      eventIds: number[],
+      signal?: AbortSignal,
+      style: CardStyle = 'auto',
+    ) =>
       (
         await request<{ card: MemoryCard }>(
           '/api/footprint/cards',
           'POST',
-          { title, eventIds },
+          { title, eventIds, style },
+          signal,
+        )
+      ).card,
+    updateCardStyle: async (id: number, style: CardStyle, signal?: AbortSignal) =>
+      (
+        await request<{ card: MemoryCard }>(
+          `/api/footprint/cards/${id}/style`,
+          'PATCH',
+          { style },
           signal,
         )
       ).card,
     deleteCard: (id: number, signal?: AbortSignal) =>
       request(`/api/footprint/cards/${id}`, 'DELETE', undefined, signal),
+    overview: async (signal?: AbortSignal) =>
+      (
+        await request<{ overview: FootprintOverview }>(
+          '/api/footprint/overview',
+          'GET',
+          undefined,
+          signal,
+        )
+      ).overview,
+    myPostsPage: (limit = 12, offset = 0, signal?: AbortSignal) =>
+      request<{ total: number; viewerId: number; posts: FootprintPost[] }>(
+        `/api/footprint/posts/mine?limit=${limit}&offset=${offset}`,
+        'GET',
+        undefined,
+        signal,
+      ),
     posts: (limit = 20, offset = 0, signal?: AbortSignal) =>
-      request<{ total: number; posts: FootprintPost[] }>(
+      request<{ total: number; viewerId?: number; posts: FootprintPost[] }>(
         `/api/footprint/posts?limit=${limit}&offset=${offset}`,
         'GET',
         undefined,

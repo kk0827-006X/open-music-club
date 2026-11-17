@@ -20,15 +20,6 @@ button:focus-visible {
   .user-section-nav button {
     padding-block: 7px;
   }
-  .user-empty-symbol {
-    width: 65px;
-    height: 65px;
-    margin-bottom: 12px;
-    font-size: 2rem;
-  }
-  .user-empty-rule {
-    margin-top: 18px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,3 +1,8 @@
+@import './styles/footprint-detail.css';
+@import './styles/footprint-timeline.css';
+@import './styles/footprint-square.css';
+@import './styles/milestone.css';
+@import './styles/milestone-motion.css';
 @import './styles/tokens-global.css';
 @import './styles/login.css';
 @import './styles/code-slots.css';
@@ -10,6 +15,7 @@
 @import './styles/music-library.css';
 @import './styles/upload.css';
 @import './styles/user.css';
+@import './styles/avatar-studio.css';
 @import './styles/responsive.css';
 @import './styles/interaction.css';
 @import './styles/settings.css';

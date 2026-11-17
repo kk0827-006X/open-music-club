@@ -22,6 +22,7 @@ const { createLocalMusicRouter } = require('./routes/localMusic.routes');
 const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes');
 const { createUserProfileRouter } = require('./routes/userProfile.routes');
 const { createFootprintRouter } = require('./routes/footprint.routes');
+const { createAvatarStudioRouter } = require('./routes/avatarStudio.routes');
 const {
   createCsrfProtection,
   createHttpsEnforcement,
@@ -187,6 +188,12 @@ function createApp({
     createFootprintRouter({ database }),
   );
   if (rateLimiters) app.put('/api/me/avatar', requireLogin, rateLimiters.upload);
+  app.use(
+    '/api/avatar-studio',
+    requireLogin,
+    ...(rateLimiters ? [rateLimiters.personalLibrary] : []),
+    createAvatarStudioRouter({ database }),
+  );
   app.use(
     '/api/me',
     requireLogin,

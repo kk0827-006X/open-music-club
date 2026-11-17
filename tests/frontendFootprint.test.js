@@ -128,9 +128,9 @@ it('React 足迹空态和全部分页入口可用，隐藏会取消请求，迟�
     assert.equal(h.query('[data-fp-play]'), null);
     assert.match(h.require('[data-fp-content]').textContent, /还没有听歌里程/);
     await h.click('[data-fp-tab="square"]');
-    assert.match(h.require('[data-fp-content]').textContent, /还没有分享/);
-    await h.click('[data-fp-tab="mine"]');
-    assert.match(h.require('[data-fp-content]').textContent, /还没有分享/);
+    assert.match(h.require('[data-fp-content]').textContent, /还没有人分享足迹/);
+    await h.click('[data-fp-filter="mine"]');
+    assert.match(h.require('[data-fp-content]').textContent, /你还没有分享过足迹/);
     await h.render(h.React.createElement(FootprintPage, { active: false, client: api }));
     assert.equal(h.require('[data-footprint-page]').hasAttribute('inert'), true);
   });
@@ -403,6 +403,40 @@ it('卡片下载只序列化 React SVG，转义标题并及时撤销临时地址
   }
 });
 
+it('同一回忆卡片的列表与预览渐变独立，跨时区表示保持配色一致且长标题按字符换行', async () => {
+  await withReactHarness(async (h) => {
+    const { CardArtwork } = await import('../frontend/src/features/footprint/CardArtwork.tsx');
+    const makeCard = (playedAt) => ({
+      ...card,
+      title: '🎵'.repeat(32),
+      data: { ...card.data, tracks: [{ ...event, playedAt }] },
+    });
+    await h.render(
+      h.React.createElement(
+        h.React.Fragment,
+        null,
+        h.React.createElement(CardArtwork, { card: makeCard('2026-11-12T22:00:00Z'), offset: 480 }),
+        h.React.createElement(CardArtwork, {
+          card: makeCard('2026-11-13T06:00:00+08:00'),
+          offset: 480,
+        }),
+      ),
+    );
+    const svgs = [...h.document.querySelectorAll('svg')];
+    const ids = [...h.document.querySelectorAll('[id]')].map((node) => node.id);
+    assert.equal(new Set(ids).size, ids.length, '同卡多实例不能复用渐变 ID');
+    for (const svg of svgs) {
+      assert.equal(svg.dataset.cardPalette, 'mint');
+      for (const shape of svg.querySelectorAll('[fill^="url("]')) {
+        const id = shape.getAttribute('fill').slice(5, -1);
+        assert.ok([...svg.querySelectorAll('[id]')].some((node) => node.id === id));
+      }
+      assert.ok(svg.textContent.includes('🎵'.repeat(14)));
+      assert.doesNotMatch(svg.textContent, /\uFFFD/);
+    }
+  });
+});
+
 it('SQLite UTC 原串与 ISO 在不同本机时区都按站点偏移显示，偏移范围与后端一致', async () => {
   const { dayKey, formatDate, formatClock, siteOffset } =
     await import('../frontend/src/features/footprint/format.ts');
@@ -617,7 +651,7 @@ it('足迹侧栏各子页不再重复展示介绍标题，保留计数、内容�
     );
     assert.equal(h.query('.fp-header p, .fp-header span'), null);
     assert.equal(h.require('.fp-view-summary').textContent, '1 条播放记录');
-    for (const tab of ['timeline', 'milestone', 'studio', 'square', 'mine']) {
+    for (const tab of ['timeline', 'milestone', 'studio', 'square']) {
       await h.click(`[data-fp-tab="${tab}"]`);
       await h.until(
         () => !h.require('[data-fp-content]').hasAttribute('inert'),
@@ -633,4 +667,204 @@ it('足迹侧栏各子页不再重复展示介绍标题，保留计数、内容�
     await h.click('[data-fp-back]');
     assert.ok(h.query('[data-fp-open-post="4"]'));
   });
+});
+
+it('独立风格组件保存已有卡片，失败保持原色，重新读取仍保留服务端风格', async () => {
+  let saved = { ...card, data: { ...card.data, style: 'rose' } };
+  let failure = false;
+  const api = client({
+    cards: async () => ({ total: 1, cards: [saved] }),
+    updateCardStyle: async (id, style) => {
+      assert.equal(id, card.id);
+      if (failure) throw new Error('保存失败');
+      saved = { ...saved, data: { ...saved.data, style } };
+      return saved;
+    },
+  });
+  await withReactHarness(async (h) => {
+    const { default: FootprintPage } =
+      await import('../frontend/src/features/footprint/FootprintPage.tsx');
+    await h.render(h.React.createElement(FootprintPage, { active: true, client: api }));
+    await h.click('[data-fp-tab="studio"]');
+    await h.click('[data-fp-open-card="9"]');
+    await h.click('.fp-style-picker input[value="mint"]');
+    assert.equal(h.require('.fp-card-preview svg').dataset.cardPalette, 'mint');
+    assert.equal(h.require('.fp-card-mini svg').dataset.cardPalette, 'mint');
+    failure = true;
+    await h.click('.fp-style-picker input[value="sky"]');
+    assert.equal(h.require('.fp-card-preview svg').dataset.cardPalette, 'mint');
+    assert.equal(h.require('.fp-style-picker input[value="mint"]').checked, true);
+    await h.click('[data-fp-tab="timeline"]');
+    await h.click('[data-fp-tab="studio"]');
+    await h.click('[data-fp-open-card="9"]');
+    assert.equal(h.require('.fp-style-picker input[value="mint"]').checked, true);
+  });
+});
+
+it('换色请求迟到时更新原卡列表，不覆盖用户新打开的卡片', async () => {
+  let finish;
+  const second = { ...card, id: 10, data: { ...card.data, style: 'sky' } };
+  await withReactHarness(async (h) => {
+    const { default: FootprintPage } =
+      await import('../frontend/src/features/footprint/FootprintPage.tsx');
+    const api = client({
+      cards: async () => ({ total: 2, cards: [card, second] }),
+      updateCardStyle: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    await h.render(h.React.createElement(FootprintPage, { active: true, client: api }));
+    await h.click('[data-fp-tab="studio"]');
+    await h.click('[data-fp-open-card="9"]');
+    await h.click('.fp-style-picker input[value="mint"]');
+    await h.click('[data-fp-open-card="10"]');
+    finish({ ...card, data: { ...card.data, style: 'mint' } });
+    await h.flush();
+    assert.equal(h.require('.fp-card-preview svg').dataset.cardPalette, 'sky');
+    assert.equal(h.require('[data-fp-open-card="9"] svg').dataset.cardPalette, 'mint');
+  });
+});
+
+it('独立里程视图展示曲线圆环和奖牌，播放保持来源与单曲时长，空态可用', async () => {
+  await withReactHarness(async (h) => {
+    const { MilestoneView } = await import('../frontend/src/features/footprint/MilestoneView.tsx');
+    const played = [];
+    const track = {
+      title: '<img src=x>',
+      artist: '隔离',
+      trackKey: 'local:8',
+      source: 'local',
+      sourceId: '8',
+      coverUrl: 'javascript:alert(1)',
+      durationMs: 65000,
+      plays: 5,
+    };
+    const data = {
+      totalPlays: 12,
+      totalDurationMs: 780000,
+      distinctTracks: 2,
+      distinctArtists: 1,
+      activeDays: 3,
+      streakDays: 2,
+      noteCount: 1,
+      firstPlayedAt: null,
+      busiestDay: null,
+      hourly: Array.from({ length: 24 }, (_, hour) => (hour === 19 ? 12 : 0)),
+      monthly: [{ month: '2026-11', plays: 12 }],
+      topTracks: [track],
+    };
+    await h.render(
+      h.React.createElement(MilestoneView, {
+        data,
+        active: true,
+        loading: false,
+        offset: 480,
+        play: (item) => played.push(item),
+      }),
+    );
+    assert.ok(h.query('.fp-hours-line'));
+    assert.match(h.require('.fp-hours-peak-label').textContent, /19 点 · 12 次/);
+    assert.ok(h.query('.fp-ring-progress'));
+    assert.equal(h.require('.fp-rank-1').textContent, '1');
+    assert.equal(h.query('.fp-top-body img'), null);
+    await h.click('button[aria-label="播放 <img src=x>"]');
+    assert.deepEqual(played, [track]);
+    await h.render(
+      h.React.createElement(MilestoneView, {
+        data: null,
+        active: false,
+        loading: false,
+        offset: 480,
+      }),
+    );
+    assert.match(h.require('.fp-empty').textContent, /还没有听歌里程/);
+  });
+});
+
+it('广场按服务端分页切换本人分享，侧栏保持原入口，统计失败不阻断列表', async () => {
+  const own = Array.from({ length: 13 }, (_, i) => ({ ...post, id: 100 + i, authorId: 2 }));
+  const offsets = [];
+  const api = client({
+    posts: async () => ({ posts: [{ ...post, authorId: 3 }], total: 1, viewerId: 2 }),
+    overview: async () => {
+      throw new Error('隔离统计失败');
+    },
+    myPostsPage: async (limit, offset) => {
+      offsets.push(offset);
+      return { posts: own.slice(offset, offset + limit), total: 13, viewerId: 2 };
+    },
+  });
+  await withReactHarness(async (h) => {
+    const { default: FootprintPage } =
+      await import('../frontend/src/features/footprint/FootprintPage.tsx');
+    await h.render(h.React.createElement(FootprintPage, { active: true, client: api }));
+    await h.click('[data-fp-tab="square"]');
+    assert.equal(h.document.querySelectorAll('[data-fp-open-post]').length, 1);
+    assert.match(h.require('.fp-square-stat-status').textContent, /暂时不可用/);
+    assert.equal(h.query('[data-fp-remove-post]'), null);
+    await h.click('[data-fp-filter="mine"]');
+    assert.equal(h.require('[data-fp-tab="square"]').getAttribute('aria-current'), 'page');
+    assert.equal(h.document.querySelectorAll('[data-fp-open-post]').length, 12);
+    await h.click('[data-fp-more]');
+    assert.deepEqual(offsets, [0, 12]);
+    assert.equal(h.document.querySelectorAll('[data-fp-open-post]').length, 13);
+    assert.equal(h.query('[data-fp-more]'), null);
+    assert.equal(h.document.querySelectorAll('[data-fp-remove-post]').length, 13);
+    assert.equal(h.query('[data-fp-tab="mine"]'), null);
+    assert.ok(h.query('.fp-square.fp-square-gallery'));
+    assert.equal(h.require('[data-fp-filter="mine"]').getAttribute('aria-pressed'), 'true');
+  });
+});
+
+it('时光轴今天和昨天按站点午夜分组，与浏览器时区无关', async () => {
+  const { timelineDayLabel } =
+    await import('../frontend/src/features/footprint/timeline-format.ts');
+  const now = Date.parse('2026-11-15T16:30:00Z');
+  assert.equal(timelineDayLabel('2026-11-15 16:01:00', 480, now), '今天');
+  assert.equal(timelineDayLabel('2026-11-15 15:59:00', 480, now), '昨天');
+  assert.equal(timelineDayLabel('2026-11-15T16:01:00Z', 0, now), '今天');
+  assert.equal(timelineDayLabel('bad', 480, now), '未知日期');
+});
+
+it('PNG 导出在离页取消或图像读取失败时释放临时地址，不触发下载', async () => {
+  const originalImage = Object.getOwnPropertyDescriptor(globalThis, 'Image');
+  const create = URL.createObjectURL,
+    revoke = URL.revokeObjectURL;
+  const revoked = [];
+  let image;
+  try {
+    Object.defineProperty(globalThis, 'Image', {
+      configurable: true,
+      writable: true,
+      value: class {
+        constructor() {
+          image = this;
+        }
+      },
+    });
+    URL.createObjectURL = () => 'blob:isolated-png-source';
+    URL.revokeObjectURL = (value) => revoked.push(value);
+    await withReactHarness(async (h) => {
+      const { downloadCardPng } = await import('../frontend/src/features/footprint/card-export.ts');
+      const svg = h.document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '480');
+      svg.setAttribute('height', '500');
+      const controller = new AbortController();
+      const pending = downloadCardPng(svg, '测试', controller.signal);
+      controller.abort();
+      await assert.rejects(pending, (error) => error.name === 'AbortError');
+      assert.equal(image.onload, null);
+      assert.equal(image.onerror, null);
+      const failure = downloadCardPng(svg, '测试');
+      image.onerror();
+      await assert.rejects(failure, /读取失败/);
+      assert.deepEqual(revoked, ['blob:isolated-png-source', 'blob:isolated-png-source']);
+    });
+  } finally {
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = revoke;
+    if (originalImage) Object.defineProperty(globalThis, 'Image', originalImage);
+    else delete globalThis.Image;
+  }
 });

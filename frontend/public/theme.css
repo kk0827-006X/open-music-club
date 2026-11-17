@@ -613,8 +613,220 @@
   --color-shadow-16: rgba(0, 0, 0, 0.09412);
   --color-accent-23: rgba(217, 170, 107, 0.13333);
 }
+/* 回忆卡片沿用 cxbcrj 接入包的作品配色，与页面浅色/深色主题隔离。 */
+.fp-card-art {
+  --fp-card-white: #ffffff;
+}
+.fp-card-art[data-card-palette='amber'] {
+  --fp-card-stop-1: #fffaf0;
+  --fp-card-stop-2: #fdf0d8;
+  --fp-card-stop-3: #f8dfb8;
+  --fp-card-blob-1: #ffc98d;
+  --fp-card-blob-2: #fff0d2;
+  --fp-card-blob-3: #ffcfd4;
+  --fp-card-ink: #33291c;
+  --fp-card-muted: #8b7859;
+  --fp-card-accent: #bd7c1e;
+  --fp-card-chip: rgba(255, 255, 255, 0.66);
+}
+.fp-card-art[data-card-palette='rose'] {
+  --fp-card-stop-1: #fff7f9;
+  --fp-card-stop-2: #ffe6ee;
+  --fp-card-stop-3: #fbd0de;
+  --fp-card-blob-1: #ffbfd5;
+  --fp-card-blob-2: #ffe4ee;
+  --fp-card-blob-3: #ffd2bd;
+  --fp-card-ink: #47232f;
+  --fp-card-muted: #a1707f;
+  --fp-card-accent: #cf5478;
+  --fp-card-chip: rgba(255, 255, 255, 0.7);
+}
+.fp-card-art[data-card-palette='mint'] {
+  --fp-card-stop-1: #f5fdfa;
+  --fp-card-stop-2: #e2f8ef;
+  --fp-card-stop-3: #c9efe4;
+  --fp-card-blob-1: #a2ead4;
+  --fp-card-blob-2: #ddfcf2;
+  --fp-card-blob-3: #c6e9f7;
+  --fp-card-ink: #16362e;
+  --fp-card-muted: #5c8a7c;
+  --fp-card-accent: #1c8f77;
+  --fp-card-chip: rgba(255, 255, 255, 0.7);
+}
+.fp-card-art[data-card-palette='sky'] {
+  --fp-card-stop-1: #f6f9ff;
+  --fp-card-stop-2: #e3ecfc;
+  --fp-card-stop-3: #ccdcf8;
+  --fp-card-blob-1: #b3ccf8;
+  --fp-card-blob-2: #dbe9ff;
+  --fp-card-blob-3: #cbc9f7;
+  --fp-card-ink: #1d2b46;
+  --fp-card-muted: #697d9c;
+  --fp-card-accent: #3d6fc0;
+  --fp-card-chip: rgba(255, 255, 255, 0.7);
+}
+.fp-card-art[data-card-palette='lilac'] {
+  --fp-card-stop-1: #faf7ff;
+  --fp-card-stop-2: #ece4fe;
+  --fp-card-stop-3: #dccffa;
+  --fp-card-blob-1: #d3c0fb;
+  --fp-card-blob-2: #f0e5ff;
+  --fp-card-blob-3: #f7cde9;
+  --fp-card-ink: #2c2342;
+  --fp-card-muted: #7c6c9a;
+  --fp-card-accent: #7a57d1;
+  --fp-card-chip: rgba(255, 255, 255, 0.7);
+}
+.fp-card-art[data-card-palette='butter'] {
+  --fp-card-stop-1: #fffdf1;
+  --fp-card-stop-2: #fdf5ce;
+  --fp-card-stop-3: #f9e8a6;
+  --fp-card-blob-1: #ffe88c;
+  --fp-card-blob-2: #fff9d9;
+  --fp-card-blob-3: #ffe1a6;
+  --fp-card-ink: #3c3312;
+  --fp-card-muted: #8d8150;
+  --fp-card-accent: #a88917;
+  --fp-card-chip: rgba(255, 255, 255, 0.7);
+}
+.fp-card-art[data-card-palette='peach'] {
+  --fp-card-stop-1: #fff8f2;
+  --fp-card-stop-2: #ffe6d8;
+  --fp-card-stop-3: #ffd1bc;
+  --fp-card-blob-1: #ffb696;
+  --fp-card-blob-2: #ffe2d0;
+  --fp-card-blob-3: #ffcfe0;
+  --fp-card-ink: #4a2a20;
+  --fp-card-muted: #a3755f;
+  --fp-card-accent: #dc6a41;
+  --fp-card-chip: rgba(255, 255, 255, 0.7);
+}
+.fp-card-art[data-card-palette='paper'] {
+  --fp-card-stop-1: #fbfbf8;
+  --fp-card-stop-2: #f0f0e9;
+  --fp-card-stop-3: #e3e3db;
+  --fp-card-blob-1: #e7e7df;
+  --fp-card-blob-2: #fdfdf8;
+  --fp-card-blob-3: #dde1e4;
+  --fp-card-ink: #2e312b;
+  --fp-card-muted: #787d6f;
+  --fp-card-accent: #5f6a5a;
+  --fp-card-chip: rgba(255, 255, 255, 0.78);
+}
 /* 首屏底色不等待应用模块下载。 */
+.fp-milestone {
+  --fp-ms-vinyl-core: rgba(183, 121, 34, 0.95);
+  --fp-ms-vinyl-groove: rgba(151, 118, 66, 0.38);
+  --fp-ms-gold: #d9a153;
+  --fp-ms-gold-end: #a9711f;
+  --fp-ms-source-0: rgba(217, 161, 83, 0.18);
+  --fp-ms-source-1: #a9711f;
+  --fp-ms-source-2: rgba(217, 161, 83, 0.14);
+  --fp-ms-source-3: rgba(183, 121, 34, 0.32);
+  --fp-ms-source-4: #e0b269;
+  --fp-ms-source-5: rgba(183, 121, 34, 0.3);
+  --fp-ms-source-6: rgba(151, 118, 66, 0.12);
+  --fp-ms-source-7: rgba(151, 118, 66, 0.1);
+  --fp-ms-source-8: #e8c063;
+  --fp-ms-source-9: #c08a2a;
+  --fp-ms-source-10: #fdf8ef;
+  --fp-ms-source-11: rgba(192, 138, 42, 0.8);
+  --fp-ms-source-12: #c9cdd2;
+  --fp-ms-source-13: #97a0aa;
+  --fp-ms-source-14: #d9a88a;
+  --fp-ms-source-15: #a9714f;
+  --fp-ms-source-16: rgba(96, 72, 30, 0.6);
+  --fp-ms-source-17: #d9a153;
+  --fp-ms-source-18: rgba(183, 121, 34, 0.25);
+}
 :root {
   background: var(--paper);
   color: var(--ink);
+}
+.fp-timeline {
+  --fp-timeline-source-0: rgba(183, 121, 34, 0.4);
+  --fp-timeline-source-1: rgba(183, 121, 34, 0.36);
+  --fp-timeline-source-2: rgba(255, 255, 255, 0.9);
+  --fp-timeline-source-3: rgba(96, 72, 30, 0.7);
+  --fp-timeline-source-4: rgba(183, 121, 34, 0.1);
+  --fp-timeline-source-5: rgba(183, 121, 34, 0.02);
+  --fp-timeline-source-6: rgba(255, 255, 255, 0.7);
+  --fp-timeline-source-7: rgba(183, 121, 34, 0.45);
+}
+.fp-detail {
+  --fp-detail-source-0: rgba(183, 121, 34, 0.1);
+  --fp-detail-source-1: rgba(183, 121, 34, 0.015);
+  --fp-detail-source-2: rgba(96, 76, 40, 0.1);
+  --fp-detail-source-3: rgba(96, 76, 40, 0.6);
+  --fp-detail-source-4: rgba(255, 253, 247, 0.7);
+  --fp-detail-source-5: rgba(255, 255, 255, 0.78);
+  --fp-detail-source-6: #c98f36;
+  --fp-detail-source-7: rgba(183, 121, 34, 0.9);
+}
+/* wqh 广场昵称头像的固定渐变，仅用于分享作者标记。 */
+.fp-square-gallery {
+  --fp-square-avatar-ink: #ffffff;
+  --fp-square-avatar-0: linear-gradient(135deg, #d9a153, #a9711f);
+  --fp-square-avatar-1: linear-gradient(135deg, #9db3c0, #42596b);
+  --fp-square-avatar-2: linear-gradient(135deg, #c8a3a0, #6d4641);
+  --fp-square-avatar-3: linear-gradient(135deg, #adb99b, #4c5c40);
+  --fp-square-avatar-4: linear-gradient(135deg, #a99ccb, #4c3d78);
+}
+
+/* zyr 原版工坊独立色板，不随站点主题改变。 */
+.avatar-studio-original {
+  --as-bg-page: #ece5da;
+  --as-bg-panel: #f4ede3;
+  --as-bg-card: #f9f4ec;
+  --as-bg-elevated: #e5dcc9;
+  --as-bg-stage: #ddd3be;
+  --as-border-soft: #d5c9b5;
+  --as-border-strong: #a89c88;
+  --as-ink-strong: #3f3a33;
+  --as-ink: #5e564b;
+  --as-ink-soft: #8a8275;
+  --as-ink-faint: #b0a694;
+  --as-accent: #8a9a85;
+  --as-accent-dark: #6e7e69;
+  --as-accent-soft: #bcc7b5;
+  --as-accent-bg: rgba(138, 154, 133, 0.12);
+  --as-mauve: #b8a5b5;
+  --as-terracotta: #c7a99b;
+  --as-powder: #a5b5c0;
+  --as-shadow-soft: 0 2px 12px rgba(101, 84, 60, 0.08);
+  --as-shadow-card: 0 6px 24px rgba(101, 84, 60, 0.1);
+  --as-shadow-lift: 0 12px 32px rgba(101, 84, 60, 0.14);
+  --as-shadow-inset: inset 0 1px 2px rgba(101, 84, 60, 0.1);
+  --as-font-display: 'DM Serif Display', 'Songti SC', '宋体', Georgia, serif;
+  --as-font-body: 'Inter', 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
+  --as-avatar-theme: #8a9a85;
+  --as-avatar-theme-dark: #6e7e69;
+  --as-avatar-theme-light: #bcc7b5;
+  --as-source-0: rgba(101, 84, 60, 0.06);
+  --as-source-1: rgba(255, 255, 255, 0.05);
+  --as-source-2: #e5c5bc;
+  --as-source-3: #8b5e4f;
+  --as-source-4: rgba(101, 84, 60, 0.04);
+  --as-source-5: rgba(101, 84, 60, 0.15);
+  --as-source-6: rgba(255, 255, 255, 0.4);
+  --as-source-7: rgba(244, 237, 227, 0.92);
+  --as-source-8: #f6f0e5;
+  --as-source-9: #efe7d9;
+  --as-source-10: #e9dfcf;
+  --as-source-11: rgba(255, 255, 255, 0.5);
+  --as-source-12: rgba(101, 84, 60, 0.055);
+  --as-source-13: rgba(249, 244, 236, 0.75);
+  --as-source-14: #a4553f;
+  --as-source-15: #c9a18f;
+  --as-source-16: rgba(199, 169, 155, 0.2);
+  --as-source-17: rgba(255, 252, 246, 0.95);
+  --as-source-18: rgba(221, 211, 190, 0.9);
+  --as-source-19: rgba(213, 201, 181, 0.95);
+  --as-source-20: rgba(101, 84, 60, 0.16);
+  --as-source-21: rgba(255, 255, 255, 0.7);
+  --as-source-22: rgba(101, 84, 60, 0.18);
+  --as-source-23: #fbf6ec;
+  --as-source-24: rgba(101, 84, 60, 0.2);
+  --as-source-25: rgba(249, 244, 236, 0.6);
+  --as-source-26: rgba(213, 201, 181, 0.7);
 }

@@ -1,8 +1,9 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('./business-test');
+const { useIsolatedBusinessServer } = require('./isolated-server');
+useIsolatedBusinessServer(test, 4334);
 const { generateSync } = require('otplib');
 const { QRADMIN } = require('./fixtures');
-const { graphicsProfile } = require('./graphics-profile');
-const origin = 'http://127.0.0.1:4317';
+const origin = 'http://127.0.0.1:4334';
 async function post(client, url, data = {}) {
   const csrf = await client.get('/api/security/csrf-token');
   return client.post(url, {
@@ -36,15 +37,7 @@ test('管理员完成网站2FA后扫码连接，关闭停止轮询，重新进�
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"/>',
     }),
   );
-  await page.route('**/assets/scene-*.js*', (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has('acceptance-original')) return route.continue();
-    url.searchParams.set('acceptance-original', '1');
-    return route.fulfill({
-      contentType: 'application/javascript',
-      body: graphicsProfile(url.href),
-    });
-  });
+
   expect((await post(page.request, '/api/auth/login', QRADMIN)).status()).toBe(200);
   const setup = await (
     await post(page.request, '/api/auth/2fa/setup', { password: QRADMIN.password })
@@ -68,9 +61,9 @@ test('管理员完成网站2FA后扫码连接，关闭停止轮询，重新进�
   await expect(page.locator('[data-netease-connection]')).toContainText('仅保存在内存');
   await page.locator('[data-netease-qr-start]').click();
   await expect(page.locator('.netease-login-qr')).toBeVisible();
-  await page.screenshot({ path: info.outputPath('netease-qr-light.png') });
+
   await page.evaluate(() => (document.documentElement.dataset.theme = 'dark'));
-  await page.screenshot({ path: info.outputPath('netease-qr-dark.png') });
+
   await page.evaluate(() => (document.documentElement.dataset.theme = 'light'));
   await expect.poll(() => phases.slice()).toContain('waiting');
   await expect.poll(() => phases.slice()).toContain('confirming');
@@ -81,7 +74,7 @@ test('管理员完成网站2FA后扫码连接，关闭停止轮询，重新进�
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('.netease-login-qr').scrollIntoViewIfNeeded();
   await expect(page.locator('.netease-login-qr')).toBeInViewport();
-  await page.screenshot({ path: info.outputPath('netease-qr-mobile.png') });
+
   const cancelled = page.waitForResponse((response) =>
     response.url().endsWith('/api/admin/netease-session/qr/cancel'),
   );

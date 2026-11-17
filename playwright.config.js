@@ -1,7 +1,11 @@
 const { defineConfig } = require('@playwright/test');
+// 本地可为并行验收指定基础端口；不复用已占用的服务或真实账号数据。
+const port = Number(process.env.OMC_E2E_PORT || 4317);
+if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('验收端口无效');
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
+  testIgnore: '**/*.visual.spec.js',
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -15,11 +19,11 @@ module.exports = defineConfig({
     ['json', { outputFile: 'artifacts/e2e/results.json' }],
   ],
   use: {
-    baseURL: 'http://127.0.0.1:4317',
+    baseURL: `http://127.0.0.1:${port}`,
     browserName: 'chromium',
-    // CSS 视口保持桌面布局；降低测试设备像素比，避免无 GPU CI 的原画质离屏渲染阻塞。
+    // 业务组使用标准像素比与减少动态效果，图形替身由业务夹具统一提供。
     viewport: { width: 1440, height: 1000 },
-    deviceScaleFactor: 0.25,
+    deviceScaleFactor: 1,
     reducedMotion: 'reduce',
     actionTimeout: 30000,
     screenshot: 'only-on-failure',
@@ -28,8 +32,8 @@ module.exports = defineConfig({
     launchOptions: { args: ['--enable-unsafe-swiftshader'] },
   },
   webServer: {
-    command: 'node tests/e2e/server.js',
-    url: 'http://127.0.0.1:4317/health',
+    command: `node tests/e2e/server.js ${port}`,
+    url: `http://127.0.0.1:${port}/health`,
     reuseExistingServer: false,
     timeout: 30000,
     gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
