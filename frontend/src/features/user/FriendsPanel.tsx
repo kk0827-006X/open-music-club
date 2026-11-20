@@ -206,16 +206,13 @@ export function FriendsPanel({
             </button>
           ))}
         </div>
-        <div className="user-dialog-actions friends-add">
-          <IconButton
-            icon="plus"
-            className="friends-button--primary"
-            disabled={pending}
-            onClick={() => showDialog({ kind: 'add' })}
-          >
-            添加好友
-          </IconButton>
-        </div>
+        <IconButton
+          icon="plus"
+          className="friends-add"
+          aria-label="添加好友"
+          disabled={pending}
+          onClick={() => showDialog({ kind: 'add' })}
+        />
       </div>
       {notice && (
         <p className="friends-notice" role={notice.error ? 'alert' : 'status'}>

@@ -40,7 +40,32 @@ test('好友页使用真实双账号接口完成提交、拒绝、接受、撤�
       openFriends(recipientPage, PASSWORD),
     ]);
     await expect(sender.getByText('还没有好友')).toBeVisible();
-    await sender.getByRole('button', { name: '添加好友' }).click();
+    const add = sender.getByRole('button', { name: '添加好友' });
+    await expect(add).toHaveText('＋');
+    async function addRightGap() {
+      const [panel, button] = await Promise.all([sender.boundingBox(), add.boundingBox()]);
+      return Math.abs(panel.x + panel.width - (button.x + button.width));
+    }
+    await expect.poll(addRightGap).toBeLessThan(1);
+    const divider = page.getByRole('separator', { name: '调整侧栏宽度' });
+    const dividerBox = await divider.boundingBox();
+    const panelBefore = await sender.boundingBox();
+    const addBefore = await add.boundingBox();
+    expect(addBefore.width).toBe(addBefore.height);
+    const pointerX = dividerBox.x + dividerBox.width / 2;
+    const pointerY = dividerBox.y + dividerBox.height / 2;
+    await page.mouse.move(pointerX, pointerY);
+    await page.mouse.down();
+    try {
+      await page.mouse.move(pointerX - 120, pointerY, { steps: 6 });
+      await expect
+        .poll(async () => (await sender.boundingBox()).width)
+        .toBeGreaterThan(panelBefore.width + 90);
+      await expect.poll(addRightGap).toBeLessThan(1);
+    } finally {
+      await page.mouse.up();
+    }
+    await add.click();
     await expect(page.getByRole('dialog', { name: '添加好友' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog', { name: '添加好友' })).toBeHidden();
@@ -67,6 +92,7 @@ test('好友页使用真实双账号接口完成提交、拒绝、接受、撤�
 
     await submit(recipientPage, recipient, AVATAR.email);
     await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(addRightGap).toBeLessThan(1);
     await sender.getByRole('button', { name: '收到的请求' }).click();
     const invite = sender.getByRole('listitem').filter({ hasText: '密码流程验收成员' });
     await expect(invite).toBeVisible();
