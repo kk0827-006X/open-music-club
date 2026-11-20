@@ -119,6 +119,11 @@ function createRateLimiters(config, createStore) {
     upload: createRateLimiter(config.rateLimits.upload, byIp, createStore?.('upload')),
     download: createRateLimiter(config.rateLimits.download, byIp, createStore?.('download')),
     netease: createRateLimiter(config.rateLimits.netease, byIp, createStore?.('netease')),
+    friendRequests: createRateLimiter(
+      config.rateLimits.friendRequests,
+      (req) => `user:${req.user.id}`,
+      createStore?.('friendRequests'),
+    ),
     personalLibrary: rateLimit({
       windowMs: config.rateLimits.personalLibrary.windowMs,
       limit: config.rateLimits.personalLibrary.limit,

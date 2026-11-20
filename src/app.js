@@ -23,6 +23,7 @@ const { createPersonalLibraryRouter } = require('./routes/personalLibrary.routes
 const { createUserProfileRouter } = require('./routes/userProfile.routes');
 const { createFootprintRouter } = require('./routes/footprint.routes');
 const { createAvatarStudioRouter } = require('./routes/avatarStudio.routes');
+const { createFriendsRouter } = require('./routes/friends.routes');
 const {
   createCsrfProtection,
   createHttpsEnforcement,
@@ -195,6 +196,10 @@ function createApp({
     createAvatarStudioRouter({ database }),
   );
   app.use(
+    '/api/me/friends',
+    createFriendsRouter({ database, sessionSecret, submitLimiter: rateLimiters?.friendRequests }),
+  );
+  app.use(
     '/api/me',
     requireLogin,
     ...(rateLimiters ? [rateLimiters.personalLibrary] : []),
@@ -234,10 +239,12 @@ function createApp({
   app.use((error, req, res, next) => {
     if (res.headersSent) return next(error);
     const payloadTooLarge = error?.type === 'entity.too.large' || error?.status === 413;
-    const invalidFootprintJson =
+    const invalidJson =
       error?.type === 'entity.parse.failed' &&
-      (req.path === '/api/footprint' || req.path.startsWith('/api/footprint/'));
-    const status = payloadTooLarge ? 413 : invalidFootprintJson ? 400 : 500;
+      ['/api/footprint', '/api/me/friends'].some(
+        (prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`),
+      );
+    const status = payloadTooLarge ? 413 : invalidJson ? 400 : 500;
     securityConfig.logger.error({
       event: 'request_failed',
       requestId: req.requestId,
@@ -250,7 +257,7 @@ function createApp({
       success: false,
       message: payloadTooLarge
         ? '请求内容过大'
-        : invalidFootprintJson
+        : invalidJson
           ? '请求内容格式无效'
           : '服务器内部错误',
       requestId: req.requestId,

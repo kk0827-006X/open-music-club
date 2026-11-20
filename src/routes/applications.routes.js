@@ -1,9 +1,5 @@
 const express = require('express');
-const { normalizeEmail } = require('../db/users');
-const validEmail = (value) =>
-  typeof value === 'string' &&
-  value.trim().length <= 254 &&
-  /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(value.trim());
+const { isValidEmail, normalizeEmail } = require('../db/users');
 const VERIFY_DISABLED_MESSAGE = '申请流程已简化，已提交申请无需邮箱验证，请等待管理员审核。';
 function lifecycleResponse(res, next, operation, status = 200) {
   return Promise.resolve()
@@ -23,7 +19,7 @@ function createApplicationsRouter() {
   });
   router.post('/', (req, res, next) => {
     const { email, nickname, reason } = req.body || {};
-    if (!validEmail(email))
+    if (!isValidEmail(email))
       return res.status(400).json({ success: false, message: '请提供有效的邮箱' });
     if (typeof nickname !== 'string' || !nickname.trim() || nickname.trim().length > 80)
       return res.status(400).json({ success: false, message: '昵称需为 1～80 个字符' });
@@ -47,7 +43,7 @@ function createApplicationsRouter() {
   );
   router.post('/resend', (req, res, next) => {
     const { email, purpose } = req.body || {};
-    if (!validEmail(email))
+    if (!isValidEmail(email))
       return res.status(400).json({ success: false, message: '请提供有效的邮箱' });
     if (purpose !== 'activate')
       return res

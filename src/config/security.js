@@ -11,6 +11,7 @@ const DEFAULT_RATE_LIMITS = Object.freeze({
   netease: { windowMs: 15 * 60 * 1000, limit: 120 },
   personalLibrary: { windowMs: 15 * 60 * 1000, limit: 120 },
   footprint: { windowMs: 15 * 60 * 1000, limit: 180 },
+  friendRequests: { windowMs: 60 * 60 * 1000, limit: 10 },
 });
 
 function parsePositiveInteger(value, name, fallback) {

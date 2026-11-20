@@ -6,6 +6,7 @@ const { initializeFootprintSchema } = require('./footprint');
 const { initializeApplicationNotificationSchema } = require('./applicationNotifications');
 const { initializeAccessLifecycleSchema } = require('./accessLifecycle');
 const { initializeAvatarStudioSchema } = require('./avatarStudio');
+const { initializeFriendsSchema } = require('./friends');
 
 function createDatabase(databasePath) {
   if (!databasePath) {
@@ -195,6 +196,7 @@ function initializeSchema(database) {
   initializeApplicationNotificationSchema(database);
   initializeAccessLifecycleSchema(database);
   initializeAvatarStudioSchema(database);
+  initializeFriendsSchema(database);
 }
 
 module.exports = {

@@ -2,6 +2,12 @@ function normalizeEmail(email) {
   return typeof email === 'string' ? email.trim().toLowerCase() : '';
 }
 
+function isValidEmail(value) {
+  if (typeof value !== 'string') return false;
+  const email = value.trim();
+  return email.length <= 254 && /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(email);
+}
+
 function findUserByEmail(database, email) {
   return database.prepare('SELECT * FROM users WHERE email = ?').get(normalizeEmail(email));
 }
@@ -45,6 +51,7 @@ module.exports = {
   createUser,
   findUserByEmail,
   findUserById,
+  isValidEmail,
   normalizeEmail,
   toSafeUser,
 };

@@ -139,6 +139,7 @@ describe('公网通信安全基线', () => {
       'upload',
       'download',
       'netease',
+      'friendRequests',
       'personalLibrary',
       'footprint',
       'twoFactor',
