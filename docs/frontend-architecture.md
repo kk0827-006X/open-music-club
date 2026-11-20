@@ -64,12 +64,13 @@ frontend/src/
 │  ├─ player/                 唯一 Audio 控制器、底栏/展开播放器、默认曲目预览
 │  ├─ queue/                  队列模型、持久化、拖拽/键盘排序、加号飞行动画
 │  ├─ search/ upload/         搜索、上传与元数据解析
-│  ├─ user/                   个人音乐库入口、侧栏、歌单详情及创建/删除弹窗
+│  ├─ user/                   个人音乐库、好友管理、侧栏与弹窗
 │  │  └─ hooks/              数据刷新与分页、歌单写操作、头像与昵称状态
 │  ├─ settings/               设置与 2FA 面板
 │  └─ footprint/              音乐足迹时间轴、卡片、分享与评论
 ├─ services/
 │  ├─ auth/                   Session/2FA 请求、申请与激活接口
+│  ├─ friends.ts              好友申请和关系操作，沿用同源 Session 与 CSRF
 │  └─ music/                  网易云、本地搜索、专辑、个人资料、上传、足迹适配
 ├─ graphics/archive/scene-host.ts
 ├─ rhine/                     原图形、模型、材质、交互、资源算法

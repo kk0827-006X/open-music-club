@@ -1,0 +1,180 @@
+.friends-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  max-width: 880px;
+}
+.friends-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+.friends-views {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px clamp(14px, 3vw, 36px);
+}
+.friends-views button {
+  min-height: 42px;
+  padding: 6px 0 8px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--color-text-72);
+  font: inherit;
+  font-size: clamp(0.94rem, 1.3vw, 1.15rem);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.friends-views button:is(:hover, [aria-pressed='true']) {
+  color: var(--ink);
+}
+.friends-views button[aria-pressed='true'] {
+  border-bottom-color: var(--amber);
+}
+.friends-panel .user-dialog-actions {
+  margin: 0;
+}
+.friends-panel .user-dialog-actions button,
+.friends-dialog .user-dialog-actions button {
+  min-height: 40px;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+.friends-panel .user-dialog-actions .friends-button--primary {
+  border-color: var(--color-action-08);
+  background: var(--color-action-08);
+  color: var(--color-inverse-04);
+}
+.friends-panel .user-dialog-actions .friends-button--primary:hover:not(:disabled) {
+  border-color: var(--color-accent-20);
+  background: var(--color-accent-20);
+}
+.friends-add button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.friends-list {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.friends-list ul {
+  margin: 0;
+  padding: 0 3px;
+  list-style: none;
+}
+.friends-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px clamp(10px, 2vw, 22px);
+  min-height: 76px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.friends-row-icon {
+  display: grid;
+  width: 36px;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid var(--hairline);
+  color: var(--color-text-72);
+}
+.friends-row strong {
+  color: var(--ink);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+.friends-row time,
+.friends-empty {
+  color: var(--color-text-72);
+  font-size: 0.92rem;
+}
+.friends-row time {
+  white-space: nowrap;
+}
+.friends-row-actions {
+  gap: 8px;
+}
+.friends-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 24px 0;
+}
+.friends-panel .friends-notice {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+}
+.friends-notice[role='alert'] {
+  color: var(--color-danger-01);
+}
+.friends-panel .user-pagination {
+  align-self: flex-end;
+  margin-top: 12px;
+}
+.friends-dialog header {
+  justify-content: flex-end;
+}
+.friends-dialog h2 {
+  margin: 6px 0 22px;
+}
+.friends-dialog label,
+.friends-dialog p {
+  font-size: 0.94rem;
+}
+.friends-dialog .friends-notice[role='alert'] {
+  margin: 10px 0 0;
+  color: var(--color-danger-01);
+}
+.friends-panel button:disabled,
+.friends-dialog button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+@media (max-width: 600px) {
+  .friends-toolbar {
+    align-items: flex-start;
+    gap: 8px;
+    padding-bottom: 12px;
+  }
+  .friends-views {
+    gap: 6px 12px;
+  }
+  .friends-toolbar .friends-add button {
+    gap: 4px;
+    padding-inline: 10px;
+  }
+  .friends-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 4px 10px;
+  }
+  .friends-row-icon,
+  .friends-row-actions {
+    grid-row: 1 / span 2;
+  }
+  .friends-row time {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .friends-row-actions {
+    grid-column: 3;
+  }
+  .friends-panel .friends-row-actions button {
+    padding-inline: 9px;
+  }
+}

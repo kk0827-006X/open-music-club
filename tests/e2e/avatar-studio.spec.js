@@ -26,7 +26,7 @@ test('工坊换装配置、自动锁定、保存套用与账号会话隔离', as
 
   await page.goto('/user');
   await expect(page.locator('[data-user-tab="recent"]')).toHaveCount(0);
-  await expect(page.locator('.user-sidebar [data-user-tab]')).toHaveCount(4);
+  await expect(page.locator('.user-sidebar [data-user-tab]')).toHaveCount(5);
   await page.locator('[data-user-tab="avatar"]').click();
   const studio = page.locator('[data-avatar-studio]');
   await expect(studio).toHaveAttribute('data-avatar-view', 'manual');

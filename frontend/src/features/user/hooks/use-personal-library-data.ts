@@ -95,7 +95,7 @@ export function usePersonalLibraryData({
 
   async function refresh(): Promise<boolean> {
     if (unmountedRef.current) return false;
-    if (sectionRef.current === 'admin') {
+    if (sectionRef.current === 'admin' || sectionRef.current === 'friends') {
       setLoading(false);
       finishSection();
       return true;

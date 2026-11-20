@@ -85,7 +85,7 @@ export function UserSidebar({
         renderLabel={(label, index) => (
           <>
             <strong>{label}</strong>
-            <small>{visibleSections[index].english}</small>
+            {visibleSections[index].english && <small>{visibleSections[index].english}</small>}
           </>
         )}
         onItemClick={(index) => changeSection(visibleSections[index].id)}

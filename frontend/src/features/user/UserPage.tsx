@@ -24,6 +24,7 @@ import { UserSidebar } from './UserSidebar.tsx';
 import { PlaylistDetail } from './PlaylistDetail.tsx';
 import { CreatePlaylistDialog } from './CreatePlaylistDialog.tsx';
 import { DeletePlaylistDialog } from './DeletePlaylistDialog.tsx';
+import { FriendsPanel } from './FriendsPanel.tsx';
 import { headings } from './types.ts';
 import { useProfile } from './hooks/use-profile.ts';
 import { usePersonalLibraryData, playPlaylistTracks } from './hooks/use-personal-library-data.ts';
@@ -67,11 +68,15 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
   const openDialogRef = useRef(false);
   const adminDialogRef = useRef(false);
   const avatarDialogRef = useRef(false);
+  const friendDialogRef = useRef(false);
   const avatarDialogChanged = useCallback((open: boolean) => {
     avatarDialogRef.current = open;
   }, []);
   const adminDialogChanged = useCallback((open: boolean) => {
     adminDialogRef.current = open;
+  }, []);
+  const friendDialogChanged = useCallback((open: boolean) => {
+    friendDialogRef.current = open;
   }, []);
   openDialogRef.current = mutations.hasOpenDialog;
   useImperativeHandle(
@@ -79,7 +84,12 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
     () => ({
       refresh: () => data.refreshRef.current(),
       get hasOpenDialog() {
-        return openDialogRef.current || adminDialogRef.current || avatarDialogRef.current;
+        return (
+          openDialogRef.current ||
+          adminDialogRef.current ||
+          avatarDialogRef.current ||
+          friendDialogRef.current
+        );
       },
     }),
     [],
@@ -134,6 +144,8 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
         {renderAvatar?.(active, avatarDialogChanged)}
       </Suspense>
     );
+  } else if (section === 'friends') {
+    contentBody = <FriendsPanel active={active} onDialogChange={friendDialogChanged} />;
   } else if (section === 'admin') {
     contentBody =
       active && role === 'admin' ? (
@@ -225,7 +237,9 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
             role="status"
             data-error={String(feedback.error)}
           >
-            {section === 'admin' || section === 'avatar' ? '' : feedback.message}
+            {section === 'admin' || section === 'avatar' || section === 'friends'
+              ? ''
+              : feedback.message}
           </p>
         </div>
       </CollapsibleSidebarLayout>
