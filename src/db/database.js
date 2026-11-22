@@ -4,7 +4,7 @@ const Database = require('better-sqlite3')
 const { initializeFootprintSchema } = require('./footprint')
 const { initializeApplicationNotificationSchema } = require('./applicationNotifications')
 const { initializeBlindBoxSchema } = require('./blindBox')
-const { initializeDanmakuSchema } = require('./danmaku')
+const { initializeAccessLifecycleSchema } = require('./accessLifecycle')
 
 function createDatabase(databasePath) {
   if (!databasePath) {
@@ -184,7 +184,7 @@ function initializeSchema(database) {
   initializeFootprintSchema(database)
   initializeApplicationNotificationSchema(database)
   initializeBlindBoxSchema(database)
-  initializeDanmakuSchema(database)
+  initializeAccessLifecycleSchema(database)
 }
 
 module.exports = {
