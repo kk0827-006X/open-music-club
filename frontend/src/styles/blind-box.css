@@ -91,7 +91,7 @@
 /* 聚焦时按钮让位给封面 */
 .blind-box-stage.is-focusing .blind-box-draw { opacity: 0; pointer-events: none; }
 
-.blind-box-stage-foot { position: relative; z-index: 4; display: flex; gap: 12px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 6px; padding-top: 9px; border-top: 1px dashed var(--color-border-27); }
+.blind-box-stage-foot { position: relative; z-index: 4; display: flex; gap: 12px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 34px; padding-top: 14px; border-top: 1px dashed var(--color-border-27); }
 .blind-box-count { display: flex; gap: 4px; align-items: center; color: var(--color-text-41); font-size: .62rem; }
 .blind-box-count > span:last-child { margin-left: 3px; }
 .blind-box-count button { min-width: 27px; height: 27px; padding: 0 6px; border: 1px solid var(--color-border-33); background: transparent; color: var(--color-text-41); font-size: .62rem; cursor: pointer; }
