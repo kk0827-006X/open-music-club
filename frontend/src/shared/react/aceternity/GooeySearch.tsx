@@ -25,9 +25,11 @@ function SearchIcon({ layoutId }: { layoutId: string }) {
 
 export function GooeySearch({
   onSearch,
+  onDismissResults,
   inputRef,
 }: {
   onSearch?: (query: string) => void;
+  onDismissResults?: () => void;
   inputRef?: RefObject<HTMLInputElement | null>;
 }) {
   const [open, setOpen] = useState(false);
@@ -80,15 +82,17 @@ export function GooeySearch({
     <span
       ref={root}
       className="gooey-search"
+      data-search-control
       onBlur={(event) => {
         if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node))
           setOpen(false);
       }}
       onKeyDown={(event) => {
-        if (open && event.key === 'Escape') {
+        if ((open || onDismissResults) && event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
-          close();
+          if (onDismissResults) onDismissResults();
+          else close();
         }
       }}
     >

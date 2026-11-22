@@ -347,42 +347,8 @@
   outline-offset: 4px;
 }
 .player-queue-panel.is-immersive {
-  position: absolute;
   inset: 76px 20px 20px auto;
-  width: min(440px, calc(100% - 40px));
   max-height: none;
-  padding: 20px;
-  border: 1px solid var(--hairline);
-  border-radius: 14px;
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: none;
-  animation: player-queue-enter 240ms ease both;
-}
-.player-queue-panel.is-immersive header {
-  position: sticky;
-  top: -20px;
-  z-index: 3;
-  gap: 8px;
-  padding-top: 8px;
-  background: var(--paper);
-}
-.player-queue-panel.is-immersive header strong {
-  flex: 1;
-}
-.player-queue-panel.is-immersive li.is-active {
-  border-radius: 5px;
-  background: var(--color-surface-20);
-}
-@keyframes player-queue-enter {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
 }
 @media (max-width: 900px) and (min-width: 601px) {
   .player-expanded-content {
@@ -481,7 +447,6 @@
   .player-queue-panel.is-immersive {
     inset: 64px 10px max(10px, env(safe-area-inset-bottom)) auto;
     width: calc(100% - 20px);
-    padding: 16px;
   }
 }
 @media (max-height: 560px) {
@@ -506,9 +471,6 @@
   .player-expanded.is-open ~ .global-player,
   .global-player {
     transition: none;
-  }
-  .player-queue-panel.is-immersive {
-    animation: none;
   }
 }
 

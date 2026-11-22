@@ -80,13 +80,27 @@ test('Motion 队列真实拖动松手才持久化，取消不提交，长队列�
   expect(writes.length).toBe(2);
   const panel = page.locator('[data-player-queue-panel]'),
     bounds = await panel.boundingBox();
-  const next = await page.locator('[data-queue-drag]').first().boundingBox();
+  // 取消后的回位可能短暂把手柄移到吸顶标题下，等待鼠标实际能命中这行。
+  await panel.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+  const firstHandle = panel.locator('[data-queue-drag]').first();
+  await expect
+    .poll(() =>
+      firstHandle.evaluate((node) => {
+        const { x, y, width, height } = node.getBoundingClientRect();
+        return node.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+      }),
+    )
+    .toBe(true);
+  const next = await firstHandle.boundingBox();
   await page.mouse.move(next.x + next.width / 2, next.y + next.height / 2);
   await page.mouse.down();
   for (let i = 0; i < 15; i++)
     await page.mouse.move(next.x + next.width / 2, bounds.y + bounds.height - 4 - (i % 2), {
       steps: 3,
     });
+  await expect(panel.locator('[data-queue-items]')).toHaveClass('is-dragging');
   await expect.poll(() => panel.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
   await page.keyboard.press('Escape');
   await page.mouse.up();
@@ -791,11 +805,6 @@ test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真�
   await expect(page.locator('[data-search-page]')).toHaveCount(0);
   expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
 
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  const close = panel.locator('[data-search-close]');
-  await close.hover();
-
-  await close.click();
   await expect(panel).toHaveCount(0);
 });
 
@@ -903,11 +912,34 @@ test('工作区快捷键通过输入ref打开搜索，关闭结果恢复焦点�
   await expect(page.locator('[data-nav="search"]')).toBeFocused();
   await page.keyboard.press('/');
   await expect(input).toBeFocused();
+  await input.fill('迁移');
+  await input.press('Enter');
+  await expect(panel).toBeVisible();
+  await input.click();
+  await expect(panel).toBeVisible();
+  await input.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(input).toBeFocused();
   await input.press('Escape');
   await expect(input).toHaveCount(0);
   await expect(page.locator('[data-nav="search"]')).toBeFocused();
   await expect(archive).toHaveAttribute('data-view', 'archive');
+
+  await page.keyboard.press('/');
+  await input.fill('迁移');
+  await input.press('Enter');
+  await expect(panel.locator('[data-queue-play]').first()).toBeVisible();
+  await panel.locator('[data-queue-play]').first().press('Escape');
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator('[data-nav="search"]')).toBeFocused();
+
+  await page.keyboard.press('/');
+  await input.fill('迁移');
+  await input.press('Enter');
+  await expect(panel).toBeVisible();
   await page.locator('[data-nav="user"]').click();
+  await expect(panel).toHaveCount(0);
+  await expect(archive).toHaveAttribute('data-view', 'user');
   await page.locator('[data-user-create]').click();
   await expect(page.locator('#user-playlist-name')).toBeFocused();
   await page.keyboard.press('Escape');

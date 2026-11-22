@@ -204,7 +204,7 @@ frontend/src/
 - 歌单总览取消分页，所有歌单在同一区域显示，使用 Aceternity UI 官方 `draggable-card-demo-2` 的散放重叠卡片。源码适配在 `shared/react/aceternity/DraggableCard.tsx`，样式使用现有主题变量与 Motion，不引入 Tailwind。鼠标/触摸拖动限制在歌单区域，拖动后的 click 不打开详情；普通点击及 Enter/空格仍可打开。前三张保留原摆放，后续卡片在区域内随机重叠，刷新/置顶不重新随机；窗口尺寸变化时按相同随机比例重新放置，位置不持久化，新建入口保持独立可见。歌单内歌曲与喜爱的分页保持原样。进入歌单详情和返回列表复用分类切换的 `useSectionTransition`：旧内容先淡出，最新数据就绪后淡入；等待期间内容不可交互，减少动态效果时跳过淡出计时。
 - `GET /api/me/playlists` 为当前用户当前页的歌单返回 `coverUrl`，按曲目 `position, id` 取首曲并批量解析，复用本地/网易云各自的数据来源与封面校验。列表不请求整张歌单详情；首曲无封面、已删除、不可用或网易云故障时使用默认图，不寻找后续曲目替代。删除、重排后重新读取列表即更新封面，不存额外封面缓存，不迁移数据库。
 - `components.json` 注册 `@aceternity`（`https://ui.aceternity.com/registry/{name}.json`），复用现有 shadcn MCP。官方源码来源为 <https://ui.aceternity.com/registry/draggable-card-demo-2.json>；项目根目录没有独立 tsconfig，CLI 源码安装在隔离目录完成后适配到现有前端。
-- Dock 的 Gooey Input 按 Enter 提交统一歌曲搜索，在当前页面复用 QueuePanel 的只读搜索模式展示结果，提供播放、加入歌单和加载更多；旧独立搜索页及其兼容入口、专属样式已删除；浏览与翻页不覆盖真实队列，播放沿用原有自动入队行为。键盘 `/` 同样打开新入口；输入和结果面板内的键盘不驱动三维档案。
+- Dock 的 Gooey Input 按 Enter 提交统一歌曲搜索，在当前页面复用 QueuePanel 的只读搜索模式展示结果，提供播放、加入歌单和加载更多。搜索与播放队列共用抽屉外观和关闭动作。播放器队列标题吸顶，搜索标题随结果滚动。点击面板外可以关闭结果，在搜索框按 Escape 优先关闭结果。键盘 `/` 同样打开搜索，播放结果沿用原有自动入队行为。
 - `createSongSearch` 每次查询拥有独立 AbortSignal 和分页游标：歌曲检索、最匹配歌手的歌曲、最匹配专辑的歌曲及本地匹配歌曲按 `source:sourceId` 去重；各云端分页每批 30，专辑/本地曲目缓冲分批展示。来源失败显示提示并保留其他结果，旧查询不能覆盖新查询。
 - 当前统一搜索在每页合并、按来源与歌曲 ID 去重后，仅对缺封面的网易云歌曲批量调用 `/api/netease/song/detail` 补齐安全封面；本地歌曲与已有封面保持不变。详情请求继承同源凭证与搜索取消信号，响应及 JSON 迟到时均丢弃；详情不可用或图片不可信时保留歌曲和占位图。搜索请求/分页/封面测试直接覆盖 `createSongSearch`，已移除退出生产的旧 `fetchNeteaseSearchItems` 请求入口。
 - 后端 `/api/netease/search` 内部使用 vendor cloudsearch，外部参数及登录/限流规则不变；新增 `GET /api/netease/artist/songs?id=&limit=&offset=`，限制正整数 ID、1～100 条分页，固定热门顺序，丢弃 Cookie、proxy 等非白名单参数，复用统一网易云权限及错误脱敏。

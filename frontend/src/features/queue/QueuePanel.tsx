@@ -51,7 +51,7 @@ function revealQueueItem(panel: HTMLElement, item: HTMLElement, reduced: boolean
   const row = item.getBoundingClientRect();
   const top = bounds.top + panel.clientTop;
   const bottom = top + panel.clientHeight;
-  const header = panel.classList.contains('is-immersive') ? panel.querySelector('header') : null;
+  const header = panel.querySelector('header');
   const visibleTop = Math.max(top, header?.getBoundingClientRect().bottom ?? top);
   const delta =
     row.top < visibleTop ? row.top - visibleTop : row.bottom > bottom ? row.bottom - bottom : 0;
@@ -609,20 +609,18 @@ export const QueuePanel = memo(
       >
         <header>
           <strong>{props.mode === 'search' ? '搜索结果 / SONGS' : 'PLAY QUEUE / 播放队列'}</strong>
-          {(immersive || props.mode === 'search') && (
-            <button
-              type="button"
-              data-queue-close={props.mode === 'search' ? undefined : true}
-              data-search-close={props.mode === 'search' ? true : undefined}
-              aria-label={props.mode === 'search' ? '关闭搜索结果' : '关闭播放队列'}
-              onClick={() => {
-                onClose();
-                onFocusToggle();
-              }}
-            >
-              <Icon name={props.mode === 'search' ? 'close' : 'dismiss'} />
-            </button>
-          )}
+          <button
+            type="button"
+            data-queue-close={props.mode === 'search' ? undefined : true}
+            data-search-close={props.mode === 'search' ? true : undefined}
+            aria-label={props.mode === 'search' ? '关闭搜索结果' : '关闭播放队列'}
+            onClick={() => {
+              onClose();
+              onFocusToggle();
+            }}
+          >
+            <Icon name="dismiss" />
+          </button>
           {props.mode !== 'search' && (
             <button
               type="button"

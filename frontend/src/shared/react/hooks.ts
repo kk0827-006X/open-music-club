@@ -35,3 +35,20 @@ export function useLatest<T>(value: T) {
   }, [value]);
   return ref;
 }
+
+// 面板外按下只关闭浮层，允许同一次点击继续触发原目标。
+export function useDismissOnOutsidePointer(
+  open: boolean,
+  contains: (target: Node) => boolean,
+  dismiss: () => void,
+) {
+  const handlers = useLatest({ contains, dismiss });
+  useEffect(() => {
+    if (!open) return;
+    const outside = ({ target }: PointerEvent) => {
+      if (target instanceof Node && !handlers.current.contains(target)) handlers.current.dismiss();
+    };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [open, handlers]);
+}

@@ -126,23 +126,21 @@
   z-index: 46;
   top: 104px;
   bottom: auto;
-  right: 3.2%;
   max-height: calc(100dvh - 220px);
+}
+.song-search-panel header {
+  position: static;
 }
 .song-search-panel li {
   cursor: default;
   touch-action: pan-y;
 }
-.song-search-panel .queue-drag-handle:disabled {
-  opacity: 1;
+.song-search-panel .queue-drag-handle {
   cursor: default;
 }
 @media (max-width: 600px) {
   .player-queue-panel.song-search-panel {
     top: 138px;
-    right: 12px;
-    width: calc(100vw - 24px);
-    box-sizing: border-box;
   }
 }
 

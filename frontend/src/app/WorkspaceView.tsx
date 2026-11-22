@@ -64,6 +64,7 @@ export function WorkspaceView({
   const { archive, sceneContainer, library, playerView, settings, user, footprint, inputRef } =
     refs;
   const { page, visited, show, songQuery, setSongQuery } = navigation;
+  const closeSearch = () => setSongQuery(null);
   const { scene, entryPhase, pageEntryPhase, entering, playbackMotion, changePlaybackMotion } =
     archiveScene;
   const collectionChanged = useCallback(() => {
@@ -105,6 +106,7 @@ export function WorkspaceView({
             <GooeySearch
               key={id}
               inputRef={inputRef}
+              onDismissResults={songQuery && !expanded ? closeSearch : undefined}
               onSearch={(term) => {
                 playerCommands.closeQueue();
                 setSongQuery((previous) => ({ term, serial: (previous?.serial ?? 0) + 1 }));
@@ -214,24 +216,23 @@ export function WorkspaceView({
         />
       </div>
       {songQuery && (
-        <div hidden={expanded} inert={expanded ? true : undefined}>
-          <SongSearchPanel
-            query={songQuery}
-            onClose={() => setSongQuery(null)}
-            onFocusToggle={() => {
-              const input = inputRef.current;
-              if (input && !input.disabled) input.focus({ preventScroll: true });
-              else
-                archive.current
-                  ?.querySelector<HTMLButtonElement>('[data-nav="search"]')
-                  ?.focus({ preventScroll: true });
-            }}
-            onPlay={playerCommands.play}
-            onSave={(track) => {
-              void playerCommands.choosePlaylist(track);
-            }}
-          />
-        </div>
+        <SongSearchPanel
+          query={songQuery}
+          open={!expanded}
+          onClose={closeSearch}
+          onFocusToggle={() => {
+            const input = inputRef.current;
+            if (input && !input.disabled) input.focus({ preventScroll: true });
+            else
+              archive.current
+                ?.querySelector<HTMLButtonElement>('[data-nav="search"]')
+                ?.focus({ preventScroll: true });
+          }}
+          onPlay={playerCommands.play}
+          onSave={(track) => {
+            void playerCommands.choosePlaylist(track);
+          }}
+        />
       )}
       <SettingsDialog
         role={role}

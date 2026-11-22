@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { QueuePanel } from '../queue/QueuePanel';
 import { createSongSearch } from '../../services/music/song-search';
 import type { SearchItem } from '../../shared/music';
-import { useReducedMotion } from '../../shared/react/hooks';
+import { useDismissOnOutsidePointer, useReducedMotion } from '../../shared/react/hooks';
 
 export function SongSearchPanel({
   query,
+  open,
   onClose,
   onFocusToggle,
   onPlay,
   onSave,
 }: {
   query: { term: string; serial: number };
+  open: boolean;
   onClose(): void;
   onFocusToggle(): void;
   onPlay(item: SearchItem): Promise<void>;
@@ -22,7 +24,15 @@ export function SongSearchPanel({
   const [loading, setLoading] = useState(true);
   const [more, setMore] = useState(false);
   const nextRef = useRef<() => void>(() => {});
+  const panelRef = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
+  useDismissOnOutsidePointer(
+    open,
+    (target) =>
+      panelRef.current?.contains(target) ||
+      (target instanceof Element && target.closest('[data-search-control]') !== null),
+    onClose,
+  );
   useEffect(() => {
     const controller = new AbortController();
     const session = createSongSearch(query.term, undefined, controller.signal);
@@ -57,8 +67,9 @@ export function SongSearchPanel({
   }, [query]);
   return (
     <QueuePanel
+      ref={panelRef}
       mode="search"
-      open
+      open={open}
       items={items}
       reduced={reduced}
       likes={new Map()}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { useDismissOnOutsidePointer } from '../../../shared/react/hooks.ts';
 
 const AUTO_HIDE_DELAY = 320;
 
@@ -134,23 +135,14 @@ export function usePlayerVisibility({
     setQueueOpen(!queueOpenRef.current);
   }, [setQueueOpen]);
 
-  // 队列浮层打开时，点击面板和队标以外的地方关闭；只关闭浮层，不吞掉同一次点击。
-  useEffect(() => {
-    if (!queueOpen) return;
-    const outside = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (
-        queuePanelRef.current?.contains(target) ||
-        queueToggleRef.current?.contains(target) ||
-        expandedQueueToggleRef.current?.contains(target)
-      )
-        return;
-      setQueueOpen(false);
-    };
-    document.addEventListener('pointerdown', outside, true);
-    return () => document.removeEventListener('pointerdown', outside, true);
-  }, [queueOpen, setQueueOpen]);
+  useDismissOnOutsidePointer(
+    queueOpen,
+    (target) =>
+      [queuePanelRef, queueToggleRef, expandedQueueToggleRef].some((ref) =>
+        ref.current?.contains(target),
+      ),
+    () => setQueueOpen(false),
+  );
 
   // 靠近视口底部或指针/焦点进入播放器时显示，离开后 320ms 自动隐藏。
   useEffect(() => {

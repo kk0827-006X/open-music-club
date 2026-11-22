@@ -930,10 +930,12 @@ test('Gooey 搜索就地展开，玻璃描边跟随悬停颜色，窄屏不越�
   expect(bounds.x).toBeGreaterThanOrEqual(0);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
   await input.press('Escape');
+  await expect(page.locator('[data-song-search-panel]')).toHaveCount(0);
+  await expect(input).toBeFocused();
+  await input.press('Escape');
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(trigger).toBeFocused();
   expect(requests.length).toBeGreaterThan(0);
-  await expect(page.locator('[data-song-search-panel]')).toBeVisible();
 });
 
 test.describe('音频响应图形验收', () => {
