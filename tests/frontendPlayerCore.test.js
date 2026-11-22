@@ -57,6 +57,37 @@ async function setup(resolveUrl = async (track) => `/${track.source}/${track.sou
   });
   return { player, queue, audio, created: () => created };
 }
+it('恢复只选中曲目，点击播放时才取址并从零开始；迟到的恢复也不能覆盖用户操作', async () => {
+  const lookup = deferred();
+  const played = [];
+  const { player, audio } = await setup(
+    () => lookup.promise,
+    (track) => played.push(track.key),
+  );
+  const track = song(4);
+  player.restoreTrack(track);
+  assert.equal(player.get().track, track);
+  assert.equal(player.get().restored, true);
+  assert.equal(player.get().paused, true);
+  assert.equal(player.get().currentTime, 0);
+  assert.ok(Number.isNaN(player.get().duration));
+  assert.equal(audio.src, '');
+  assert.equal(audio.plays, 0);
+  assert.deepEqual(played, []);
+  const start = player.toggle();
+  player.restoreTrack(song(8));
+  lookup.resolve('/track-4');
+  await start;
+  assert.equal(player.get().track, track);
+  assert.equal(player.get().restored, false);
+  assert.equal(audio.src, '/track-4');
+  assert.equal(audio.plays, 1);
+  assert.deepEqual(played, ['local:4']);
+  player.clear();
+  player.restoreTrack(song(8));
+  assert.equal(player.get().track, null);
+  player.destroy();
+});
 it('跨来源播放共用一个音频实例，音量、进度、暂停及上下曲目兼容', async () => {
   const { player, queue, audio, created } = await setup();
   queue.restore([song(1), song(1, 'netease')]);
@@ -151,11 +182,15 @@ it('足迹只在真正开播后通知，暂停恢复不重复记录；通知失�
   assert.deepEqual(reports, ['local:1']);
   assert.equal(player.get().paused, false);
   assert.equal(player.get().error, null);
+  const resumeAudio = audio.play.bind(audio);
   audio.play = async () => {
     throw new Error('播放被拒绝');
   };
   await assert.rejects(player.play(song(2)), /播放被拒绝/);
   assert.deepEqual(reports, ['local:1']);
+  audio.play = resumeAudio;
+  await player.toggle();
+  assert.deepEqual(reports, ['local:1', 'local:2']);
   player.destroy();
 });
 

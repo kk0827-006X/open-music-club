@@ -1,6 +1,7 @@
 const express = require('express');
 const repository = require('../db/personalLibrary');
 const playbackQueue = require('../db/playbackQueue');
+const { readLastPlayedTrack, saveLastPlayedTrack } = require('../db/lastPlayedTrack');
 const {
   createPersonalLibraryService,
   SourceLookupError,
@@ -64,6 +65,26 @@ function toPlaylist(row) {
 function createPersonalLibraryRouter({ database, neteaseService }) {
   const router = express.Router();
   const service = createPersonalLibraryService({ database, neteaseService });
+
+  router.get('/last-played', async (req, res) => {
+    const reference = readLastPlayedTrack(database, req.user.id);
+    const [track] = reference ? await service.hydrate([reference]) : [];
+    res.set('Cache-Control', 'private, no-store');
+    return res.json({ success: true, track: track?.playable ? track : null });
+  });
+
+  router.put('/last-played', (req, res) => {
+    const reference = readReference(req.body?.source, req.body?.sourceId);
+    const startedAt = req.body?.startedAt;
+    if (!reference || !Number.isSafeInteger(startedAt) || startedAt <= 0) {
+      return errorResponse(res, 400, '播放曲目或开播时间无效');
+    }
+    // 保留近期请求的播放顺序，并限制设备时钟偏差，避免未来时间锁住状态。
+    const now = Date.now();
+    const playbackTime = Math.max(now - 60000, Math.min(startedAt, now));
+    saveLastPlayedTrack(database, req.user.id, reference, playbackTime);
+    return res.set('Cache-Control', 'private, no-store').json({ success: true });
+  });
 
   router.get('/queue', async (req, res, next) => {
     try {

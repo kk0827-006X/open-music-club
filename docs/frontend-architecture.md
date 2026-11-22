@@ -115,7 +115,7 @@ frontend/src/
 - `use-workspace-scene` 保留原 layout effect 的场景创建/销毁、减少动态效果、播放动效偏好和可见性同步，不改动场景算法。`GooeySearch` 的可选 inputRef 与内部聚焦共用真实输入元素，关闭/卸载由 React 清空；工作区快捷键与搜索面板关闭后的焦点归还通过 ref 定位输入，搜索入口按钮仍使用专用 data 标记回退。
 
 - `App` 顶层入口不超过 80 行，保留 BrowserRouter、重置密码及激活/验证邮件路由和 fragment 凭证即时清除；原认证阶段视图由 `SessionApp` 呈现。`use-auth-machine` 保留 stage/role、身份代次、卸载标记、1150ms 计时器，以及恢复、密码认证、验证完成和退出的原时序，路由位置变化同样作废迟到结果；退出请求失败时保留当前阶段。
-- `SessionWorkspace` 只装配 `use-playback-session` 和工作区。播放 hook 在 effect 中创建唯一 Audio 会话、队列及足迹客户端，成功上报后推进足迹版本；卸载中止全部在途上报并销毁播放器，旧响应不能修改下一会话。来源、播放地址和 CSRF 协议保持原样。
+- `SessionWorkspace` 装配 `use-playback-session` 和工作区。播放 hook 创建唯一 Audio 会话、队列和足迹客户端，并在登录后读取当前账号上次成功开播的曲目。卸载会中止读取和在途上报、销毁播放器，旧响应不会修改下一会话。
 
 - `rhine/scene.ts` 保留场景生命周期、入场预热、公开控制、导航/命中和交互适配，通过组合创建唯一 `ArchiveSceneRuntime` 和 `ArchiveSceneUpdate`，不再继承更新器。控制入口和每帧更新读取同一份分组状态，公开 renderer、相机、回调与 update 接口保持兼容；入口继续受 ≤800 行门禁约束。
 - `rhine/scene-state.ts` 通过工厂创建每个实例独立的生命周期、呈现、音频、relay、渲染缓存、导航、选中、交互、计时、入场和回调状态；不依赖 DOM，不创建模型、相机、renderer 或后处理资源，不消耗随机种子。
@@ -132,7 +132,7 @@ frontend/src/
 
 - 使用 React Router 的 BrowserRouter；主页面路径集中在 `app/routes.ts`，目前为 `/library`、`/upload`、`/user`、`/footprint`，后续按功能扩展。用户页内部分类、歌单详情、搜索窗口和设置弹窗暂不独立路由。
 - `/` 保留入口，`/login` 提供登录；直接打开主页面时以实时 Session 恢复身份，成功直达目标，失败转登录。登录的 next 参数仅接受登记的业务路径，拒绝外站跳转；登录成功继续原授权动画后返回目标。
-- 普通切页与浏览器前进/后退只更新 Workspace 当前页面，不重建 SessionWorkspace、队列或 Audio。Dock 由 Workspace 共享渲染；档案墙入场锁定仅作用于音乐库，非音乐库页面的导航、播放器与键盘返回不等待隐藏场景，返回音乐库再继续其原入场。浏览器整页刷新会重新创建音频，不自动恢复播放进度或绕过浏览器自动播放限制。
+- 普通切页与浏览器前进/后退只更新 Workspace 当前页面，不重建 SessionWorkspace、队列或 Audio。Dock 由 Workspace 共享渲染；档案墙入场锁定仅作用于音乐库，非音乐库页面的导航、播放器与键盘返回不等待隐藏场景，返回音乐库再继续其原入场。整页刷新或重新登录后，播放器停在账号上次成功开播的歌曲，点击播放时才取址并从头开始。无记录时沿用默认曲目，已有账号可用最近的足迹作为初始记录。
 - `/reset-password` 是独立邮件重置页面，fragment 凭证仅留组件内存并立即清除，成功不自动登录。登录页的找回弹窗与设置页的改密面板独立，复用 PasswordForm 输入校验和请求生命周期；设置改密成功整页返回 `/login`，销毁原音频会话。
 - `/activate`、`/verify-email` 和 `/admin/applications` 保留原用途；激活 token 仅留组件内存并立即清除地址栏 fragment。未知地址显示不存在页面，API 权限仍由后端检查。
 - 生产静态入口必须配置页面回退，同时保持 `/api`、缺失静态资源的真实错误响应；具体规则见部署测试方案。

@@ -159,6 +159,13 @@ function initializeSchema(database) {
       tracks_json TEXT NOT NULL CHECK (json_valid(tracks_json) AND length(tracks_json) <= 12000)
     );
 
+    CREATE TABLE IF NOT EXISTS user_last_played_tracks (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      source TEXT NOT NULL CHECK (source IN ('local', 'netease')),
+      source_id TEXT NOT NULL CHECK (length(source_id) BETWEEN 1 AND 16),
+      started_at INTEGER NOT NULL CHECK (started_at > 0)
+    );
+
     CREATE TABLE IF NOT EXISTS user_two_factor (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       secret_ciphertext TEXT,

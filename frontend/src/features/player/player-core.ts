@@ -5,6 +5,7 @@ import type { MusicQueue } from '../queue/model.ts';
 
 export type PlayerState = Readonly<{
   track: MusicItem | null;
+  restored: boolean;
   paused: boolean;
   currentTime: number;
   duration: number;
@@ -30,11 +31,14 @@ export function createPlayerController(options: {
     disposed = false;
   let pending: AbortController | null = null;
   let error: string | null = null;
+  let restored = false;
+  let started = false;
   const snapshot = (): PlayerState => ({
     track,
-    paused: audio.paused,
-    currentTime: audio.currentTime,
-    duration: audio.duration,
+    restored,
+    paused: restored || audio.paused,
+    currentTime: restored ? 0 : audio.currentTime,
+    duration: restored ? NaN : audio.duration,
     volume: audio.volume,
     error,
   });
@@ -47,6 +51,17 @@ export function createPlayerController(options: {
     pending?.abort();
     pending = null;
   };
+  async function startAudio(current: number, selected: MusicItem) {
+    await audio.play();
+    if (disposed || current !== request || track !== selected || started) return;
+    started = true;
+    try {
+      // 只报告首次成功开播，记录失败不能中断音频。
+      void Promise.resolve(options.onPlayed?.(selected)).catch(() => undefined);
+    } catch {
+      /* 附属记录不替代播放器自身的错误状态。 */
+    }
+  }
   async function play(next: MusicItem) {
     if (disposed) return;
     const preparation = analysis.prepare();
@@ -68,17 +83,11 @@ export function createPlayerController(options: {
     analysis.reset();
     audio.src = url;
     track = next;
+    restored = false;
+    started = false;
     error = null;
     update();
-    await audio.play();
-    // 只通知仍属于本次请求的成功开播；附属记录失败不能打断音频。
-    if (!disposed && current === request) {
-      try {
-        void Promise.resolve(options.onPlayed?.(next)).catch(() => undefined);
-      } catch {
-        /* 足迹是附属记录，不替代播放器自身的错误状态。 */
-      }
-    }
+    await startAudio(current, next);
   }
   const next = async () => {
     const item = track && options.queue.next(track.key);
@@ -104,6 +113,13 @@ export function createPlayerController(options: {
   return {
     get: state.get,
     subscribe: state.subscribe,
+    restoreTrack(next: MusicItem) {
+      // 迟到的历史曲目不能覆盖已经提交的播放或清空操作。
+      if (disposed || request !== 0 || track) return;
+      track = next;
+      restored = true;
+      update();
+    },
     play,
     next,
     previous,
@@ -111,10 +127,11 @@ export function createPlayerController(options: {
     resetAudioBands: analysis.reset,
     async toggle() {
       if (disposed || !track) return;
+      if (restored) return play(track);
       if (audio.paused) {
         const current = request;
         await analysis.prepare();
-        if (!disposed && track && current === request) await audio.play();
+        if (!disposed && track && current === request) await startAudio(current, track);
       } else audio.pause();
     },
     setVolume(volume: number) {
@@ -124,7 +141,7 @@ export function createPlayerController(options: {
       }
     },
     seek(fraction: number) {
-      if (!disposed && track && Number.isFinite(audio.duration)) {
+      if (!disposed && track && !restored && Number.isFinite(audio.duration)) {
         audio.currentTime = Math.min(audio.duration, Math.max(0, fraction * audio.duration));
         update();
       }
@@ -136,6 +153,8 @@ export function createPlayerController(options: {
       analysis.reset();
       audio.removeAttribute('src');
       track = null;
+      restored = false;
+      started = false;
       error = null;
       update();
     },

@@ -54,14 +54,16 @@ export function toPersonalSong(track: PersonalTrack): SearchItem {
 }
 
 export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.bind(globalThis)) {
-  let queueCsrfToken: string | undefined;
+  let playbackCsrfToken: string | undefined;
   const request = async <T>(
     url: string,
     method = 'GET',
     body?: object | FormData,
     keepalive = false,
     preparedToken?: string,
+    signal?: AbortSignal,
   ): Promise<T> => {
+    if (signal?.aborted) throw new DOMException('请求已取消', 'AbortError');
     const headers: Record<string, string> = {};
     if (method !== 'GET') {
       // 普通写操作读取当前会话令牌；队列使用预取令牌，失效后重新获取。
@@ -72,6 +74,8 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
             'GET',
             undefined,
             keepalive,
+            undefined,
+            signal,
           );
       if (!token.csrfToken) throw new Error('无法建立安全会话，请重新登录');
       headers['X-CSRF-Token'] = token.csrfToken;
@@ -85,6 +89,7 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
         credentials: 'same-origin',
         cache: 'no-store',
         headers,
+        ...(signal ? { signal } : {}),
         ...(keepalive ? { keepalive: true } : {}),
         ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}),
       });
@@ -113,41 +118,59 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
       throw new Error('服务器响应异常，请稍后重试');
     }
   };
-  const prepareQueueToken = async () => {
-    queueCsrfToken = (
-      await request<{ csrfToken: string }>('/api/security/csrf-token', 'GET', undefined, true)
+  const preparePlaybackToken = async (signal?: AbortSignal) => {
+    playbackCsrfToken = (
+      await request<{ csrfToken: string }>(
+        '/api/security/csrf-token',
+        'GET',
+        undefined,
+        true,
+        undefined,
+        signal,
+      )
     ).csrfToken;
-    if (!queueCsrfToken) throw new Error('无法建立安全会话，请重新登录');
-    return queueCsrfToken;
+    if (!playbackCsrfToken) throw new Error('无法建立安全会话，请重新登录');
+    return playbackCsrfToken;
+  };
+  const savePlayback = async (url: string, body: object, signal?: AbortSignal) => {
+    const token = playbackCsrfToken || (await preparePlaybackToken(signal));
+    try {
+      return await request(url, 'PUT', body, true, token, signal);
+    } catch (error) {
+      if (error instanceof PersonalLibraryError && [401, 403].includes(error.status))
+        playbackCsrfToken = undefined;
+      throw error;
+    }
   };
   return {
+    lastPlayed: async (signal: AbortSignal) =>
+      (
+        await request<{ track: PersonalTrack | null }>(
+          '/api/me/last-played',
+          'GET',
+          undefined,
+          false,
+          undefined,
+          signal,
+        )
+      ).track,
+    saveLastPlayed: (
+      { source, sourceId }: TrackReference,
+      startedAt: number,
+      signal: AbortSignal,
+    ) => savePlayback('/api/me/last-played', { source, sourceId, startedAt }, signal),
     queue: async () => {
       // 登录后的客户端只保留本会话令牌；提前准备，关页时无需先等另一个请求。
       const [queue] = await Promise.all([
         request<{ tracks: PersonalTrack[] }>('/api/me/queue'),
-        prepareQueueToken(),
+        preparePlaybackToken(),
       ]);
       return queue.tracks;
     },
-    saveQueue: async (tracks: readonly TrackReference[]) => {
-      const token = queueCsrfToken || (await prepareQueueToken());
-      try {
-        return await request(
-          '/api/me/queue',
-          'PUT',
-          {
-            tracks: tracks.map((track) => ({ source: track.source, sourceId: track.sourceId })),
-          },
-          true,
-          token,
-        );
-      } catch (error) {
-        // 认证会话变更时弃用旧令牌；由队列同步器提示并在下一次重试重新获取。
-        if (error instanceof PersonalLibraryError && [401, 403].includes(error.status))
-          queueCsrfToken = undefined;
-        throw error;
-      }
-    },
+    saveQueue: (tracks: readonly TrackReference[]) =>
+      savePlayback('/api/me/queue', {
+        tracks: tracks.map(({ source, sourceId }) => ({ source, sourceId })),
+      }),
     profile: async () => (await request<{ profile: UserProfile }>('/api/me/profile')).profile,
     uploadAvatar: async (file: File) => {
       const data = new FormData();

@@ -18,20 +18,23 @@ export function SessionWorkspace({
   onNavigate(page: WorkspacePage): void;
 }) {
   const { session, footprintRevision } = usePlaybackSession();
+  if (!session) return null;
+  const { flushLastPlayed, ...workspaceSession } = session;
   return (
-    session && (
-      <ErrorBoundary>
-        <Suspense fallback={null}>
-          <Workspace
-            {...session}
-            page={page}
-            onNavigate={onNavigate}
-            role={role}
-            footprintRevision={footprintRevision}
-            onLogout={onLogout}
-          />
-        </Suspense>
-      </ErrorBoundary>
-    )
+    <ErrorBoundary>
+      <Suspense fallback={null}>
+        <Workspace
+          {...workspaceSession}
+          page={page}
+          onNavigate={onNavigate}
+          role={role}
+          footprintRevision={footprintRevision}
+          onLogout={async () => {
+            await flushLastPlayed();
+            await onLogout();
+          }}
+        />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

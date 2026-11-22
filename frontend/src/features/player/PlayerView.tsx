@@ -118,26 +118,20 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(
     const { lyricLines, lyricMessage } = lyrics;
     useEffect(() => {
       const track = state.track;
-      if (firstTrackRef.current) {
-        firstTrackRef.current = false;
-        lastTrackRef.current = track;
-        if (track) {
-          lyrics.requestLyrics(track);
-          void likes.syncLikedFor(track);
-        }
-        return;
-      }
-      if (track === lastTrackRef.current) return;
+      const initial = firstTrackRef.current;
+      const changed = track !== lastTrackRef.current;
+      firstTrackRef.current = false;
       lastTrackRef.current = track;
+      if (track && !initial && !state.restored) queueActions.enqueueTrack(track);
+      if (!changed) return;
       if (!track) {
         likes.clearLiked();
         lyrics.clearLyrics();
         return;
       }
       void likes.syncLikedFor(track);
-      queueActions.enqueueTrack(track);
       lyrics.requestLyrics(track);
-    }, [state.track]);
+    }, [state.track, state.restored]);
     useImperativeHandle(
       ref,
       () => ({

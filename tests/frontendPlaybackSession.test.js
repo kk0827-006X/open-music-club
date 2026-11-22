@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { it } = require('node:test');
 const { withReactHarness } = require('./helpers/reactHarness');
 const response = (body) => ({ ok: true, status: 200, json: async () => body });
+const LAST_PLAYED = '/api/me/last-played';
 const deferred = () => {
   let resolve;
   const promise = new Promise((done) => {
@@ -91,6 +92,7 @@ async function withSession(run, fetch) {
 
 it('播放会话普通重渲染保留同一队列、客户端和 Audio，成功足迹才推进版本', async () => {
   const reports = [];
+  const saves = [];
   await withSession(
     async (h, ctx) => {
       await ctx.render();
@@ -104,11 +106,15 @@ it('播放会话普通重渲染保留同一队列、客户端和 Audio，成功�
       assert.equal(ctx.state.footprintRevision, 1);
       assert.equal(reports.length, 1);
       assert.equal(reports[0].durationMs, 62000);
+      assert.equal(saves.length, 1);
+      assert.deepEqual(Object.keys(saves[0]).sort(), ['source', 'sourceId', 'startedAt']);
+      assert.equal(saves[0].sourceId, '1');
       await h.React.act(async () => {
         await first.player.toggle();
         await first.player.toggle();
       });
       assert.equal(reports.length, 1);
+      assert.equal(saves.length, 1);
       await h.unmount();
       assert.equal(ctx.audios[0].loads, 1);
       assert.equal(ctx.audios[0].paused, true);
@@ -116,6 +122,13 @@ it('播放会话普通重渲染保留同一队列、客户端和 Audio，成功�
     },
     async (url, init) => {
       if (url === '/api/security/csrf-token') return response({ csrfToken: 'isolated-csrf' });
+      if (url === LAST_PLAYED) {
+        if (init.method === 'GET') return response({ track: null });
+        assert.equal(init.keepalive, true);
+        assert.equal(init.headers['X-CSRF-Token'], 'isolated-csrf');
+        saves.push(JSON.parse(init.body));
+        return response({ success: true });
+      }
       assert.equal(url, '/api/footprint/events');
       assert.equal(init.headers['X-CSRF-Token'], 'isolated-csrf');
       reports.push(JSON.parse(init.body));
@@ -154,6 +167,7 @@ it('播放会话卸载中止全部在途足迹，迟到响应不污染新会话�
       assert.equal(ctx.audios[1].loads, 1, '旧播放器销毁保持幂等');
     },
     (url, init) => {
+      if (url === LAST_PLAYED) return Promise.resolve(response({ track: null }));
       if (url === '/api/security/csrf-token')
         return Promise.resolve(response({ csrfToken: 'isolated-csrf' }));
       assert.equal(url, '/api/footprint/events');
@@ -189,12 +203,62 @@ it('退出时取消在途网易云取址，迟到播放地址不能启动旧 Aud
       assert.equal(reports, 0);
     },
     (url, init) => {
+      if (url === LAST_PLAYED) return Promise.resolve(response({ track: null }));
       if (url.startsWith('/api/netease/song/url/v1')) {
         signal = init.signal;
         return pending.promise;
       }
       reports++;
       return Promise.resolve(response({}));
+    },
+  );
+});
+
+it('卸载中止旧账号的恢复读取，迟到的读取不能改变新会话或已手动播放的歌曲', async () => {
+  const reads = [];
+  const restoredResponse = (id) =>
+    response({
+      track: {
+        source: 'local',
+        sourceId: String(id),
+        title: `历史曲目 ${id}`,
+        artists: [],
+        durationMs: 60000,
+        album: { name: null },
+        playable: true,
+      },
+    });
+  await withSession(
+    async (h, ctx) => {
+      await ctx.render();
+      const old = ctx.state.session.player;
+      await h.render(null);
+      assert.equal(reads[0].signal.aborted, true);
+      await ctx.render();
+      const current = ctx.state.session.player;
+      await h.React.act(async () => reads[0].resolve(restoredResponse(20)));
+      assert.equal(old.get().track, null);
+      assert.equal(current.get().track, null);
+      await h.React.act(async () => current.play(song(3)));
+      await h.React.act(async () => reads[1].resolve(restoredResponse(21)));
+      assert.equal(current.get().track.key, 'local:3');
+      assert.equal(ctx.audios[1].plays, 1);
+      await h.render(null);
+      await ctx.render();
+      await h.React.act(async () => reads[2].resolve(restoredResponse(22)));
+      assert.equal(ctx.state.session.player.get().track.title, '历史曲目 22');
+      assert.equal(ctx.state.session.player.get().restored, true);
+      assert.equal(ctx.audios[2].plays, 0);
+    },
+    (url, init) => {
+      if (url === LAST_PLAYED && init.method === 'GET') {
+        const reading = deferred();
+        reads.push({ ...reading, signal: init.signal });
+        return reading.promise;
+      }
+      if (url === '/api/security/csrf-token')
+        return Promise.resolve(response({ csrfToken: 'isolated' }));
+      return Promise.resolve(response({ success: true }));
     },
   );
 });

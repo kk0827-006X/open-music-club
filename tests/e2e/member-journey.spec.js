@@ -32,6 +32,19 @@ async function revealPlayer(page) {
   await page.mouse.move(700, 998);
   await expect(page.locator('[data-global-player]')).toHaveClass(/is-visible/);
 }
+async function expectRestoredTrack(page, title) {
+  await expect(page.locator('[data-player-track] strong')).toHaveText(title);
+  expect(
+    await page.evaluate(() => {
+      const [audio] = window.__acceptanceAudios;
+      return {
+        paused: audio.paused,
+        time: audio.currentTime,
+        hasSource: audio.hasAttribute('src'),
+      };
+    }),
+  ).toEqual({ paused: true, time: 0, hasSource: false });
+}
 test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真实音频播放与恢复', async ({
   page,
   browser,
@@ -145,6 +158,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await expect(dialog).toBeVisible();
       expect((await client.get('/api/local/music')).status()).toBe(401);
       expect((await client.get('/api/footprint/timeline')).status()).toBe(401);
+      expect((await client.get('/api/me/last-played')).status()).toBe(401);
       expect((await client.get('/api/auth/me')).ok()).toBeTruthy();
       expect((await (await client.get('/api/auth/me')).json()).authenticated).toBe(false);
       await dialog
@@ -277,8 +291,31 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await page.getByRole('button', { name: '关闭设置', exact: true }).click();
       expect(await page.evaluate(() => window.__acceptanceAudios.length)).toBe(1);
     });
+    await test.step('刷新回到最近播放的曲目，保持暂停且点击播放从头开始', async () => {
+      await expect
+        .poll(async () => (await (await client.get('/api/me/last-played')).json()).track?.title)
+        .toBe('验收云端歌曲');
+      const before = (await (await client.get('/api/footprint/timeline')).json()).total;
+      await page.reload();
+      await expectRestoredTrack(page, '验收云端歌曲');
+      expect((await (await client.get('/api/footprint/timeline')).json()).total).toBe(before);
+      await revealPlayer(page);
+      await page
+        .locator('[data-global-player]')
+        .getByRole('button', { name: '播放', exact: true })
+        .click();
+      await expect
+        .poll(() => page.evaluate(() => window.__acceptanceAudios[0].currentTime))
+        .toBeGreaterThan(0);
+      expect(await page.evaluate(() => window.__acceptanceAudios[0].currentSrc)).toContain(
+        'e2e.music.126.net/audio.wav',
+      );
+    });
     await test.step('重新登录仍从数据库恢复混合队列和私人足迹', async () => {
-      expect((await post(client, '/api/auth/logout', {})).status()).toBe(200);
+      await page.locator('[data-nav="settings"]').click();
+      await page.getByRole('button', { name: '账号与安全', exact: true }).click();
+      await page.locator('[data-settings-logout]').click();
+      await expect(page).toHaveURL(/\/login/);
       // 用一次性恢复码完成重新登录，避免再等待一个 TOTP 时间窗。
       expect((await post(client, '/api/auth/login', MEMBER)).status()).toBe(200);
       expect((await client.get('/api/me/queue')).status()).toBe(401);
@@ -288,6 +325,7 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
       await page.goto('/');
       await page.getByRole('button', { name: /点击进入/ }).click();
       await expect(page.locator('[data-album-archive]')).toBeVisible();
+      await expectRestoredTrack(page, '验收云端歌曲');
       await page.locator('[data-nav="footprint"]').click();
       await expect(page.locator('.fp-note')).toContainText(footprintNote);
       await page.locator('[data-fp-tab="studio"]').click();
