@@ -1,0 +1,319 @@
+/* 音乐热梗弹幕墙：独立整页剧场布局——大屏舞台 + 全站实时流侧栏，覆盖三维档案区。 */
+.danmaku-page {
+  position: absolute; inset: 0; z-index: 25;
+  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(14px, 1.6vw, 26px);
+  padding: 85px 4% 121px;
+  background: radial-gradient(ellipse at 40% 30%, var(--color-surface-21) 0%, var(--color-surface-22) 68%, var(--color-surface-23) 100%);
+  opacity: 0; transform: translateY(12px);
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+.danmaku-page[hidden] { display: none; }
+.album-archive[data-view="danmaku"] .danmaku-page { opacity: 1; transform: translateY(0); }
+.album-archive[data-view="danmaku"] .archive-brand { top: 19px; }
+.album-archive[data-view="danmaku"] .archive-brand h1 { font-size: 1.05rem; letter-spacing: -.02em; }
+.album-archive[data-view="danmaku"] .archive-brand > p { margin-top: 2px; font-size: .43rem; }
+.album-archive[data-view="danmaku"] .archive-brand > small { display: none; }
+.album-archive[data-view="danmaku"] .album-wave-stage,
+.album-archive[data-view="danmaku"] .archive-selection-copy,
+.album-archive[data-view="danmaku"] .archive-callout,
+.album-archive[data-view="danmaku"] .archive-switcher { opacity: 0; pointer-events: none; }
+.archive-nav button[data-nav="danmaku"] { cursor: pointer; }
+
+/* 独立页头：与盲盒页同量级的 hero 标题 */
+.danmaku-hero > p { margin: 0; color: var(--color-text-31); font-size: .55rem; letter-spacing: .38em; }
+.danmaku-hero h2 { margin: 6px 0 0; font-size: clamp(1.7rem, 2.4vw, 2.3rem); font-weight: 790; letter-spacing: -.04em; line-height: 1; }
+.danmaku-hero h2 span { color: var(--color-accent-10); margin: 0 .18em; }
+.danmaku-hero small { display: block; margin-top: 8px; color: var(--color-text-32); font-size: .64rem; letter-spacing: .05em; }
+
+/* 主体两栏：左主舞台，右实时流 */
+.danmaku-body {
+  grid-row: 2; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(264px, 24vw, 340px);
+  gap: clamp(18px, 2.2vw, 40px);
+}
+.danmaku-main {
+  min-height: 0; display: grid;
+  grid-template-rows: auto minmax(200px, 1.25fr) auto auto minmax(120px, .75fr);
+  gap: 14px 0;
+}
+
+/* 正在播放条与实时指标 */
+.danmaku-now { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.danmaku-track-label { color: var(--color-text-32); font-size: .64rem; letter-spacing: .05em; }
+.danmaku-metrics { display: flex; gap: 26px; margin: 0; }
+.danmaku-metrics dt { color: var(--color-text-43); font-size: .5rem; letter-spacing: .18em; }
+.danmaku-metrics dd { margin: 4px 0 0; color: var(--color-accent-10); font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* 弹幕大屏：7 条泳道，弹幕从右往左飘 */
+.danmaku-stage {
+  position: relative; min-height: 0; overflow: hidden;
+  border: 1px solid var(--color-border-27);
+  background:
+    linear-gradient(158deg, var(--color-highlight-05), transparent 62%),
+    repeating-linear-gradient(0deg, transparent 0 calc(100% / 7 - 1px), var(--color-border-23) calc(100% / 7 - 1px) calc(100% / 7));
+  transition: opacity 220ms ease;
+}
+.danmaku-stage-empty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  margin: 0; padding: 0 12%; color: var(--color-text-47); font-size: .68rem; letter-spacing: .08em; text-align: center;
+}
+.danmaku-flight {
+  position: absolute; left: 100%;
+  padding: 4px 12px; border-radius: 3px;
+  background: var(--color-surface-29);
+  color: var(--color-text-30); font-size: .78rem; white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .14);
+  animation: danmaku-drift 9s linear forwards;
+  will-change: transform;
+}
+.danmaku-flight.is-reduced { animation-duration: 3s; }
+@keyframes danmaku-drift {
+  to { transform: translateX(calc(-100vw - 100%)); }
+}
+
+/* 发送区 */
+.danmaku-composer > label { display: block; color: var(--color-text-36); font-size: .6rem; letter-spacing: .08em; }
+.danmaku-composer-row { display: flex; gap: 10px; margin-top: 7px; }
+.danmaku-composer-row input {
+  flex: 1; min-width: 0; height: 42px; padding: 0 14px;
+  border: 1px solid var(--color-border-23); background: var(--color-highlight-05);
+  color: var(--color-text-30); font-size: .74rem;
+}
+.danmaku-composer-row input:focus { outline: none; border-color: var(--color-border-24); }
+.danmaku-composer-row input:disabled { opacity: .5; }
+.danmaku-composer-row button {
+  height: 42px; padding: 0 22px; border: 1px solid var(--color-border-34);
+  background: var(--color-action-06); color: var(--color-inverse-03);
+  font-size: .7rem; letter-spacing: .1em; cursor: pointer;
+}
+.danmaku-composer-row button:disabled { opacity: .55; cursor: not-allowed; }
+.danmaku-status { min-height: 1.1em; margin: 6px 0 0; color: var(--color-text-47); font-size: .62rem; }
+
+/* 控制条：开关 / 透明度 / 屏蔽词 */
+.danmaku-controls {
+  display: flex; gap: 16px 26px; align-items: center; flex-wrap: wrap;
+  padding: 12px 0; border-top: 1px solid var(--color-border-27); border-bottom: 1px solid var(--color-border-27);
+}
+.danmaku-controls [data-danmaku-toggle] {
+  display: inline-flex; align-items: center; height: 32px; padding: 0 14px;
+  border: 1px solid var(--color-border-23); background: transparent;
+  color: var(--color-text-37); font-size: .63rem; cursor: pointer;
+}
+.danmaku-controls [data-danmaku-toggle][aria-pressed="true"] {
+  border-color: var(--color-border-34); background: var(--color-action-06); color: var(--color-inverse-03);
+}
+.danmaku-opacity, .danmaku-blocklist { display: inline-flex; gap: 9px; align-items: center; color: var(--color-text-36); font-size: .62rem; }
+.danmaku-opacity input { width: clamp(120px, 14vw, 210px); accent-color: var(--color-accent-10); }
+.danmaku-opacity span { min-width: 34px; color: var(--color-text-30); font-variant-numeric: tabular-nums; }
+.danmaku-blocklist input {
+  width: clamp(180px, 24vw, 320px); height: 32px; padding: 0 10px;
+  border: 1px solid var(--color-border-23); background: var(--color-highlight-05);
+  color: var(--color-text-30); font-size: .64rem;
+}
+.danmaku-blocklist input:focus { outline: none; border-color: var(--color-border-24); }
+.danmaku-controls [data-danmaku-block-hint] { flex-basis: 100%; margin: 0; color: var(--color-text-43); font-size: .56rem; }
+
+/* 时间轴列表 */
+.danmaku-timeline { min-height: 0; display: flex; flex-direction: column; }
+.danmaku-timeline > p { margin: 0 0 8px; color: var(--color-text-43); font-size: .52rem; letter-spacing: .3em; }
+.danmaku-timeline-empty { margin: 8px 0 0; color: var(--color-text-47); font-size: .66rem; }
+.danmaku-timeline ol { flex: 1; min-height: 0; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.danmaku-timeline li { display: flex; gap: 12px; align-items: baseline; padding: 8px 2px; border-bottom: 1px solid var(--color-border-23); font-size: .68rem; }
+.danmaku-timeline li time { min-width: 42px; color: var(--color-accent-10); font-variant-numeric: tabular-nums; }
+.danmaku-timeline li strong { color: var(--color-text-37); font-weight: 600; }
+.danmaku-timeline li span { color: var(--color-text-30); overflow-wrap: anywhere; }
+
+/* 全站实时流侧栏 */
+.danmaku-feed {
+  min-height: 0; display: flex; flex-direction: column;
+  border: 1px solid var(--color-border-27); background: var(--color-highlight-05);
+}
+.danmaku-feed-head { padding: 14px 16px 12px; border-bottom: 1px solid var(--color-border-27); }
+.danmaku-feed-head > p { margin: 0; color: var(--color-text-43); font-size: .5rem; letter-spacing: .3em; }
+.danmaku-feed-head h3 { margin: 5px 0 0; color: var(--color-text-30); font-size: .92rem; font-weight: 700; letter-spacing: -.01em; }
+.danmaku-feed-head > span { display: block; margin-top: 5px; color: var(--color-text-47); font-size: .56rem; }
+.danmaku-feed-list { flex: 1; min-height: 0; margin: 0; padding: 6px 16px; overflow-y: auto; list-style: none; }
+.danmaku-feed-list li { padding: 9px 0; border-bottom: 1px solid var(--color-border-23); }
+.danmaku-feed-copy { display: block; color: var(--color-text-30); font-size: .68rem; overflow-wrap: anywhere; }
+.danmaku-feed-copy b { margin-right: 7px; color: var(--color-text-37); font-weight: 600; }
+.danmaku-feed-list small { display: block; margin-top: 4px; color: var(--color-text-43); font-size: .56rem; }
+.danmaku-feed-empty { margin: auto; padding: 0 16px; color: var(--color-text-47); font-size: .64rem; text-align: center; }
+.danmaku-feed-empty span { display: block; margin-top: 6px; font-size: .58rem; color: var(--color-text-43); }
+.danmaku-feed-foot {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 10px 16px; border-top: 1px solid var(--color-border-27);
+  color: var(--color-text-43); font-size: .52rem; letter-spacing: .14em;
+}
+
+@media (max-width: 860px) {
+  .danmaku-body { grid-template-columns: minmax(0, 1fr); }
+  .danmaku-feed { max-height: 260px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .danmaku-flight { animation-duration: 3s; }
+}
+
+/* ===== 播放器内嵌弹幕：展开播放器右列的「歌词 / 弹幕」切换 ===== */
+.player-expanded-lyrics .player-expanded-side-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px;
+}
+.player-expanded-lyrics .player-expanded-side-head p {
+  margin: 0; color: var(--color-text-22); font-size: .57rem; letter-spacing: .15em;
+}
+.player-side-switch {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-border-17); border-radius: 999px;
+}
+.player-side-switch button {
+  padding: 5px 15px; border: 0; background: transparent; color: var(--color-text-19);
+  font-family: inherit; font-size: .62rem; letter-spacing: .08em; cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+.player-side-switch button[aria-pressed="true"] {
+  background: var(--color-text-01); color: var(--color-surface-01); font-weight: 600;
+}
+.player-side-switch button:focus-visible { outline: 1px solid var(--color-accent-08); outline-offset: -3px; }
+
+.player-dm { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.player-dm-meta {
+  display: flex; justify-content: space-between; gap: 12px;
+  color: var(--color-text-26); font-size: .56rem; letter-spacing: .08em;
+}
+.player-dm-wall {
+  position: relative; flex: 1; min-height: 150px; overflow: hidden;
+  border: 1px dashed var(--color-border-17); border-radius: 10px;
+  transition: opacity 220ms ease;
+}
+.player-dm-flight {
+  position: absolute; left: 100%;
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: 74%; white-space: nowrap;
+  color: var(--color-text-01); font-size: .92rem; line-height: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+  animation: player-dm-drift linear forwards;
+  will-change: transform;
+}
+@keyframes player-dm-drift {
+  to { transform: translateX(calc(-100vw - 100%)); }
+}
+.player-dm-flight.is-mine {
+  padding: 6px 12px; border: 1px solid var(--color-accent-08); border-radius: 999px;
+  color: var(--color-accent-08); font-weight: 600; text-shadow: none;
+}
+.player-dm-badge {
+  flex: 0 0 auto; font-style: normal; font-size: .5rem; letter-spacing: .08em;
+  padding: 1px 4px; border: 1px solid currentColor; border-radius: 4px; opacity: .8;
+}
+.player-dm-flight.is-voice {
+  padding: 6px 12px; border: 1px solid var(--color-border-17); border-radius: 999px;
+  background: var(--color-highlight-05); color: var(--color-text-01);
+  font-family: inherit; font-size: .78rem; cursor: pointer; text-shadow: none;
+}
+.player-dm-wave { display: inline-flex; gap: 2px; align-items: center; height: 14px; }
+.player-dm-wave i { width: 2px; height: 5px; border-radius: 2px; background: currentColor; animation: player-dm-wave 700ms ease-in-out infinite alternate; }
+.player-dm-wave i:nth-child(2) { height: 10px; animation-delay: 90ms; }
+.player-dm-wave i:nth-child(3) { height: 6px; animation-delay: 180ms; }
+.player-dm-wave i:nth-child(4) { height: 12px; animation-delay: 120ms; }
+.player-dm-wave i:nth-child(5) { height: 7px; animation-delay: 60ms; }
+@keyframes player-dm-wave {
+  from { transform: scaleY(.4); }
+  to { transform: scaleY(1.3); }
+}
+.player-dm-flight.is-image {
+  margin: 0; padding: 5px; border: 1px solid var(--color-border-17); border-radius: 10px;
+  background: var(--color-highlight-05); box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+.player-dm-flight.is-image img { display: block; max-width: 132px; max-height: 76px; border-radius: 7px; object-fit: cover; }
+.player-dm-flight.is-image figcaption {
+  padding: 4px 4px 2px; color: var(--color-text-26); font-size: .54rem; letter-spacing: .06em;
+}
+.player-dm-empty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  margin: 0; padding: 0 12%; color: var(--color-text-26); font-size: .68rem;
+  letter-spacing: .08em; text-align: center;
+}
+
+.player-dm-composer { display: flex; flex-direction: column; gap: 8px; }
+.player-dm-tabs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.player-dm-tabs > button {
+  display: inline-flex; gap: 6px; align-items: center;
+  padding: 5px 12px; border: 1px solid var(--color-border-17); border-radius: 999px;
+  background: transparent; color: var(--color-text-19);
+  font-family: inherit; font-size: .6rem; letter-spacing: .06em; cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease;
+}
+.player-dm-tabs > button svg {
+  width: 13px; height: 13px; fill: none; stroke: currentColor;
+  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+}
+.player-dm-tabs > button.is-active { border-color: var(--color-accent-08); color: var(--color-accent-08); }
+.player-dm-spacer { flex: 1; }
+.player-dm-enable { display: inline-flex; gap: 7px; align-items: center; color: var(--color-text-26); font-size: .58rem; letter-spacing: .06em; }
+.player-dm-switch {
+  position: relative; width: 30px; height: 16px; padding: 0;
+  border: 0; border-radius: 999px; background: var(--color-border-15); cursor: pointer;
+}
+.player-dm-switch::after {
+  position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--color-surface-01); content: ""; transition: left 180ms ease;
+}
+.player-dm-switch.is-on { background: var(--color-accent-08); }
+.player-dm-switch.is-on::after { left: 16px; }
+
+.player-dm-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.player-dm-row input[type="text"] {
+  flex: 1 1 150px; min-width: 0; height: 38px; padding: 0 14px;
+  border: 1px solid var(--color-border-17); border-radius: 999px;
+  background: var(--color-highlight-05); color: var(--color-text-01);
+  font-family: inherit; font-size: .76rem; outline: none;
+}
+.player-dm-row input[type="text"]:focus { border-color: var(--color-accent-08); }
+.player-dm-row input[type="text"]::placeholder { color: var(--color-text-26); }
+.player-dm-send {
+  height: 38px; padding: 0 18px; border: 1px solid var(--color-accent-08); border-radius: 999px;
+  background: transparent; color: var(--color-accent-08);
+  font-family: inherit; font-size: .66rem; letter-spacing: .12em; cursor: pointer;
+}
+.player-dm-send:disabled { opacity: .45; cursor: default; }
+.player-dm-mic {
+  display: inline-flex; gap: 8px; align-items: center; height: 38px; padding: 0 14px;
+  border: 1px solid var(--color-border-17); border-radius: 999px;
+  background: transparent; color: var(--color-text-19);
+  font-family: inherit; font-size: .66rem; cursor: pointer;
+}
+.player-dm-mic svg {
+  width: 14px; height: 14px; fill: none; stroke: currentColor;
+  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+}
+.player-dm-mic:disabled { opacity: .5; cursor: default; }
+.player-dm-recording {
+  display: inline-flex; gap: 8px; align-items: center; height: 38px; padding: 0 14px;
+  border: 1px solid #d76a6a; border-radius: 999px;
+  background: rgba(215, 106, 106, .12); color: #d76a6a;
+  font-family: inherit; font-size: .66rem; cursor: pointer;
+}
+.player-dm-rec-dot { width: 8px; height: 8px; border-radius: 50%; background: #d76a6a; animation: player-dm-blink 1s infinite; }
+@keyframes player-dm-blink { 50% { opacity: .25; } }
+.player-dm-chip {
+  display: inline-flex; gap: 6px; align-items: center;
+  padding: 4px 10px; border: 1px solid var(--color-border-17); border-radius: 8px;
+  color: var(--color-text-26); font-size: .58rem;
+}
+.player-dm-chip img { width: 24px; height: 24px; border-radius: 5px; object-fit: cover; }
+.player-dm-chip button {
+  padding: 0; border: 0; background: transparent; color: var(--color-text-26);
+  font-size: .82rem; line-height: 1; cursor: pointer;
+}
+.player-dm-status { min-height: 1em; margin: 0; color: var(--color-text-26); font-size: .58rem; letter-spacing: .04em; }
+
+@media (max-width: 860px) {
+  .player-dm-wall { min-height: 180px; }
+  .player-dm-flight { max-width: 86%; font-size: .82rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-dm-wave i, .player-dm-rec-dot { animation: none; }
+  .player-side-switch button, .player-dm-switch::after { transition: none; }
+}
