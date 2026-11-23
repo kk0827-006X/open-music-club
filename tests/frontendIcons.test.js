@@ -41,7 +41,7 @@ describe('全站共享图标与动画', () => {
       'features/user/PlaylistDetail.tsx',
       'features/user/CreatePlaylistDialog.tsx',
       'features/user/DeletePlaylistDialog.tsx',
-      'features/upload/UploadPage.tsx',
+      'features/upload/UploadMusicForm.tsx',
       'features/auth/LoginPage.tsx',
       'features/auth/EntryPage.tsx',
     ]) {
@@ -58,14 +58,14 @@ describe('全站共享图标与动画', () => {
         { PlayerView },
         { UserPage },
         { PlaylistHeader },
-        { UploadPage },
+        { default: UploadMusicForm },
         { MusicQueue },
         { createPlayerController },
       ] = await Promise.all([
         import('../frontend/src/features/player/PlayerView.tsx'),
         import('../frontend/src/features/user/UserPage.tsx'),
         import('../frontend/src/features/user/PlaylistHeader.tsx'),
-        import('../frontend/src/features/upload/UploadPage.tsx'),
+        import('../frontend/src/features/upload/UploadMusicForm.tsx'),
         import('../frontend/src/features/queue/model.ts'),
         import('../frontend/src/features/player/player-core.ts'),
       ]);
@@ -125,7 +125,7 @@ describe('全站共享图标与动画', () => {
               list: { id: 1, name: '歌单' },
               playable: true,
             }),
-            h.React.createElement(UploadPage, { active: false }),
+            h.React.createElement(UploadMusicForm, { active: false }),
             h.React.createElement(UserPage, { active: false }),
           ),
         );

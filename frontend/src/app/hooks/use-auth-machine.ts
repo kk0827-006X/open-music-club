@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import {
   adminPath,
+  legacyUploadPath,
   loginDestination,
   workspacePage,
   workspacePaths,
-  type WorkspacePage,
+  type WorkspaceRoute,
 } from '../routes.ts';
 import {
   loginAndVerify,
@@ -95,13 +96,13 @@ export function useAuthMachine(api: AppServices = services) {
     // 只在待恢复入口变化时重试；迟到结果不得覆盖新的历史位置。
   }, [knownRoute, location.key]);
   useEffect(() => {
-    if (page || adminRoute) destination.current = location.pathname;
+    if (page || adminRoute) destination.current = loginDestination(location.pathname);
     else if (location.pathname === '/login')
       destination.current = loginDestination(new URLSearchParams(location.search).get('next'));
     if (stage === 'login' && (page || adminRoute)) {
-      navigate(`/login?next=${encodeURIComponent(location.pathname)}`, { replace: true });
+      navigate(`/login?next=${encodeURIComponent(destination.current)}`, { replace: true });
     }
-    if (stage === 'workspace' && (location.pathname === '/' || location.pathname === '/login')) {
+    if (stage === 'workspace' && ['/', '/login', legacyUploadPath].includes(location.pathname)) {
       navigate(destination.current, { replace: true });
     }
   }, [location.pathname, location.search, page, adminRoute, stage, navigate]);
@@ -146,7 +147,7 @@ export function useAuthMachine(api: AppServices = services) {
     setStage('workspace');
     navigate(destination.current, { replace: true });
   };
-  const navigatePage = (next: WorkspacePage) => navigate(workspacePaths[next]);
+  const navigatePage = (next: WorkspaceRoute) => navigate(workspacePaths[next]);
   return {
     stage,
     role,

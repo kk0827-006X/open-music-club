@@ -4,6 +4,5 @@
   "features/footprint/FootprintPage.tsx": 879,
   "features/music-library/LibraryView.tsx": 462,
   "features/queue/QueuePanel.tsx": 468,
-  "features/settings/SettingsDialog.tsx": 428,
-  "features/upload/UploadPage.tsx": 528
+  "features/settings/SettingsDialog.tsx": 428
 }

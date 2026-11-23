@@ -1,5 +1,5 @@
 const { test, expect } = require('./business-test');
-const { mockWorkspace, showQueue, order } = require('./workspace-fixture');
+const { mockWorkspace, showQueue, order, openUpload } = require('./workspace-fixture');
 test.use({ deviceScaleFactor: 1 });
 
 test('React 页面反复切换保留实例；队列清空、外部点击、音量和主题不创建新 Audio', async ({
@@ -8,18 +8,18 @@ test('React 页面反复切换保留实例；队列清空、外部点击、音�
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await mockWorkspace(page);
-  for (let pass = 0; pass < 3; pass++)
-    for (const name of ['upload', 'user', 'library']) {
-      await page.locator(`[data-nav="${name}"]`).click();
-      if (name !== 'library') await expect(page.locator(`[data-${name}-page]`)).toBeVisible();
-      expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
-    }
+  for (let pass = 0; pass < 3; pass++) {
+    await openUpload(page);
+    await page.locator('[data-nav="library"]').click();
+    await expect(page.locator('[data-user-upload-form]')).toBeHidden();
+    expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
+  }
   await showQueue(page);
   await expect(page.locator('[data-queue-key]')).toHaveCount(24);
   // 点击外部导航必须既关闭浮层又完成导航，不允许全屏遮罩吞掉这次点击。
-  await page.locator('[data-nav="upload"]').click();
+  await page.locator('[data-nav="user"]').click();
   await expect(page.locator('[data-player-queue-panel]')).toBeHidden();
-  await expect(page.locator('[data-upload-page]')).toBeVisible();
+  await expect(page.locator('[data-user-page]')).toBeVisible();
   await page.mouse.move(700, 998);
   const volume = page.getByRole('slider', { name: '音量' });
   await volume.focus();

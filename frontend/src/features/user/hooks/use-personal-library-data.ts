@@ -32,12 +32,14 @@ export function usePersonalLibraryData({
   unmountedRef,
   active,
   changed,
+  initialSection = 'playlists',
 }: {
   api: PersonalLibraryClient;
   profile: ReturnType<typeof useProfile>;
   unmountedRef: RefObject<boolean>;
   active: boolean;
   changed?: () => void;
+  initialSection?: UserSection;
 }) {
   const { changing, run: transitionSection, finish: finishSection } = useSectionTransition(active);
   const requestRef = useRef(0);
@@ -46,12 +48,12 @@ export function usePersonalLibraryData({
   const busyRef = useRef(false);
   const selectedIdRef = useRef<number | null>(null);
   const pageIndexRef = useRef(0);
-  const sectionRef = useRef<UserSection>('playlists');
+  const sectionRef = useRef(initialSection);
   const listsRef = useRef<UserPlaylist[]>([]);
   const tracksRef = useRef<PersonalTrack[]>([]);
   const refreshRef = useRef<() => Promise<boolean>>(async () => false);
   const beforeRefreshRef = useRef<() => void>(() => {});
-  const [section, setSectionState] = useState<UserSection>('playlists');
+  const [section, setSectionState] = useState(initialSection);
   const [selectedId, setSelectedIdState] = useState<number | null>(null);
   const [pageIndex, setPageIndexState] = useState(0);
   const [lists, setListsState] = useState<UserPlaylist[]>([]);

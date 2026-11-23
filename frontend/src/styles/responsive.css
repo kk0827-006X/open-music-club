@@ -23,7 +23,6 @@ button:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .upload-page,
   .user-page,
   .user-content,
   .user-playlist-card,
@@ -56,24 +55,6 @@ button:focus-visible {
   }
   .user-content-shell {
     padding-left: 25px;
-  }
-  .upload-page {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    padding: 134px 24px 102px;
-  }
-  .upload-heading,
-  .upload-workspace,
-  .upload-metadata {
-    grid-column: 1;
-    grid-row: auto;
-  }
-  .upload-workspace {
-    min-height: 430px;
-  }
-  .upload-metadata {
-    min-height: 540px;
-    margin-top: 0;
   }
   .player-expanded {
     inset: 0 0 76px;
@@ -273,47 +254,6 @@ button:focus-visible {
     flex-wrap: wrap;
     gap: 5px;
     margin-top: 12px;
-  }
-  .upload-page {
-    padding: 136px 18px 95px;
-  }
-  .upload-heading h2 {
-    font-size: 1.8rem;
-  }
-  .upload-workspace {
-    min-height: 390px;
-    padding: 12px;
-  }
-  .upload-dropzone {
-    min-height: 230px;
-  }
-  .upload-metadata {
-    min-height: 0;
-    padding: 12px;
-  }
-  .upload-metadata-body {
-    grid-template-columns: 1fr;
-  }
-  .upload-cover-column {
-    width: min(100%, 235px);
-    margin-inline: auto;
-  }
-  .upload-file-facts dl {
-    grid-template-columns: 1fr;
-  }
-  .upload-selected-row {
-    grid-template-columns: 38px minmax(0, 1fr) 24px;
-  }
-  .upload-selected-icon {
-    width: 36px;
-    height: 36px;
-  }
-  .upload-selected-progress {
-    grid-column: 2;
-  }
-  .upload-selected-row > button {
-    grid-column: 3;
-    grid-row: 1;
   }
   .player-expanded {
     padding: 0 20px;

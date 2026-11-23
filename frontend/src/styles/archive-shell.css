@@ -85,13 +85,8 @@
 }
 .archive-nav button[data-nav='library'],
 .archive-nav button[data-nav='search'],
-.archive-nav button[data-nav='upload'],
 .archive-nav button[data-nav='user'] {
   cursor: pointer;
-}
-.archive-nav button[data-nav='upload']:hover,
-.archive-nav button[data-nav='upload']:focus-visible {
-  color: var(--color-accent-01);
 }
 .archive-nav button[aria-current='page']::after {
   position: absolute;

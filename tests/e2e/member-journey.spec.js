@@ -2,6 +2,7 @@ const { test, expect } = require('./business-test');
 const { generateSync } = require('otplib');
 const { ADMIN, MEMBER, wave, readApplicationLink: readLink } = require('./fixtures');
 const { startIsolatedServer } = require('./isolated-server');
+const { openUpload } = require('./workspace-fixture');
 
 const origin = 'http://127.0.0.1:4328';
 const readApplicationLink = (email, purpose) => readLink(email, purpose, 4328);
@@ -180,18 +181,29 @@ test('申请审批 → 密码登录 → 绑定及验证 2FA → 混合队列真�
     });
     let localId;
     await test.step('真实上传、Range 与两种来源加入同一个队列', async () => {
-      const token = await (await client.get('/api/security/csrf-token')).json();
-      const uploaded = await client.post('/api/local/music', {
-        headers: { Origin: origin, 'X-CSRF-Token': token.csrfToken },
-        multipart: {
-          title: '验收本地歌曲',
-          artist: '验收歌手',
-          album: '验收专辑',
-          file: { name: 'acceptance.wav', mimeType: 'audio/wav', buffer: wave() },
-        },
+      await openUpload(page);
+      await page.locator('[data-upload-file]').setInputFiles({
+        name: 'acceptance.wav',
+        mimeType: 'audio/wav',
+        buffer: wave(),
       });
+      await page.locator('[data-upload-title]').fill('验收本地歌曲');
+      await page.locator('[data-upload-artist]').fill('验收歌手');
+      await page.locator('[data-upload-album]').fill('验收专辑');
+      const uploadResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === '/api/local/music' &&
+          response.request().method() === 'POST',
+      );
+      await page.locator('[data-upload-submit]').click();
+      const uploaded = await uploadResponse;
       expect(uploaded.status()).toBe(201);
       localId = (await uploaded.json()).track.sourceId;
+      await expect(page.locator('[data-upload-feedback]')).toContainText('上传成功');
+      await page.locator('[data-upload-back]').click();
+      await expect(
+        page.locator('[data-user-content]').getByText('验收本地歌曲', { exact: true }),
+      ).toBeVisible();
       const range = await client.get(`/api/local/music/${localId}/stream`, {
         headers: { Range: 'bytes=0-43' },
       });

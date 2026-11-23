@@ -118,9 +118,15 @@ async function showQueue(page) {
   await page.locator('[data-player-queue-toggle]').click();
   await expect(page.locator('[data-player-queue-panel]')).toBeVisible();
 }
+async function openUpload(page) {
+  await page.locator('[data-nav="user"]').click();
+  await page.locator('[data-user-tab="uploads"]').click();
+  await page.locator('[data-user-open-upload]').click();
+  await expect(page.locator('[data-user-upload-form]')).toBeVisible();
+}
 const order = (page) =>
   page
     .locator('[data-player-queue-panel] [data-queue-key]')
     .evaluateAll((rows) => rows.map((row) => row.dataset.queueKey));
 
-module.exports = { mockWorkspace, showQueue, order };
+module.exports = { mockWorkspace, showQueue, order, openUpload };

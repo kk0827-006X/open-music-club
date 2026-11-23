@@ -152,12 +152,21 @@ it('真实 React 工作区切页保持队列和单一音频，清空后可点击
         assert.equal(h.require('[data-queue-count]').textContent, '00');
         await h.React.act(async () => queue.add(toPersonalSong(track)));
         for (let repeat = 0; repeat < 3; repeat++)
-          for (const page of ['upload', 'user', 'footprint', 'library']) {
+          for (const page of ['user', 'footprint', 'library']) {
             await h.click(`[data-nav="${page}"]`);
             const name = page === 'library' ? 'archive' : page;
             assert.equal(h.require('[data-album-archive]').dataset.view, name);
             if (page !== 'library')
               await h.until(() => h.query(`[data-${page}-page]`), `${page} 懒加载页面应挂载`);
+            if (page === 'user') {
+              await h.click('[data-user-tab="uploads"]');
+              await h.until(() => h.query('[data-user-open-upload]'), '应显示上传入口');
+              await h.click('[data-user-open-upload]');
+              await h.until(
+                () => h.query('[data-user-upload-form]:not([hidden])'),
+                '应打开上传表单',
+              );
+            }
           }
         assert.equal(audios, 1);
         assert.equal(audioLoads, 0);
@@ -297,6 +306,7 @@ it('普通动效下直接进入非音乐库页面，待加载的档案墙不能�
       queue: async () => [],
       profile: async () => ({ id: 1, nickname: '隔离成员' }),
       playlists: async () => [],
+      uploads: async () => [],
     };
     const footprintClient = { timeline: async () => ({ events: [], total: 0 }) };
     const render = (page) =>
@@ -312,7 +322,7 @@ it('普通动效下直接进入非音乐库页面，待加载的档案墙不能�
         }),
       );
     try {
-      for (const page of ['upload', 'user', 'footprint']) {
+      for (const page of ['userUpload', 'user', 'footprint']) {
         await render(page);
         const navigation = h.require('[data-archive-navigation]');
         assert.equal(navigation.hasAttribute('inert'), false);
@@ -332,7 +342,7 @@ it('普通动效下直接进入非音乐库页面，待加载的档案墙不能�
           beforeEscape + 1,
           '场景未就绪不能阻止其他页面的 Escape 返回',
         );
-        assert.equal(navigations.at(-1), 'archive');
+        assert.equal(navigations.at(-1), page === 'userUpload' ? 'userUploads' : 'archive');
       }
       await render('archive');
       assert.equal(h.require('[data-archive-navigation]').hasAttribute('inert'), true);

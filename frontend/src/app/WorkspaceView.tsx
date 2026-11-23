@@ -18,14 +18,13 @@ import type { PlayerCommands, WorkspaceProps, WorkspaceRefs } from './types.ts';
 import type { useWorkspaceNavigation } from './hooks/use-workspace-navigation.ts';
 import type { useWorkspaceScene } from './hooks/use-workspace-scene.ts';
 
-const UploadPage = lazy(() => import('../features/upload/UploadPage.tsx'));
+const UploadMusicForm = lazy(() => import('../features/upload/UploadMusicForm.tsx'));
 const UserPage = lazy(() => import('../features/user/UserPage.tsx'));
 const AvatarStudio = lazy(() => import('../features/avatar/AvatarStudio.tsx'));
 const FootprintPage = lazy(() => import('../features/footprint/FootprintPage.tsx'));
 const tabs = [
   ['library', '音乐库', 'library'],
   ['search', '搜索', 'search'],
-  ['upload', '上传音乐', 'upload'],
   ['footprint', '音乐足迹', 'route'],
   ['user', '用户', 'user'],
 ] as const;
@@ -70,7 +69,7 @@ export function WorkspaceView({
   } = workspace;
   const { archive, sceneContainer, library, playerView, settings, user, footprint, inputRef } =
     refs;
-  const { page, visited, show, songQuery, setSongQuery } = navigation;
+  const { page, route, visited, show, songQuery, setSongQuery } = navigation;
   const [searchAlbum, setSearchAlbum] = useState<SearchAlbumSelection>();
   const closeSearch = () => setSongQuery(null);
   const { scene, entryPhase, pageEntryPhase, entering, playbackMotion, changePlaybackMotion } =
@@ -173,15 +172,6 @@ export function WorkspaceView({
       />
       <ErrorBoundary>
         <Suspense fallback={null}>
-          <div
-            data-upload-host
-            onClick={(event) => {
-              if (event.target instanceof Element && event.target.closest('[data-upload-back]'))
-                show('archive');
-            }}
-          >
-            {visited.has('upload') && <UploadPage active={page === 'upload'} />}
-          </div>
           <div data-user-host>
             {visited.has('user') && (
               <UserPage
@@ -191,6 +181,13 @@ export function WorkspaceView({
                 play={playerCommands.play}
                 enqueue={playerCommands.enqueue}
                 client={client}
+                uploadView={
+                  route === 'userUpload' ? 'form' : route === 'userUploads' ? 'list' : undefined
+                }
+                onUploadViewChange={(view) =>
+                  show(view === 'form' ? 'userUpload' : view === 'list' ? 'userUploads' : 'user')
+                }
+                renderUpload={(props) => <UploadMusicForm {...props} />}
                 renderAvatar={(active, onDialogChange) => (
                   <AvatarStudio active={active} onDialogChange={onDialogChange} />
                 )}

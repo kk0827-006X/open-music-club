@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import type { WorkspacePage } from '../routes.ts';
+import type { WorkspacePage, WorkspaceRoute } from '../routes.ts';
 import type { WorkspaceRefs, WorkspaceScene } from '../types.ts';
 
 export function useArchiveKeyboard({
   page,
+  route,
   scene,
   playerView,
   library,
@@ -15,8 +16,9 @@ export function useArchiveKeyboard({
   show,
 }: Omit<WorkspaceRefs, 'sceneContainer'> & {
   page: WorkspacePage;
+  route: WorkspaceRoute;
   scene: WorkspaceScene | null;
-  show: (page: WorkspacePage) => void;
+  show: (route: WorkspaceRoute) => void;
 }) {
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
@@ -50,7 +52,7 @@ export function useArchiveKeyboard({
           !(page === 'footprint' && footprint.current?.hasOpenDialog)
         ) {
           event.preventDefault();
-          show('archive');
+          show(route === 'userUpload' ? 'userUploads' : 'archive');
         }
         return;
       }
@@ -83,5 +85,5 @@ export function useArchiveKeyboard({
     };
     window.addEventListener('keydown', keyboard);
     return () => window.removeEventListener('keydown', keyboard);
-  }, [page, show, scene, playerView, library, settings, user, footprint, archive, inputRef]);
+  }, [page, route, show, scene, playerView, library, settings, user, footprint, archive, inputRef]);
 }

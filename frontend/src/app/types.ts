@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import type { WorkspacePage } from './routes.ts';
+import type { WorkspaceRoute } from './routes.ts';
 import type { LibraryViewHandle } from '../features/music-library/LibraryView.tsx';
 import type { PlayerViewHandle } from '../features/player/PlayerView.tsx';
 import type { PlayerController } from '../features/player/player-core.ts';
@@ -21,8 +21,8 @@ export interface WorkspaceProps {
   recentPlaybackRevision?: number;
   onLogout?: () => Promise<void>;
   loadScene?: () => Promise<ArchiveSceneController>;
-  page?: WorkspacePage;
-  onNavigate?: (page: WorkspacePage) => void;
+  page?: WorkspaceRoute;
+  onNavigate?: (page: WorkspaceRoute) => void;
   initialIndex?: number;
 }
 

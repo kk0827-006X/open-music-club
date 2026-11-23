@@ -73,7 +73,8 @@ describe('上传页本地音频标签识别', () => {
     };
     await withReactHarness(
       async (h) => {
-        const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx');
+        const { default: UploadMusicForm } =
+          await import('../frontend/src/features/upload/UploadMusicForm.tsx');
         const originalCreate = URL.createObjectURL,
           originalRevoke = URL.revokeObjectURL;
         const covers = [],
@@ -84,7 +85,7 @@ describe('上传页本地音频标签识别', () => {
         };
         URL.revokeObjectURL = (url) => released.push(url);
         try {
-          await h.render(h.React.createElement(UploadPage, { active: true }));
+          await h.render(h.React.createElement(UploadMusicForm, { active: true }));
           const choose = async (file) => {
             const input = h.require('[data-upload-file]');
             Object.defineProperty(input, 'files', { configurable: true, value: [file] });

@@ -69,7 +69,9 @@ export function PlaylistDetail({
       <div className="user-track-list">
         {visibleTracks.length === 0 ? (
           <p className="user-data-empty">
-            暂无歌曲。可从播放队列添加歌曲到歌单，或点击歌曲旁的心形收藏。
+            {section === 'uploads'
+              ? '还没有上传的歌曲。'
+              : '暂无歌曲。可从播放队列添加歌曲到歌单，或点击歌曲旁的心形收藏。'}
           </p>
         ) : (
           visibleTracks.map((track) => (

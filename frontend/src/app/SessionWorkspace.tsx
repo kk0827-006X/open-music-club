@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { ErrorBoundary } from '../shared/react/ErrorBoundary.tsx';
-import type { WorkspacePage } from './routes.ts';
+import type { WorkspaceRoute } from './routes.ts';
 import type { Role } from './hooks/use-auth-machine.ts';
 import { usePlaybackSession } from './hooks/use-playback-session.ts';
 
@@ -14,8 +14,8 @@ export function SessionWorkspace({
 }: {
   onLogout(): Promise<void>;
   role: Role;
-  page: WorkspacePage;
-  onNavigate(page: WorkspacePage): void;
+  page: WorkspaceRoute;
+  onNavigate(page: WorkspaceRoute): void;
 }) {
   const { session, footprintRevision, recentPlaybackRevision } = usePlaybackSession();
   if (!session) return null;

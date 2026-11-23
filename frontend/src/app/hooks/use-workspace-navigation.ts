@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { WorkspacePage as Page } from '../routes.ts';
+import { workspaceParent, type WorkspacePage as Page, type WorkspaceRoute } from '../routes.ts';
 import type { SongQuery, WorkspaceProps, WorkspaceRefs } from '../types.ts';
 
 export function useWorkspaceNavigation({
@@ -7,25 +7,27 @@ export function useWorkspaceNavigation({
   onNavigate,
   library,
 }: {
-  routedPage?: Page;
+  routedPage?: WorkspaceRoute;
   onNavigate?: WorkspaceProps['onNavigate'];
   library: WorkspaceRefs['library'];
 }) {
-  const [localPage, setPage] = useState<Page>('archive');
-  const page = routedPage ?? localPage;
+  const [localRoute, setRoute] = useState<WorkspaceRoute>('archive');
+  const route = routedPage ?? localRoute;
+  const page = workspaceParent(route);
   const [visited, setVisited] = useState<Set<Page>>(
     () => new Set(page === 'archive' ? [] : [page]),
   );
   const [songQuery, setSongQuery] = useState<SongQuery | null>(null);
   const show = useCallback(
-    (next: Page) => {
+    (next: WorkspaceRoute) => {
       setSongQuery(null);
-      if (next !== 'archive') {
+      const parent = workspaceParent(next);
+      if (parent !== 'archive') {
         library.current?.resetDetail();
-        setVisited((previous) => new Set(previous).add(next));
+        setVisited((previous) => new Set(previous).add(parent));
       }
       if (onNavigate) onNavigate(next);
-      else setPage(next);
+      else setRoute(next);
     },
     [onNavigate, library],
   );
@@ -36,5 +38,5 @@ export function useWorkspaceNavigation({
       setVisited((previous) => (previous.has(page) ? previous : new Set(previous).add(page)));
     }
   }, [page, library]);
-  return { page, visited, show, songQuery, setSongQuery };
+  return { page, route, visited, show, songQuery, setSongQuery };
 }

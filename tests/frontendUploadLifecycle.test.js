@@ -18,8 +18,9 @@ for (const outcome of ['abort', 'late-success'])
     await withReactHarness(
       async (h) => {
         const root = h.require('#app');
-        const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx');
-        await h.render(h.React.createElement(UploadPage, { active: true }));
+        const { default: UploadMusicForm } =
+          await import('../frontend/src/features/upload/UploadMusicForm.tsx');
+        await h.render(h.React.createElement(UploadMusicForm, { active: true }));
         let destroyed = false;
         try {
           const fileInput = h.require('[data-upload-file]');
@@ -37,7 +38,7 @@ for (const outcome of ['abort', 'late-success'])
           await h.input('[data-upload-artist]', '测试歌手');
           await h.submit('[data-upload-form]');
           await h.until(() => Boolean(requestSignal), '提交后应发出上传请求');
-          h.require('[data-upload-page]');
+          h.require('[data-user-upload-form]');
           await h.unmount();
           destroyed = true;
           assert.equal(requestSignal.aborted, true, '销毁页面必须中止上传请求');
@@ -79,8 +80,9 @@ it('03 资料面板只在选择或拖入有效文件后出现，移除时复用�
       addEventListener() {},
       removeEventListener() {},
     });
-    const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx');
-    await h.render(h.React.createElement(UploadPage, { active: true }));
+    const { default: UploadMusicForm } =
+      await import('../frontend/src/features/upload/UploadMusicForm.tsx');
+    await h.render(h.React.createElement(UploadMusicForm, { active: true }));
     const form = h.require('[data-upload-form]');
     const workspace = h.require('.upload-workspace');
     const selected = h.require('[data-upload-selected-row]');

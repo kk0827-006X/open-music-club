@@ -1,5 +1,10 @@
 const { test, expect } = require('@playwright/test');
-const { mockWorkspace: prepareWorkspace, showQueue, order } = require('./workspace-fixture');
+const {
+  mockWorkspace: prepareWorkspace,
+  showQueue,
+  order,
+  openUpload,
+} = require('./workspace-fixture');
 const mockWorkspace = (page, role = 'user', queue, skip = false) =>
   prepareWorkspace(page, role, queue, skip, true);
 test.use({ deviceScaleFactor: 1 });
@@ -166,8 +171,7 @@ test('退出重进释放旧场景与音频；后台页面不持续驱动场景�
         { timeout: 60000 },
       )
       .toBe(true);
-    await page.locator('[data-nav="upload"]').click();
-    await expect(page.locator('[data-upload-page]')).toBeVisible();
+    await openUpload(page);
     const sample = await page.evaluate(async () => {
       const scene = window.__migrationScenes.at(-1),
         before = scene.updates;
@@ -254,9 +258,8 @@ test('默认动效的加号飞行、播放器上推及页面淡出；窄屏与�
   expect(bounds.width).toBe(1440);
   await page.screenshot({ path: info.outputPath('react-expanded-player-motion.png') });
   await page.locator('[data-player-close]').click();
-  await page.locator('[data-nav="upload"]').click();
-  await expect(page.locator('[data-user-page]')).toBeHidden();
-  await expect(page.locator('[data-upload-page]')).toBeVisible();
+  await openUpload(page);
+  await expect(page.locator('[data-user-page]')).toBeVisible();
   await page.screenshot({ path: info.outputPath('react-upload.png') });
   await page.setViewportSize({ width: 800, height: 900 });
   await expect(page.locator('[data-nav="user"]')).toBeInViewport();
@@ -369,19 +372,17 @@ test('用户与足迹右侧无重复标题和顶线，设置弹窗标题保持�
   expect(errors).toEqual([]);
 });
 
-test('上传页初始保留01和02，选择音频后03沿用页面动效显示，移除后隐藏', async ({ page }) => {
+test('上传子页资料表单保留原动效，布局随侧栏拖动和窄屏重排', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await mockWorkspace(page);
-  await page.locator('[data-nav="upload"]').click();
+  await openUpload(page);
   const form = page.locator('[data-upload-form]');
   const workspace = page.locator('.upload-workspace');
   await expect(workspace).toBeVisible();
   await expect(page.locator('[data-upload-selected-row]')).toBeVisible();
   await expect(form).toBeHidden();
   await expect
-    .poll(() =>
-      page.locator('[data-upload-page]').evaluate((node) => getComputedStyle(node).opacity),
-    )
+    .poll(() => page.locator('[data-user-page]').evaluate((node) => getComputedStyle(node).opacity))
     .toBe('1');
   const before = await workspace.boundingBox();
   await page.locator('[data-upload-file]').setInputFiles({
@@ -409,6 +410,24 @@ test('上传页初始保留01和02，选择音频后03沿用页面动效显示�
   });
   await expect(form).toBeVisible();
   await expect(form).toHaveCSS('opacity', '1');
+  const uploadPage = page.locator('[data-user-upload-form]');
+  const layout = uploadPage.locator('.user-upload-layout');
+  const columns = () =>
+    layout.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').length);
+  await expect.poll(columns).toBe(2);
+  const divider = await page.locator('.sidebar-layout--user .sidebar-divider').boundingBox();
+  const x = divider.x + divider.width / 2;
+  const y = divider.y + divider.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 280, y, { steps: 10 });
+  await expect.poll(columns).toBe(1);
+  await page.mouse.up();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(columns).toBe(1);
+  await expect
+    .poll(() => uploadPage.evaluate((node) => node.scrollWidth - node.clientWidth))
+    .toBe(0);
 });
 
 test('登录 Code Slots 自动验证、错误重试、恢复码切换与窄屏主题正常', async ({ page }, info) => {

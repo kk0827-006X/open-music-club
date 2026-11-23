@@ -238,8 +238,9 @@ it('React 上传卸载会终止在途请求并移除页面', async () => {
   let requestSignal;
   await withReactHarness(
     async (h) => {
-      const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx');
-      await h.render(h.React.createElement(UploadPage, { active: true }));
+      const { default: UploadMusicForm } =
+        await import('../frontend/src/features/upload/UploadMusicForm.tsx');
+      await h.render(h.React.createElement(UploadMusicForm, { active: true }));
       const input = h.require('[data-upload-file]');
       const file = new h.window.File(['RIFF synthetic isolated WAV'], 'isolated.wav', {
         type: 'audio/wav',
@@ -259,7 +260,7 @@ it('React 上传卸载会终止在途请求并移除页面', async () => {
       await h.unmount();
       assert.equal(requestSignal.aborted, true);
       await h.flush();
-      assert.equal(h.query('[data-upload-page]'), null);
+      assert.equal(h.query('[data-user-upload-form]'), null);
     },
     {
       fetch: async (url, init) => {
@@ -366,16 +367,16 @@ it('真实 React Workspace 跨页保留唯一 Audio；混合队列恢复、清�
           ['local', 'netease'],
         );
         assert.equal(saved.length, 0, '恢复队列时不能马上覆盖服务器原数据');
-        for (let repeat = 0; repeat < 2; repeat++)
-          for (const page of ['upload', 'user', 'library']) {
-            await h.click(`[data-nav="${page}"]`);
-            await h.until(
-              () =>
-                h.query('[data-album-archive]').dataset.view ===
-                (page === 'library' ? 'archive' : page),
-              `应切换至 ${page}`,
-            );
-          }
+        for (let repeat = 0; repeat < 2; repeat++) {
+          await h.click('[data-nav="user"]');
+          await h.until(() => h.query('[data-user-tab="uploads"]'), '应加载用户页');
+          await h.click('[data-user-tab="uploads"]');
+          await h.until(() => h.query('[data-user-open-upload]'), '应显示上传入口');
+          await h.click('[data-user-open-upload]');
+          await h.until(() => h.query('[data-user-upload-form]:not([hidden])'), '应打开上传表单');
+          await h.click('[data-nav="library"]');
+          assert.equal(h.query('[data-album-archive]').dataset.view, 'archive');
+        }
         assert.equal(audioCreations, 1);
         assert.equal(audioLoads, 0);
         assert.equal(queue.items.length, 2);

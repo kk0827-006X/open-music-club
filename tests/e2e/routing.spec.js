@@ -64,9 +64,13 @@ async function prepare(page, authenticated = true) {
 const view = (page) => page.locator('[data-album-archive]');
 async function expectPage(page, name) {
   await expect(page).toHaveURL(new RegExp(`/${name}$`));
-  await expect(view(page)).toHaveAttribute('data-view', name === 'library' ? 'archive' : name);
+  const parent = name.split('/')[0];
+  await expect(view(page)).toHaveAttribute('data-view', parent === 'library' ? 'archive' : parent);
   await expect(view(page)).toHaveAttribute('data-entry-phase', 'ready', { timeout: 60000 });
-  if (name !== 'library') await expect(page.locator(`[data-${name}-page]`)).toBeVisible();
+  if (parent !== 'library') await expect(page.locator(`[data-${parent}-page]`)).toBeVisible();
+  if (name === 'user/uploads') await expect(page.locator('[data-user-open-upload]')).toBeVisible();
+  if (name === 'user/uploads/new')
+    await expect(page.locator('[data-user-upload-form]')).toBeVisible();
 
   await expect(page.locator('[data-archive-navigation]')).not.toHaveAttribute('inert', '');
   await expect(page.locator('[data-nav="library"]')).toBeInViewport();
@@ -74,13 +78,19 @@ async function expectPage(page, name) {
   await expect(page.locator('[data-authorized-stage]')).toHaveCount(0);
 }
 
-test('四个主页面支持直达、刷新、前进后退；切页保留正在播放的唯一音频', async ({
+test('工作区和上传子路由支持直达、刷新、前进后退；切页保留正在播放的唯一音频', async ({
   page,
   request,
 }, info) => {
   const { errors } = await prepare(page);
-  for (const name of ['upload', 'user', 'footprint', 'library']) {
-    expect((await page.goto(`/${name}`)).status()).toBe(200);
+  for (const [path, name] of [
+    ['upload', 'user/uploads/new'],
+    ['user/uploads', 'user/uploads'],
+    ['user', 'user'],
+    ['footprint', 'footprint'],
+    ['library', 'library'],
+  ]) {
+    expect((await page.goto(`/${path}`)).status()).toBe(200);
     await expectPage(page, name);
     await page.reload();
     await expectPage(page, name);
@@ -90,16 +100,20 @@ test('四个主页面支持直达、刷新、前进后退；切页保留正在�
   await page.locator('[data-player-queue-toggle]').click();
   await page.locator('[data-player-queue-panel] [data-queue-play]').click();
   await expect.poll(() => page.evaluate(() => window.__routingAudios[0]?.paused)).toBe(false);
-  for (const name of ['upload', 'user', 'footprint']) {
-    await page.locator(`[data-nav="${name}"]`).click();
-    await expectPage(page, name);
-  }
-  await page.goBack();
+  await page.locator('[data-nav="user"]').click();
   await expectPage(page, 'user');
+  await page.locator('[data-user-tab="uploads"]').click();
+  await expectPage(page, 'user/uploads');
+  await page.locator('[data-user-open-upload]').click();
+  await expectPage(page, 'user/uploads/new');
+  await page.locator('[data-nav="footprint"]').click();
+  await expectPage(page, 'footprint');
   await page.goBack();
-  await expectPage(page, 'upload');
+  await expectPage(page, 'user/uploads/new');
+  await page.goBack();
+  await expectPage(page, 'user/uploads');
   await page.goForward();
-  await expectPage(page, 'user');
+  await expectPage(page, 'user/uploads/new');
   expect(await page.evaluate(() => window.__routingAudios.length)).toBe(1);
   await expect
     .poll(() => page.evaluate(() => window.__routingAudios[0].currentTime))

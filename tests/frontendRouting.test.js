@@ -3,13 +3,17 @@ const { it } = require('node:test');
 const { withReactHarness } = require('./helpers/reactHarness');
 
 it('集中路由表只允许已实现的业务页面作为登录返回地址', async () => {
-  const { workspacePaths, workspacePage, loginDestination } =
+  const { workspacePaths, workspacePage, workspaceParent, loginDestination } =
     await import('../frontend/src/app/routes.ts');
   for (const [page, url] of Object.entries(workspacePaths)) {
     assert.equal(workspacePage(url), page);
     assert.equal(loginDestination(url), url);
   }
   assert.equal(loginDestination('/admin/applications'), '/admin/applications');
+  assert.equal(loginDestination('/upload'), '/user/uploads/new');
+  assert.equal(workspacePage('/upload'), 'userUpload');
+  assert.equal(workspaceParent(workspacePage('/user/uploads')), 'user');
+  assert.equal(workspaceParent(workspacePage('/user/uploads/new')), 'user');
   for (const value of [
     null,
     'https://evil.test',
@@ -17,6 +21,7 @@ it('集中路由表只允许已实现的业务页面作为登录返回地址', a
     '/login',
     '/user/playlist/1',
     '/upload?next=https://evil.test',
+    '/user/uploads/new?next=https://evil.test',
     '/%2f%2fevil.test',
   ]) {
     assert.equal(loginDestination(value), '/library');
@@ -24,7 +29,15 @@ it('集中路由表只允许已实现的业务页面作为登录返回地址', a
 });
 
 it('直接访问受控页面先验证身份，未登录转到保留目标的登录页', async () => {
-  for (const path of ['/library', '/upload', '/user', '/footprint', '/admin/applications']) {
+  for (const path of [
+    '/library',
+    '/user',
+    '/user/uploads',
+    '/user/uploads/new',
+    '/upload',
+    '/footprint',
+    '/admin/applications',
+  ]) {
     await withReactHarness(async (h) => {
       h.window.history.replaceState(null, '', path);
       const { App } = await import('../frontend/src/app/App.tsx');
@@ -47,7 +60,10 @@ it('直接访问受控页面先验证身份，未登录转到保留目标的登�
       await h.React.act(async () => release(null));
       await h.flush();
       assert.equal(h.window.location.pathname, '/login');
-      assert.equal(new URLSearchParams(h.window.location.search).get('next'), path);
+      assert.equal(
+        new URLSearchParams(h.window.location.search).get('next'),
+        path === '/upload' ? '/user/uploads/new' : path,
+      );
       assert.ok(h.query('[data-login-form]'));
       assert.equal(h.query('[data-entry-start]'), null);
     });

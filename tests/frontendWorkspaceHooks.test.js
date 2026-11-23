@@ -20,9 +20,11 @@ it('工作区本地导航保留已访问页面，重复切页会关闭搜索并�
     await h.React.act(async () => navigation.show('user'));
     assert.equal(navigation.page, 'user');
     assert.equal(navigation.songQuery, null);
-    await h.React.act(async () => navigation.show('upload'));
+    await h.React.act(async () => navigation.show('userUpload'));
+    assert.equal(navigation.page, 'user');
+    assert.equal(navigation.route, 'userUpload');
     await h.React.act(async () => navigation.show('archive'));
-    assert.deepEqual([...navigation.visited], ['user', 'upload']);
+    assert.deepEqual([...navigation.visited], ['user']);
     assert.ok(resets >= 2);
   });
 });
@@ -42,17 +44,18 @@ it('受控导航等待外部路由更新，历史切页也登记访问且关闭�
       });
       return null;
     }
-    await h.render(h.React.createElement(Probe, { page: 'upload' }));
-    await h.React.act(async () => navigation.show('user'));
-    assert.deepEqual(navigations, ['user']);
-    assert.equal(navigation.page, 'upload');
+    await h.render(h.React.createElement(Probe, { page: 'userUpload' }));
+    await h.React.act(async () => navigation.show('userUploads'));
+    assert.deepEqual(navigations, ['userUploads']);
+    assert.equal(navigation.page, 'user');
+    assert.equal(navigation.route, 'userUpload');
     await h.React.act(async () => navigation.setSongQuery({ term: '历史前的搜索', serial: 1 }));
     await h.render(h.React.createElement(Probe, { page: 'footprint' }));
     assert.equal(navigation.songQuery, null);
     assert.equal(navigation.page, 'footprint');
-    assert.deepEqual([...navigation.visited], ['upload', 'user', 'footprint']);
+    assert.deepEqual([...navigation.visited], ['user', 'footprint']);
     await h.render(h.React.createElement(Probe, { page: 'user' }));
-    assert.deepEqual([...navigation.visited], ['upload', 'user', 'footprint']);
+    assert.deepEqual([...navigation.visited], ['user', 'footprint']);
   });
 });
 

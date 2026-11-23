@@ -401,7 +401,7 @@ describe('三维专辑档案 UI', () => {
       assert.equal(h.require('[data-nav="library"]').getAttribute('aria-current'), 'page');
       assert.deepEqual(
         [...nav.querySelectorAll('button[data-nav]')].map((button) => button.dataset.nav),
-        ['library', 'search', 'upload', 'footprint', 'user', 'settings'],
+        ['library', 'search', 'footprint', 'user', 'settings'],
       );
       assert.match(h.require('[data-nav="user"] span').textContent, /用户/);
       h.require('[data-nav="user"] svg');

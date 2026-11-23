@@ -12,9 +12,10 @@ const frontendFile = (name) => path.join(root, 'frontend/src', name);
 describe('本地音乐上传页 UI', () => {
   it('按照设计图提供文件拖放、Metadata、封面预览和固定 LOCAL 来源', async () => {
     await withReactHarness(async (h) => {
-      const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx');
-      await h.render(h.React.createElement(UploadPage, { active: true }));
-      const page = h.require('[data-upload-page]');
+      const { default: UploadMusicForm } =
+        await import('../frontend/src/features/upload/UploadMusicForm.tsx');
+      await h.render(h.React.createElement(UploadMusicForm, { active: true }));
+      const page = h.require('[data-user-upload-form]');
       for (const name of ['dropzone', 'cover', 'title', 'artist', 'album', 'submit'])
         h.require(`[data-upload-${name}]`);
       assert.equal(h.require('[data-upload-file]').type, 'file');
@@ -25,9 +26,12 @@ describe('本地音乐上传页 UI', () => {
   });
 
   it('页面组件不直接构造网络请求，上传逻辑统一交给客户端适配层', () => {
-    const component = fs.readFileSync(frontendFile('features/upload/UploadPage.tsx'), 'utf8');
+    const component = fs.readFileSync(frontendFile('features/upload/UploadMusicForm.tsx'), 'utf8');
     assert.doesNotMatch(component, /fetch\s*\(|XMLHttpRequest|\/api\/local\/music/);
-    assert.match(component, /uploadMusicFile/);
+    assert.match(component, /useMusicUpload/);
+    const upload = fs.readFileSync(frontendFile('features/upload/use-music-upload.ts'), 'utf8');
+    assert.match(upload, /uploadMusicFile/);
+    assert.doesNotMatch(upload, /fetch\s*\(|XMLHttpRequest|\/api\/local\/music/);
     assert.match(component, /内嵌封面/);
   });
 
@@ -117,17 +121,18 @@ describe('本地音乐上传页 UI', () => {
 
   it('真实上传页挂载和卸载保持独立于全站播放器', async () => {
     const css = readFrontendSource(frontendFile('style.css'));
-    assert.match(css, /\.upload-page\s*\{[^}]*opacity: 0[^}]*transition:\s*opacity/);
+    assert.match(css, /\.user-upload-form\s*\{[^}]*container-type:\s*inline-size/);
     assert.match(
       css,
-      /\.album-archive\[data-view=['"]upload['"]\] \.upload-page\s*\{[^}]*opacity: 1/,
+      /@container \(max-width: 800px\)\s*\{\s*\.user-upload-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/,
     );
-    assert.match(css, /\.album-archive\[data-view=['"]upload['"]\] \.archive-brand/);
     await withReactHarness(async (h) => {
-      const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx');
-      await h.render(h.React.createElement(UploadPage, { active: true }));
+      const { default: UploadMusicForm } =
+        await import('../frontend/src/features/upload/UploadMusicForm.tsx');
+      await h.render(h.React.createElement(UploadMusicForm, { active: true }));
       await h.flush();
-      h.require('[data-upload-page]');
+      h.require('[data-user-upload-form]');
+      assert.equal(h.document.activeElement?.id, 'user-upload-form-title');
       assert.equal(h.query('[data-global-player]'), null);
       assert.equal(h.query('audio'), null);
       await h.unmount();
@@ -137,8 +142,9 @@ describe('本地音乐上传页 UI', () => {
 
   it('上传页拒绝不支持的本地文件，并允许移除已选文件', async () => {
     await withReactHarness(async (h) => {
-      const { UploadPage } = await import('../frontend/src/features/upload/UploadPage.tsx');
-      await h.render(h.React.createElement(UploadPage, { active: true }));
+      const { default: UploadMusicForm } =
+        await import('../frontend/src/features/upload/UploadMusicForm.tsx');
+      await h.render(h.React.createElement(UploadMusicForm, { active: true }));
       const fileInput = h.require('[data-upload-file]');
       const choose = async (name, content, type) => {
         Object.defineProperty(fileInput, 'files', {

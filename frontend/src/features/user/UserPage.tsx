@@ -3,6 +3,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,8 @@ import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { usePageMotion } from '../../shared/react/page-transitions.ts';
 import { CollapsibleSidebarLayout } from '../../shared/react/CollapsibleSidebarLayout.tsx';
+import { useLatest } from '../../shared/react/hooks.ts';
+import { Icon } from '../../shared/react/ui.tsx';
 import {
   createPersonalLibraryClient,
   toPersonalSong,
@@ -25,7 +28,7 @@ import { PlaylistDetail } from './PlaylistDetail.tsx';
 import { CreatePlaylistDialog } from './CreatePlaylistDialog.tsx';
 import { DeletePlaylistDialog } from './DeletePlaylistDialog.tsx';
 import { FriendsPanel } from './FriendsPanel.tsx';
-import { headings } from './types.ts';
+import { headings, type UserSection } from './types.ts';
 import { useProfile } from './hooks/use-profile.ts';
 import { usePersonalLibraryData, playPlaylistTracks } from './hooks/use-personal-library-data.ts';
 import { usePlaylistMutations } from './hooks/use-playlist-mutations.ts';
@@ -39,6 +42,9 @@ export interface UserPageProps {
   changed?: () => void;
   client?: ReturnType<typeof createPersonalLibraryClient>;
   renderAvatar?: (active: boolean, onDialogChange: (open: boolean) => void) => ReactNode;
+  uploadView?: 'list' | 'form';
+  onUploadViewChange?: (view: 'list' | 'form' | null) => void;
+  renderUpload?: (props: { active: boolean; onBack(): void; onUploaded(): void }) => ReactNode;
 }
 
 export interface UserPageHandle {
@@ -47,7 +53,18 @@ export interface UserPageHandle {
 }
 
 export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserPage(
-  { active, role = 'user', play, enqueue, changed, client, renderAvatar },
+  {
+    active,
+    role = 'user',
+    play,
+    enqueue,
+    changed,
+    client,
+    renderAvatar,
+    uploadView,
+    onUploadViewChange,
+    renderUpload,
+  },
   ref,
 ) {
   const pageMotion = usePageMotion(active);
@@ -62,9 +79,40 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
     };
   }, []);
   const profile = useProfile(api, unmountedRef);
-  const data = usePersonalLibraryData({ api, profile, unmountedRef, active, changed });
+  const data = usePersonalLibraryData({
+    api,
+    profile,
+    unmountedRef,
+    active,
+    changed,
+    initialSection: uploadView ? 'uploads' : 'playlists',
+  });
   const mutations = usePlaylistMutations({ api, data, unmountedRef, pageRef, changed });
   const { section, selectedId, pageIndex, lists, tracks, busy, loading, changing, feedback } = data;
+  const uploadOpen = section === 'uploads' && uploadView === 'form';
+  const [uploadVisited, setUploadVisited] = useState(uploadOpen);
+  const uploadEntryRef = useRef<HTMLButtonElement>(null);
+  const uploadWasOpen = useRef(uploadOpen);
+  const changeSectionRef = useLatest(data.changeSection);
+  useEffect(() => {
+    if (active && uploadView && section !== 'uploads' && !changing)
+      changeSectionRef.current('uploads');
+  }, [active, uploadView, section, changing, changeSectionRef]);
+  useLayoutEffect(() => {
+    if (uploadOpen) setUploadVisited(true);
+    else if (uploadWasOpen.current && active && section === 'uploads' && !changing)
+      uploadEntryRef.current?.focus({ preventScroll: true });
+    uploadWasOpen.current = uploadOpen;
+  }, [active, uploadOpen, section, changing]);
+
+  function changeSection(next: UserSection) {
+    if (next === 'uploads' && onUploadViewChange) {
+      if (uploadView !== 'list') onUploadViewChange('list');
+      return;
+    }
+    if (uploadView) onUploadViewChange?.(null);
+    data.changeSection(next);
+  }
   const openDialogRef = useRef(false);
   const adminDialogRef = useRef(false);
   const avatarDialogRef = useRef(false);
@@ -212,7 +260,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
             role={role}
             section={section}
             profile={profile}
-            onSectionChange={data.changeSection}
+            onSectionChange={changeSection}
           />
         )}
       >
@@ -227,9 +275,33 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
             data-user-content
             inert={changing}
             aria-live="polite"
-            aria-busy={busy || loading || changing}
+            aria-busy={!uploadOpen && (busy || loading || changing)}
           >
-            {contentBody}
+            {section === 'uploads' && !uploadOpen && onUploadViewChange && (
+              <div className="user-uploads-toolbar">
+                <button
+                  className="user-back"
+                  type="button"
+                  data-user-open-upload
+                  ref={uploadEntryRef}
+                  onClick={() => onUploadViewChange('form')}
+                >
+                  <Icon name="plus" /> 上传音乐
+                </button>
+              </div>
+            )}
+            {!uploadOpen && contentBody}
+            {(uploadVisited || uploadOpen) && (
+              <Suspense fallback={uploadOpen ? <p role="status">正在打开上传表单…</p> : null}>
+                {renderUpload?.({
+                  active: active && uploadOpen && !changing,
+                  onBack: () => onUploadViewChange?.('list'),
+                  onUploaded: () => {
+                    if (section === 'uploads') void data.refreshRef.current();
+                  },
+                })}
+              </Suspense>
+            )}
           </div>
           <p
             className="user-preview-note"
@@ -237,7 +309,7 @@ export const UserPage = forwardRef<UserPageHandle, UserPageProps>(function UserP
             role="status"
             data-error={String(feedback.error)}
           >
-            {section === 'admin' || section === 'avatar' || section === 'friends'
+            {uploadOpen || section === 'admin' || section === 'avatar' || section === 'friends'
               ? ''
               : feedback.message}
           </p>

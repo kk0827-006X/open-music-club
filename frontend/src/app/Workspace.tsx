@@ -54,6 +54,7 @@ export default function Workspace(props: WorkspaceProps) {
   useArchiveKeyboard({
     ...refs,
     page: navigation.page,
+    route: navigation.route,
     scene: archiveScene.scene,
     show: navigation.show,
   });
