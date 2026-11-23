@@ -136,6 +136,68 @@ test('真实档案墙接入个人封面，撤下专辑后恢复原资源与选�
   expect(errors).toEqual([]);
 });
 
+test('搜索专辑跳转复用真实轨道阻尼，从上一次位置移动到临时档位', async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 240, height: 200 });
+  await page.evaluate(async () => {
+    const scene = new window.__ArchiveScene(document.querySelector('#scene'));
+    scene.setSuperPerformance(true);
+    await scene.load();
+    const base = scene.runtime.layout;
+    const layout = {
+      records: [
+        ...base.records,
+        { id: '3-9', category: base.records[16].category, albumIndex: 24 },
+      ],
+      locations: [...base.locations, { lane: 2, row: 20, slot: 84 }],
+      columns: [base.columns[0], base.columns[1], [...base.columns[2], 24]],
+      rowPeriod: 72,
+    };
+    scene.setCatalog(layout, Array(25).fill(null), 16);
+    scene.finishOpening(true);
+    scene.setPlayfield(true, { low: 0.4, mid: 0.3, high: 0.2, activity: 0.5 }, 1, 1, null);
+    scene.select(24, { jump: { axis: 'lane', direction: 1 } });
+    window.__searchJump = scene;
+  });
+  try {
+    const before = await page.evaluate(() => {
+      const scene = window.__searchJump;
+      return { settled: scene.selectionSettled, target: scene.getStats().selectedCell };
+    });
+    expect(before).toEqual({ settled: false, target: { lane: 5, row: 11 } });
+    const after = await page.evaluate(() => {
+      const scene = window.__searchJump;
+      const start = performance.now() / 1000;
+      const draw = scene.renderer.render;
+      scene.update(start);
+      const movingAfterFirstFrame = !scene.selectionSettled;
+      try {
+        // 软件 GPU 的逐帧耗时不进入断言，固定时步运行原场景更新，首末帧真实渲染。
+        scene.renderer.render = () => {};
+        for (let frame = 1; frame <= 90 && !scene.selectionSettled; frame++)
+          scene.update(start + frame / 30);
+      } finally {
+        scene.renderer.render = draw;
+      }
+      scene.update(scene.state.timing.last + 1 / 30);
+      return {
+        movingAfterFirstFrame,
+        settled: scene.selectionSettled,
+        slot: scene.getStats().selectedSlot,
+        flattened: scene.state.selection.lift.value < 0.35,
+      };
+    });
+    expect(after).toEqual({
+      movingAfterFirstFrame: true,
+      settled: true,
+      slot: 84,
+      flattened: true,
+    });
+  } finally {
+    await page.evaluate(() => window.__searchJump?.dispose());
+  }
+});
+
 test('封面更新与销毁、AO 替换后的共享景深和尺寸同步', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));

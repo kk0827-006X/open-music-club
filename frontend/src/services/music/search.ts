@@ -153,6 +153,8 @@ export function toNeteaseSearchItems(body: unknown, kind: SearchKind): SearchIte
       names.join('、') ||
       (kind === 'artist' ? title : '未知艺术家');
     const albumName = kind === 'album' ? title : nonempty(album?.name) || '—';
+    const albumId =
+      kind === 'song' ? (positiveId(album?.id) ?? positiveId(record(item.album)?.id)) : null;
     const picture = kind === 'song' ? album?.picUrl || item.picUrl : item.picUrl || item.img1v1Url;
     return [
       {
@@ -163,6 +165,7 @@ export function toNeteaseSearchItems(body: unknown, kind: SearchKind): SearchIte
         title,
         artist,
         album: albumName,
+        ...(albumId ? { albumId } : {}),
         coverUrl: safeCoverUrl(picture),
         duration: kind === 'song' ? durationText(item.dt ?? item.duration) : '—',
         year: releaseYear(item.publishTime ?? album?.publishTime),
@@ -215,14 +218,21 @@ export async function completeNeteaseSongCovers(
     const details = record(await response.json());
     assertActive();
     if (details?.code !== 200 || !Array.isArray(details.songs)) return items;
-    const covers = new Map<string, string>();
+    const supplements = new Map<string, Pick<SearchItem, 'coverUrl' | 'albumId'>>();
     for (const value of details.songs) {
       const detail = record(value);
       const id = positiveId(detail?.id);
-      if (id && missing.has(id)) covers.set(id, safeCoverUrl(record(detail?.al)?.picUrl));
+      if (id && missing.has(id)) {
+        const album = record(detail?.al) ?? record(detail?.album);
+        const albumId = positiveId(album?.id) ?? positiveId(record(detail?.album)?.id);
+        supplements.set(id, {
+          coverUrl: safeCoverUrl(album?.picUrl),
+          ...(albumId ? { albumId } : {}),
+        });
+      }
     }
     return items.map((item) =>
-      needsCover(item) ? { ...item, coverUrl: covers.get(item.sourceId) || item.coverUrl } : item,
+      needsCover(item) ? { ...item, ...supplements.get(item.sourceId) } : item,
     );
   } catch (error) {
     if (signal?.aborted) throw error;

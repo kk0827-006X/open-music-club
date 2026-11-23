@@ -7,19 +7,28 @@ type AlbumFetcher = (
   options: { credentials: 'same-origin'; signal?: AbortSignal },
 ) => Promise<AlbumResponse>;
 
-export async function fetchAlbumTracks(
+export async function fetchNeteaseAlbum(
   albumId: string,
   fetcher: AlbumFetcher = window.fetch.bind(window),
   signal?: AbortSignal,
-): Promise<AlbumTrack[]> {
+) {
   if (!/^[1-9]\d*$/.test(albumId)) throw new Error('专辑编号无效');
   const response = await fetcher(`/api/netease/album?id=${albumId}`, {
     credentials: 'same-origin',
     signal,
   });
   if (!response.ok) throw new Error('专辑曲目暂时不可用');
-  const body = (await response.json()) as { code?: number; songs?: unknown };
+  const body = (await response.json()) as { code?: number; album?: unknown; songs?: unknown };
   if (body?.code !== 200 || !Array.isArray(body.songs)) throw new Error('专辑曲目暂时不可用');
+  return { album: body.album, songs: body.songs as unknown[] };
+}
+
+export async function fetchAlbumTracks(
+  albumId: string,
+  fetcher?: AlbumFetcher,
+  signal?: AbortSignal,
+): Promise<AlbumTrack[]> {
+  const body = await fetchNeteaseAlbum(albumId, fetcher, signal);
   const tracks = body.songs.flatMap((value: unknown) => {
     if (!value || typeof value !== 'object') return [];
     const song = value as { id?: unknown; name?: unknown; dt?: unknown; duration?: unknown };

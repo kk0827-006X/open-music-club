@@ -9,16 +9,15 @@ import {
   useState,
 } from 'react';
 import type { MusicActions, SearchItem } from '../../shared/music.ts';
-import type { ArchiveNavigation } from '../../rhine/archive-loop.ts';
+import { randomArchiveJump, type ArchiveNavigation } from '../../rhine/archive-loop.ts';
 import { ARCHIVE_START_ROW, archiveLayout, createArchiveLayout } from '../../rhine/data.ts';
 import type { mountArchiveScene } from '../../graphics/archive/scene-host.ts';
-import { Icon } from '../../shared/react/ui.tsx';
 import { albumTrack } from './tracks.ts';
 import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts';
 import type { LibraryAlbum, PersonalAlbum } from './personal-albums.ts';
 import { AlbumDetail, AlbumInformation, type DetailTrackState } from './album-views.tsx';
-
-const TICKS_PER_SHELF = 8;
+import type { SearchAlbumSelection } from './search-album.ts';
+import { ArchiveSwitcher } from './ArchiveSwitcher.tsx';
 
 export interface LibraryViewProps {
   scene: ReturnType<typeof mountArchiveScene> | null;
@@ -29,6 +28,7 @@ export interface LibraryViewProps {
   active: boolean;
   initialIndex?: number;
   personalAlbums?: readonly PersonalAlbum[];
+  searchAlbum?: SearchAlbumSelection;
   recentPlaybackRevision?: number;
   loadPersonalTracks?(album: PersonalAlbum, signal: AbortSignal): Promise<PersonalAlbum>;
 }
@@ -36,16 +36,13 @@ export interface LibraryViewProps {
 export interface LibraryViewHandle {
   readonly selectedAlbum: LibraryAlbum;
   readonly mode: 'archive' | 'detail';
-  selectRecord(
-    index: number,
-    navigation?:
-      { axis: 'row' | 'lane'; direction: number } | { cell: { lane: number; row: number } },
-  ): void;
+  selectRecord(index: number, navigation?: ArchiveNavigation): void;
   navigate(axis: 'row' | 'lane', direction: number): void;
   openDetail(): void;
   closeDetail(): void;
   resetDetail(): void;
   afterUpdate(visibility: number, now: number): boolean;
+  cancelSearchJump(): void;
 }
 
 // 呼出层只渲染资料、歌单刻度与详情文案；三维画布和档案场景仍由上层 App 持有。
@@ -53,16 +50,23 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
   function LibraryView(props, ref) {
     const { scene, actions, active } = props;
     const initialAlbum = demoAlbums[props.initialIndex ?? 0] ?? demoAlbums[0];
+    const searchAlbum = props.searchAlbum;
+    const hasSearchAlbum = Boolean(searchAlbum);
+    const personalCount = props.personalAlbums?.length ?? 0;
     const albums = useMemo(
-      () => (props.personalAlbums?.length ? [...demoAlbums, ...props.personalAlbums] : demoAlbums),
-      [props.personalAlbums],
+      () => [
+        ...demoAlbums,
+        ...(props.personalAlbums ?? []),
+        ...(searchAlbum ? [searchAlbum.album] : []),
+      ],
+      [props.personalAlbums, searchAlbum],
     );
     const layout = useMemo(
       () =>
-        albums.length === demoAlbums.length
-          ? archiveLayout
-          : createArchiveLayout(albums.length - demoAlbums.length),
-      [albums.length],
+        personalCount || hasSearchAlbum
+          ? createArchiveLayout(personalCount, hasSearchAlbum)
+          : archiveLayout,
+      [personalCount, hasSearchAlbum],
     );
     const catalog = useRef({ albums, layout });
     const [informationVisible, setInformationVisible] = useState(false);
@@ -96,22 +100,24 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
     const albumControllerRef = useRef<AbortController | null>(null);
     const loadedAlbumsRef = useRef(new Map<string, DemoAlbum>());
     const disposedRef = useRef(false);
+    const requestedJump = useRef(searchAlbum);
+    const consumedJump = useRef<SearchAlbumSelection | undefined>(undefined);
+    const pendingJump = useRef(false);
+    requestedJump.current = searchAlbum;
+    const cancelSearchJump = useCallback(() => {
+      pendingJump.current = false;
+      consumedJump.current = requestedJump.current;
+    }, []);
 
     useEffect(() => {
       disposedRef.current = false;
-      if (!selectedAlbum.current.personal) onSelectedRef.current(selectedAlbum.current);
+      if (!selectedAlbum.current.personal && !selectedAlbum.current.searchSource)
+        onSelectedRef.current(selectedAlbum.current);
       return () => {
         disposedRef.current = true;
+        albumControllerRef.current?.abort();
       };
     }, []);
-
-    // 关闭动画期间不隐藏详情，等场景 visibility 降到 0.01 以下时再收起，和原行为一致。
-    useEffect(
-      () => () => {
-        albumControllerRef.current?.abort();
-      },
-      [],
-    );
 
     const setArchiveMode = useCallback((next: 'archive' | 'detail') => {
       const archive = detailRef.current?.closest<HTMLElement>('[data-album-archive]');
@@ -130,25 +136,22 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
     }, []);
 
     const selectRecord = useCallback(
-      (
-        nextRecord: number,
-        navigation?:
-          { axis: 'row' | 'lane'; direction: number } | { cell: { lane: number; row: number } },
-      ) => {
+      (nextRecord: number, navigation?: ArchiveNavigation) => {
         const currentScene = sceneRef.current;
-        if (!currentScene?.ready) return;
+        if (!currentScene?.ready && currentScene?.entryPhase !== 'failed') return;
         const { albums, layout } = catalog.current;
         const record = layout.records[nextRecord];
         if (!record) return;
+        cancelSearchJump();
         recordIndexRef.current = nextRecord;
         const album = albums[record.albumIndex];
         selectedAlbum.current = album;
         setSelectedId(album.id);
         if (navigation && 'cell' in navigation) setInformationVisible(true);
-        if (!album.personal) onSelectedRef.current(album);
-        currentScene.select(nextRecord, navigation as ArchiveNavigation | undefined);
+        if (!album.personal && !album.searchSource) onSelectedRef.current(album);
+        currentScene?.select(nextRecord, navigation);
       },
-      [],
+      [cancelSearchJump],
     );
 
     const navigate = useCallback(
@@ -169,7 +172,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       [selectRecord],
     );
 
-    const requestDetailTracks = useCallback((album: LibraryAlbum, refresh = false) => {
+    const requestDetailTracks = useCallback((album: DemoAlbum | PersonalAlbum, refresh = false) => {
       albumControllerRef.current?.abort();
       const controller = new AbortController();
       albumControllerRef.current = controller;
@@ -218,14 +221,23 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
 
     const openDetail = useCallback(() => {
       const currentScene = sceneRef.current;
-      if (modeRef.current !== 'archive' || !currentScene?.ready) return;
+      if (
+        modeRef.current !== 'archive' ||
+        (!currentScene?.ready && currentScene?.entryPhase !== 'failed')
+      )
+        return;
+      cancelSearchJump();
       modeRef.current = 'detail';
       setModeState('detail');
       onModeChangedRef.current('detail');
       detailIdleSinceRef.current = 0;
 
       const album = selectedAlbum.current;
-      const cached = album.personal ? undefined : loadedAlbumsRef.current.get(album.id);
+      const cached = album.searchSource
+        ? album
+        : album.personal
+          ? undefined
+          : loadedAlbumsRef.current.get(album.id);
       setDetailData(cached ?? album);
       setDetailTrackState(cached ? 'ready' : 'loading');
       setDetailHidden(false);
@@ -236,11 +248,11 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
         element.style.setProperty('--detail-visibility', '0');
         element.style.setProperty('--detail-offset', '18px');
       }
-      currentScene.setMode('detail');
-      currentScene.wake();
+      currentScene?.setMode('detail');
+      currentScene?.wake();
 
-      if (!cached) requestDetailTracks(album);
-    }, [requestDetailTracks, setArchiveMode, setDetailHidden, setDetailInert]);
+      if (!cached && !album.searchSource) requestDetailTracks(album);
+    }, [cancelSearchJump, requestDetailTracks, setArchiveMode, setDetailHidden, setDetailInert]);
 
     const closeDetail = useCallback(() => {
       if (modeRef.current !== 'detail') return;
@@ -253,9 +265,14 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       setDetailInert(true);
       sceneRef.current?.setMode('archive');
       sceneRef.current?.wake();
-    }, [setDetailInert]);
+      if (sceneRef.current?.entryPhase === 'failed') {
+        setDetailHidden(true);
+        setArchiveMode('archive');
+      }
+    }, [setArchiveMode, setDetailHidden, setDetailInert]);
 
     const resetDetail = useCallback(() => {
+      cancelSearchJump();
       if (modeRef.current !== 'detail') return;
       modeRef.current = 'archive';
       setModeState('archive');
@@ -267,7 +284,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       setDetailInert(true);
       setArchiveMode('archive');
       sceneRef.current?.setMode('archive');
-    }, [setArchiveMode, setDetailHidden, setDetailInert]);
+    }, [cancelSearchJump, setArchiveMode, setDetailHidden, setDetailInert]);
 
     useLayoutEffect(() => {
       catalog.current = { albums, layout };
@@ -276,7 +293,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       if (index < 0) {
         resetDetail();
         setSelectedId(next.id);
-        if (!next.personal) onSelectedRef.current(next);
+        if (!next.personal && !next.searchSource) onSelectedRef.current(next);
       }
       selectedAlbum.current = next;
       recordIndexRef.current = layout.records.findIndex(
@@ -296,10 +313,23 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       }
     }, [albums, layout, resetDetail, scene]);
 
+    useLayoutEffect(() => {
+      if (!searchAlbum || searchAlbum === consumedJump.current || !active) return;
+      if (!scene?.ready && scene?.entryPhase !== 'failed') return;
+      resetDetail();
+      selectRecord(layout.records.length - 1, randomArchiveJump());
+      if (scene.entryPhase === 'failed') openDetail();
+      else pendingJump.current = true;
+    }, [active, layout, openDetail, resetDetail, scene, searchAlbum, selectRecord]);
+
     const afterUpdate = useCallback(
       (visibility: number, now: number) => {
         const element = detailRef.current;
         if (!element || disposedRef.current) return true;
+        if (pendingJump.current && sceneRef.current?.selectionSettled) {
+          openDetail();
+          return true;
+        }
         if (modeRef.current === 'detail' || !element.hidden) {
           // 细粒度视觉值直接写 CSS 变量，不随每一帧触发 React render。
           element.style.setProperty('--detail-visibility', String(visibility));
@@ -317,7 +347,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
         }
         return true;
       },
-      [setArchiveMode, setDetailHidden],
+      [openDetail, setArchiveMode, setDetailHidden],
     );
 
     // 打开详情时把细粒度过渡变量归零；后续帧只由 afterUpdate 写入。
@@ -325,8 +355,9 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       if (mode !== 'detail') return;
       const element = detailRef.current;
       if (!element) return;
-      element.style.setProperty('--detail-visibility', '0');
-      element.style.setProperty('--detail-offset', '18px');
+      const failed = sceneRef.current?.entryPhase === 'failed';
+      element.style.setProperty('--detail-visibility', failed ? '1' : '0');
+      element.style.setProperty('--detail-offset', failed ? '0px' : '18px');
     }, [mode]);
 
     const resolveDetailTrack = useCallback((trackId: string): SearchItem | null => {
@@ -368,8 +399,9 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
         closeDetail,
         resetDetail,
         afterUpdate,
+        cancelSearchJump,
       }),
-      [afterUpdate, closeDetail, navigate, openDetail, resetDetail, selectRecord],
+      [afterUpdate, cancelSearchJump, closeDetail, navigate, openDetail, resetDetail, selectRecord],
     );
 
     const selectedIndex = Math.max(
@@ -378,53 +410,17 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
     );
     const album = albums[selectedIndex];
     const record = layout.records.findIndex((item) => item.albumIndex === selectedIndex);
-    const { lane, row } = layout.locations[record];
-    const position = row - ARCHIVE_START_ROW;
-    const tickStart = Math.floor(position / TICKS_PER_SHELF) * TICKS_PER_SHELF;
-
     return (
       <>
-        <aside className="archive-callout">
-          <p>ALBUM / SELECT</p>
-          <strong data-album-counter>{String(selectedIndex + 1).padStart(2, '0')}</strong>
-          <span>/ {albums.length}</span>
-        </aside>
-        <div
-          className="archive-switcher"
-          aria-label="当前排专辑位置"
-          inert={active ? undefined : true}
-        >
-          <button
-            type="button"
-            data-album-previous
-            aria-label="上一张专辑"
-            onClick={() => navigate('row', -1)}
-          >
-            <Icon name="up" />
-          </button>
-          <div className="archive-position-ticks">
-            {layout.columns[lane]
-              .slice(tickStart, tickStart + TICKS_PER_SHELF)
-              .map((recordIndex, offset) => (
-                <button
-                  key={recordIndex}
-                  type="button"
-                  data-album-tick={tickStart + offset}
-                  aria-label={`当前排第 ${tickStart + offset + 1} 张专辑`}
-                  aria-current={recordIndex === record ? 'true' : undefined}
-                  onClick={() => selectRecord(recordIndex)}
-                />
-              ))}
-          </div>
-          <button
-            type="button"
-            data-album-next
-            aria-label="下一张专辑"
-            onClick={() => navigate('row', 1)}
-          >
-            <Icon name="down" />
-          </button>
-        </div>
+        <ArchiveSwitcher
+          active={active}
+          albumCount={albums.length}
+          albumIndex={selectedIndex}
+          layout={layout}
+          selectedRecord={record}
+          navigate={navigate}
+          selectRecord={selectRecord}
+        />
         <AlbumInformation
           album={album}
           index={selectedIndex}
@@ -445,6 +441,9 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
               <AlbumDetail
                 album={detailData}
                 trackState={detailTrackState}
+                highlightTrackId={
+                  detailData.searchSource && !detailInert ? searchAlbum?.trackId : undefined
+                }
                 onClose={closeDetail}
                 onPlay={playDetailTrack}
                 onEnqueue={enqueueDetailTrack}

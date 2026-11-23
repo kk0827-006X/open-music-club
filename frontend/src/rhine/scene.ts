@@ -87,6 +87,15 @@ export class ArchiveScene {
   get presentationHidden() {
     return this.state.presentation.presenceTarget === 0 && this.state.presentation.presence === 0;
   }
+  get selectionSettled() {
+    const { navigation } = this.state;
+    const { lane, row } = navigation.selectedCell;
+    // 播放动效可能压低档案的抬升量；跳转是否到位由两条现有相机轨道决定。
+    return (
+      Math.abs(navigation.columnCamera.value - this.trackPosition('lane', lane)) < 0.06 &&
+      Math.abs(navigation.rail.value - this.trackPosition('row', row)) < 0.06
+    );
+  }
   revealImmediately() {
     this.state.presentation.reveal = this.state.presentation.targetReveal;
   }

@@ -550,6 +550,19 @@
   gap: 3px;
   min-width: 0;
 }
+.player-queue-panel [data-search-open-album] {
+  align-items: stretch;
+  padding: 0;
+  text-align: start;
+  color: inherit;
+}
+.player-queue-panel li:has([data-search-open-album]) {
+  cursor: pointer;
+}
+.player-queue-panel [data-search-open-album]:hover strong,
+.player-queue-panel [data-search-open-album]:focus-visible strong {
+  text-decoration: underline;
+}
 .player-queue-panel li strong,
 .player-queue-panel li small {
   overflow: hidden;

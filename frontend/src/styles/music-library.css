@@ -201,6 +201,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.detail-track-preview li[aria-current='true'] {
+  border-inline-start: 2px solid var(--amber);
+  background: var(--color-surface-17);
+  outline-offset: -2px;
+}
 .detail-track-preview li > button {
   padding: 4px 0;
   border: 0;

@@ -49,7 +49,7 @@ function gcd(a: number, b: number): number {
   return b ? gcd(b, a % b) : a;
 }
 
-export function createArchiveLayout(personalCount = 0): ArchiveLayout {
+export function createArchiveLayout(personalCount = 0, searchAlbum = false): ArchiveLayout {
   const records: ArchiveRecord[] = [];
   const columns: number[][] = archiveColumns.map(() => []);
   const locations: ArchiveLayout['locations'] = [];
@@ -71,6 +71,7 @@ export function createArchiveLayout(personalCount = 0): ArchiveLayout {
   for (let index = 0; index < personalCount; index++) {
     append(index % columns.length, RECOMMENDED_ALBUM_COUNT + index);
   }
+  if (searchAlbum) append(columns.length - 1, RECOMMENDED_ALBUM_COUNT + personalCount);
   const rowPeriod = columns.reduce(
     (period, files) => (period / gcd(period, files.length)) * files.length,
     1,

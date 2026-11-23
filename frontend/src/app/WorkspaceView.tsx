@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { SongSearchPanel } from '../features/search/SongSearchPanel';
 import { GooeySearch } from '../shared/react/aceternity/GooeySearch';
 import { LibraryView } from '../features/music-library/LibraryView.tsx';
@@ -6,6 +6,10 @@ import type { DemoAlbum } from '../features/music-library/album-data.ts';
 import { albumTrack } from '../features/music-library/tracks.ts';
 import { loadPersonalAlbum } from '../features/music-library/personal-albums.ts';
 import { usePersonalAlbums } from '../features/music-library/use-personal-albums.ts';
+import {
+  createSearchAlbumSelection,
+  type SearchAlbumSelection,
+} from '../features/music-library/search-album.ts';
 import { PlayerView } from '../features/player/PlayerView.tsx';
 import { SettingsDialog } from '../features/settings/SettingsDialog.tsx';
 import { Brand, Icon } from '../shared/react/ui.tsx';
@@ -67,6 +71,7 @@ export function WorkspaceView({
   const { archive, sceneContainer, library, playerView, settings, user, footprint, inputRef } =
     refs;
   const { page, visited, show, songQuery, setSongQuery } = navigation;
+  const [searchAlbum, setSearchAlbum] = useState<SearchAlbumSelection>();
   const closeSearch = () => setSongQuery(null);
   const { scene, entryPhase, pageEntryPhase, entering, playbackMotion, changePlaybackMotion } =
     archiveScene;
@@ -113,6 +118,7 @@ export function WorkspaceView({
               inputRef={inputRef}
               onDismissResults={songQuery && !expanded ? closeSearch : undefined}
               onSearch={(term) => {
+                library.current?.cancelSearchJump();
                 playerCommands.closeQueue();
                 setSongQuery((previous) => ({ term, serial: (previous?.serial ?? 0) + 1 }));
               }}
@@ -161,6 +167,7 @@ export function WorkspaceView({
         active={page === 'archive' && !entering}
         initialIndex={initialIndex}
         personalAlbums={albums}
+        searchAlbum={searchAlbum}
         recentPlaybackRevision={recentPlaybackRevision}
         loadPersonalTracks={(album, signal) => loadPersonalAlbum(client, album, signal)}
       />
@@ -237,6 +244,11 @@ export function WorkspaceView({
                 ?.focus({ preventScroll: true });
           }}
           onPlay={playerCommands.play}
+          onAlbumSelected={(result) => {
+            playerCommands.closeQueue();
+            setSearchAlbum(createSearchAlbumSelection(result));
+            show('archive');
+          }}
           onSave={(track) => {
             void playerCommands.choosePlaylist(track);
           }}

@@ -1,5 +1,5 @@
 import type { DemoAlbum } from './album-data.ts';
-import type { SearchItem } from '../../shared/music.ts';
+import type { MusicSource, SearchItem } from '../../shared/music.ts';
 import {
   toPersonalSong,
   type ArchiveCollections,
@@ -9,9 +9,7 @@ import {
   type UserProfile,
 } from '../../services/music/personal-library.ts';
 
-export type PersonalAlbum = Omit<DemoAlbum, 'coverUrl' | 'tracks' | 'personal'> & {
-  personal: 'favorites' | 'recent' | 'playlist';
-  playlistId?: number;
+type TrackCollection = Omit<DemoAlbum, 'coverUrl' | 'tracks' | 'personal' | 'searchSource'> & {
   coverUrl: string | null;
   tracks: Array<{
     id: string;
@@ -21,7 +19,13 @@ export type PersonalAlbum = Omit<DemoAlbum, 'coverUrl' | 'tracks' | 'personal'> 
     playable: boolean;
   }>;
 };
-export type LibraryAlbum = DemoAlbum | PersonalAlbum;
+export type PersonalAlbum = TrackCollection & {
+  personal: 'favorites' | 'recent' | 'playlist';
+  playlistId?: number;
+  searchSource?: never;
+};
+export type SearchAlbum = TrackCollection & { searchSource: MusicSource; personal?: never };
+export type LibraryAlbum = DemoAlbum | PersonalAlbum | SearchAlbum;
 
 export function personalAlbums(
   profile: UserProfile | undefined,

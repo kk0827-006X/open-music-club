@@ -8,6 +8,82 @@ const song = (id) => ({
   al: { name: '专辑' },
   dt: 60000,
 });
+it('所选歌曲使用自身专辑 ID，缺 ID 补查后复用专辑曲目接口', async () => {
+  const { toNeteaseSearchItems } = await import('../frontend/src/services/music/search.ts');
+  const { fetchSearchAlbum } = await import('../frontend/src/services/music/search-album.ts');
+  const source = { ...song(11), name: '同名歌曲', al: { id: 17, name: '原版' } };
+  const [entry] = toNeteaseSearchItems({ result: { songs: [source] } }, 'song');
+  const calls = [];
+  const fetcher = async (url, options) => {
+    calls.push(url);
+    assert.equal(options.credentials, 'same-origin');
+    return {
+      ok: true,
+      json: async () =>
+        url.includes('/song/detail')
+          ? { code: 200, songs: [{ ...source, al: null, album: { id: 18, name: '现场版' } }] }
+          : {
+              code: 200,
+              album: {
+                id: url.endsWith('17') ? 17 : 18,
+                name: '对应专辑',
+                picUrl: 'https://p1.music.126.net/album.jpg',
+              },
+              songs: [song(8), source, song(4)],
+            },
+    };
+  };
+  const signal = new AbortController().signal;
+  const album = await fetchSearchAlbum(entry, signal, fetcher);
+  assert.equal(album.title, '对应专辑');
+  assert.equal(album.coverUrl, 'https://p1.music.126.net/album.jpg');
+  assert.equal(album.selectedTrackId, 'netease:11');
+  assert.deepEqual(
+    album.tracks.map((item) => item.key),
+    ['netease:8', 'netease:11', 'netease:4'],
+  );
+  await fetchSearchAlbum({ ...entry, albumId: undefined }, signal, fetcher);
+  assert.deepEqual(calls, [
+    '/api/netease/album?id=17',
+    '/api/netease/song/detail?ids=11',
+    '/api/netease/album?id=18',
+  ]);
+});
+
+it('本地专辑按同艺人与同专辑名归组，专辑信息缺失和未返回所选歌曲时明确报错', async () => {
+  const { toLocalSearchItems } = await import('../frontend/src/services/music/search.ts');
+  const { fetchSearchAlbum } = await import('../frontend/src/services/music/search-album.ts');
+  const local = (id, artist, album) => ({
+    sourceId: String(id),
+    title: `本地歌曲${id}`,
+    artists: [{ name: artist }],
+    album: { name: album },
+  });
+  const tracks = [
+    local(1, '歌手甲', '专辑'),
+    local(2, '歌手乙', '专辑'),
+    local(3, '歌手甲', '专辑'),
+  ];
+  const [entry] = toLocalSearchItems(tracks);
+  const signal = new AbortController().signal;
+  const album = await fetchSearchAlbum(entry, signal, async (url) => {
+    assert.equal(url, '/api/local/music');
+    return { ok: true, json: async () => ({ success: true, tracks }) };
+  });
+  assert.equal(album.selectedTrackId, 'local:1');
+  assert.deepEqual(
+    album.tracks.map((item) => item.key),
+    ['local:1', 'local:3'],
+  );
+  await assert.rejects(fetchSearchAlbum({ ...entry, album: '未归档' }, signal), /没有专辑信息/);
+  await assert.rejects(
+    fetchSearchAlbum({ ...entry, source: 'netease', albumId: '123' }, signal, async () => ({
+      ok: true,
+      json: async () => ({ code: 200, songs: [song(3)] }),
+    })),
+    /未返回所选歌曲/,
+  );
+});
 it('统一搜索展开最匹配歌手与专辑，歌曲去重、来源分离并按页加载', async () => {
   const { createSongSearch } = await import('../frontend/src/services/music/song-search.ts');
   const calls = [];
@@ -65,7 +141,7 @@ it('搜索来源部分失败时保留其他来源，取消请求不会被当成�
   controller.abort();
   await assert.rejects(createSongSearch('词', fetcher, controller.signal).next());
 });
-it('搜索结果复用队列组件，仅播放和加入歌单，不提供排序清空移除', async () => {
+it('搜索结果分别打开专辑、播放和加入歌单，保留队列编辑隔离', async () => {
   await withReactHarness(async (h) => {
     const { QueuePanel } = await import('../frontend/src/features/queue/QueuePanel.tsx');
     const calls = [];
@@ -104,6 +180,7 @@ it('搜索结果复用队列组件，仅播放和加入歌单，不提供排序�
           throw Error('不得排序');
         },
         onPlay: (track) => calls.push(['play', track.key]),
+        onOpenAlbum: (track) => calls.push(['album', track.key]),
         onSave: (track) => calls.push(['save', track.key]),
       }),
     );
@@ -113,9 +190,13 @@ it('搜索结果复用队列组件，仅播放和加入歌单，不提供排序�
     assert.equal(h.query('[data-queue-drag]'), null);
     await h.click('[data-queue-play]');
     await h.click('[data-queue-save]');
+    await h.click('[data-search-open-album]');
+    await h.React.act(async () => h.require('[data-queue-key] img').click());
     assert.deepEqual(calls, [
       ['play', 'netease:1'],
       ['save', 'netease:1'],
+      ['album', 'netease:1'],
+      ['album', 'netease:1'],
     ]);
   });
 });

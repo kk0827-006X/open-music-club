@@ -2,8 +2,8 @@
   "features/auth/AdminApplicationsPage.tsx": 450,
   "features/auth/LoginPage.tsx": 487,
   "features/footprint/FootprintPage.tsx": 879,
-  "features/music-library/LibraryView.tsx": 463,
-  "features/queue/QueuePanel.tsx": 701,
+  "features/music-library/LibraryView.tsx": 462,
+  "features/queue/QueuePanel.tsx": 468,
   "features/settings/SettingsDialog.tsx": 428,
   "features/upload/UploadPage.tsx": 528
 }

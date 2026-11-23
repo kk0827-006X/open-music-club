@@ -21,6 +21,7 @@ export interface ArchiveSceneController {
   setOpeningProgress?(progress: number): void;
   finishDecryption(): void;
   readonly detailVisibility: number;
+  readonly selectionSettled?: boolean;
   onCoverUpdate?: () => void;
   onSelect?: (index: number, cell?: ArchiveCell) => void;
   onNavigate?: (axis: 'row' | 'lane', direction: number) => void;
@@ -205,6 +206,9 @@ export function mountArchiveScene(
     get entryPhase() {
       return phase;
     },
+    get selectionSettled() {
+      return scene?.selectionSettled ?? true;
+    },
     wake,
     setReduced(value: boolean) {
       reduced = value;
@@ -223,7 +227,10 @@ export function mountArchiveScene(
       wake();
     },
     select(index: number, navigation?: ArchiveNavigation) {
-      if (ready && phase === 'ready') scene?.select(index, navigation);
+      if (ready && phase === 'ready') {
+        scene?.select(index, navigation);
+        wake();
+      }
     },
     setCatalog(...args: NonNullable<typeof catalog>) {
       catalog = args;

@@ -72,6 +72,28 @@ async function withArchive(run, initialIndex = 0) {
 }
 
 describe('三维专辑档案 UI', () => {
+  it('临时档位接在原列末尾，四个方向都能回到同一张专辑', async () => {
+    const { createArchiveLayout } = await import('../frontend/src/rhine/data.ts');
+    const { fileAtCell, selectionCell } = await import('../frontend/src/rhine/archive-loop.ts');
+    const previous = createArchiveLayout(100);
+    const layout = createArchiveLayout(100, true);
+    const record = layout.records.length - 1;
+    assert.deepEqual(layout.locations.slice(0, -1), previous.locations);
+    assert.equal(layout.locations[record].lane, 2);
+    for (const center of [
+      { lane: 0, row: 12 },
+      layout.locations[record],
+      { lane: -13, row: -66 },
+    ]) {
+      for (const axis of ['lane', 'row']) {
+        for (const direction of [-1, 1]) {
+          const next = selectionCell(record, center, { jump: { axis, direction } }, layout);
+          assert.equal(fileAtCell(next, layout), record);
+          assert.equal(Math.sign(next[axis] - center[axis]), direction);
+        }
+      }
+    }
+  });
   it('提供 24 张真实网易云专辑，分三排且每排 8 张', async () => {
     const { demoAlbums } = await import(frontendModule('features/music-library/album-data.ts'));
     const { archiveColumns, records, columnFiles } = await import(frontendModule('rhine/data.ts'));

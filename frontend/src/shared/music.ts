@@ -10,6 +10,7 @@ export interface MusicItem extends TrackReference {
   title: string;
   artist: string;
   album: string;
+  albumId?: string;
   coverUrl: string;
   duration: string;
   year: string;

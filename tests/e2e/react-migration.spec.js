@@ -765,6 +765,102 @@ test('专辑播放全部替换旧队列，从第一首开播并顺序切歌，�
   expect(await page.evaluate(() => window.__migrationAudios.length)).toBe(1);
 });
 
+test('搜索选歌复用一个临时专辑档位，等移动完成后滚动并定位所选歌曲', async ({ page }) => {
+  await mockWorkspace(page, 'user', []);
+  await page.locator('[data-nav="user"]').click();
+  const titles = { 31: '录音室专辑', 32: '过期专辑', 33: '现场专辑' };
+  const ids = { 原版: 31, 过期: 32, 现场: 33 };
+  const track = (album, index) => ({
+    id: album * 100 + index,
+    name: index === 29 ? '同名歌曲' : `第 ${index + 1} 首`,
+    ar: [{ name: '验收歌手' }],
+    al: { id: album, name: titles[album], picUrl: `https://p1.music.126.net/album-${album}.svg` },
+    dt: 60000,
+  });
+  await page.route('**/api/netease/search?**', (route) => {
+    const { searchParams } = new URL(route.request().url());
+    const album = ids[searchParams.get('keywords')];
+    const songs = searchParams.get('type') === '1' && album ? [track(album, 29)] : [];
+    return route.fulfill({ json: { code: 200, result: { songs, songCount: songs.length } } });
+  });
+  let requestedOld = false;
+  let releaseOld;
+  const gate = new Promise((resolve) => {
+    releaseOld = resolve;
+  });
+  await page.route('**/api/netease/album?**', async (route) => {
+    const id = Number(new URL(route.request().url()).searchParams.get('id'));
+    if (id === 32) {
+      requestedOld = true;
+      await gate;
+    }
+    await route
+      .fulfill({
+        json: {
+          code: 200,
+          album: {
+            id,
+            name: titles[id],
+            picUrl: `https://p1.music.126.net/album-${id}.svg`,
+          },
+          songs: Array.from({ length: 33 }, (_, index) => track(id, index)),
+        },
+      })
+      .catch(() => {});
+  });
+  let playRequests = 0;
+  await page.route('**/api/netease/song/url/v1?**', (route) => {
+    playRequests++;
+    return route.fulfill({ json: { code: 200, data: [] } });
+  });
+  const archive = page.locator('[data-album-archive]');
+  const detail = page.locator('[data-album-detail]');
+  const selected = detail.locator('li[aria-current="true"]');
+  const search = async (keyword, id) => {
+    await page.locator('[data-nav="search"]').click();
+    const input = page.getByRole('searchbox', { name: '搜索音乐' });
+    await input.fill(keyword);
+    await input.press('Enter');
+    await page.locator(`[data-search-open-album="netease:${id * 100 + 29}"]`).click();
+  };
+  await page.evaluate(() => {
+    window.__businessScenes.at(-1).selectionSettled = false;
+  });
+  await search('原版', 31);
+  await expect(archive).toHaveAttribute('data-view', 'archive');
+  await expect(page.locator('.archive-callout')).toContainText('/ 25');
+  await expect(detail).toBeHidden();
+  await page.evaluate(() => {
+    window.__businessScenes.at(-1).selectionSettled = true;
+  });
+  await expect(detail.getByRole('heading', { name: titles[31] })).toBeVisible();
+  await expect(selected.locator('[data-album-play]')).toHaveAttribute(
+    'data-album-play',
+    'netease:3129',
+  );
+  await expect(selected).toBeFocused();
+  await expect(selected).toBeInViewport();
+
+  try {
+    await search('过期', 32);
+    await expect.poll(() => requestedOld).toBe(true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await search('现场', 33);
+    await expect(detail.getByRole('heading', { name: titles[33] })).toBeVisible();
+    await expect(selected.locator('[data-album-play]')).toHaveAttribute(
+      'data-album-play',
+      'netease:3329',
+    );
+    await expect(selected).toBeFocused();
+    await expect(selected).toBeInViewport();
+  } finally {
+    releaseOld();
+  }
+  await expect(detail.getByRole('heading', { name: titles[33] })).toBeVisible();
+  await expect(page.locator('.archive-callout')).toContainText('/ 25');
+  expect(playRequests).toBe(0);
+});
+
 test('统一歌曲搜索合并分页，直接播放和加入歌单不覆盖真实队列，旧查询不覆盖新查询', async ({
   page,
 }, info) => {

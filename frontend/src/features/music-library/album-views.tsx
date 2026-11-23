@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { FALLBACK_COVER, type SearchItem } from '../../shared/music.ts';
 import { formatDurationSeconds } from '../../shared/format.ts';
 import { replaceBrokenCover } from '../../shared/react/image.ts';
@@ -64,7 +64,7 @@ export function AlbumInformation({
           <dd>
             <b>
               <i />
-              {album.personal ? '个人曲库' : 'NETEASE'}
+              {album.personal ? '个人曲库' : album.searchSource === 'local' ? 'LOCAL' : 'NETEASE'}
             </b>
           </dd>
         </div>
@@ -74,7 +74,13 @@ export function AlbumInformation({
         </div>
         <div>
           <dt>FORMAT / 播放形式</dt>
-          <dd>{album.personal ? '站内与网易云' : '在线音源'}</dd>
+          <dd>
+            {album.personal
+              ? '站内与网易云'
+              : album.searchSource === 'local'
+                ? '本地音乐'
+                : '在线音源'}
+          </dd>
         </div>
         <div>
           <dt>PREVIEW / 代表曲目</dt>
@@ -82,7 +88,13 @@ export function AlbumInformation({
         </div>
         <div>
           <dt>CATALOG / 目录</dt>
-          <dd>{album.personal ? '我的音乐' : '网易云音乐'}</dd>
+          <dd>
+            {album.personal
+              ? '我的音乐'
+              : album.searchSource === 'local'
+                ? '本地上传'
+                : '网易云音乐'}
+          </dd>
         </div>
       </dl>
       <button type="button" data-open-selected onClick={onOpen}>
@@ -102,6 +114,7 @@ export function AlbumDetail({
   onPlay = () => undefined,
   onEnqueue = () => undefined,
   onPlayAll,
+  highlightTrackId,
 }: {
   album: LibraryAlbum;
   trackState?: DetailTrackState;
@@ -109,10 +122,32 @@ export function AlbumDetail({
   onPlay?: (id: string) => void;
   onEnqueue?: (id: string) => void;
   onPlayAll?: (tracks: SearchItem[]) => Promise<void>;
+  highlightTrackId?: string;
 }) {
   const [playingAll, setPlayingAll] = useState(false);
   const playingRef = useRef(false);
+  const information = useRef<HTMLElement>(null);
+  const highlightedTrack = useRef<HTMLLIElement>(null);
   const [playError, setPlayError] = useState('');
+  useLayoutEffect(() => {
+    const track = highlightedTrack.current;
+    const details = information.current;
+    if (!track || !details || trackState !== 'ready') return;
+    const view = details.ownerDocument.defaultView;
+    const viewport =
+      view?.getComputedStyle(details).overflowY === 'auto'
+        ? details
+        : details.closest<HTMLElement>('[data-album-detail]');
+    track.focus({ preventScroll: true });
+    if (!viewport) return;
+    // 大屏滚曲目信息区，窄屏滚详情容器，保留外层档案墙的位置。
+    const row = track.getBoundingClientRect();
+    const top = viewport.getBoundingClientRect().top + viewport.clientTop;
+    const bottom = top + viewport.clientHeight;
+    if (row.top < top || row.bottom > bottom)
+      viewport.scrollTop += row.top - top - (viewport.clientHeight - row.height) / 2;
+  }, [album, highlightTrackId, trackState]);
+  const highlightedIndex = album.tracks.findIndex((track) => track.id === highlightTrackId);
   const playable = album.tracks.filter((track) => !('playable' in track) || track.playable);
   const playAll = async () => {
     if (trackState !== 'ready' || !playable.length || !onPlayAll || playingRef.current) return;
@@ -156,9 +191,15 @@ export function AlbumDetail({
           />
         </div>
         <p>ALBUM / {album.id}</p>
-        <small>{album.personal ? '个人曲库' : '网易云音乐 · 真实专辑封面'}</small>
+        <small>
+          {album.personal
+            ? '个人曲库'
+            : album.searchSource === 'local'
+              ? '本地上传'
+              : '网易云音乐 · 真实专辑封面'}
+        </small>
       </section>
-      <article className="detail-information" data-detail-information>
+      <article ref={information} className="detail-information" data-detail-information>
         <p>ALBUM DETAIL&nbsp;&nbsp;/&nbsp;&nbsp;MUSIC ARCHIVE</p>
         <h2>{album.title}</h2>
         <h3>{album.artist}</h3>
@@ -177,7 +218,7 @@ export function AlbumDetail({
           </p>
           <p>
             <small>SOURCE / 来源</small>
-            {album.personal ? '个人曲库' : 'NETEASE'}
+            {album.personal ? '个人曲库' : album.searchSource === 'local' ? 'LOCAL' : 'NETEASE'}
           </p>
         </div>
         <p className="detail-description">{album.description}</p>
@@ -205,7 +246,12 @@ export function AlbumDetail({
           <ol>
             {trackState !== 'loading' &&
               album.tracks.map((track, index) => (
-                <li key={`${track.id}-${index}`}>
+                <li
+                  key={`${track.id}-${index}`}
+                  ref={index === highlightedIndex ? highlightedTrack : undefined}
+                  aria-current={index === highlightedIndex ? 'true' : undefined}
+                  tabIndex={index === highlightedIndex ? -1 : undefined}
+                >
                   <span>{String(index + 1).padStart(2, '0')}</span>
                   <strong>{track.title}</strong>
                   <small>

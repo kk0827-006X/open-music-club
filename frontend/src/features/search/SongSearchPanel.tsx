@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { QueuePanel } from '../queue/QueuePanel';
 import { createSongSearch } from '../../services/music/song-search';
 import type { SearchItem } from '../../shared/music';
 import { useDismissOnOutsidePointer, useReducedMotion } from '../../shared/react/hooks';
+import {
+  fetchSearchAlbum,
+  SearchAlbumError,
+  type SearchAlbumResult,
+} from '../../services/music/search-album.ts';
 
 export function SongSearchPanel({
   query,
@@ -11,6 +16,7 @@ export function SongSearchPanel({
   onFocusToggle,
   onPlay,
   onSave,
+  onAlbumSelected,
 }: {
   query: { term: string; serial: number };
   open: boolean;
@@ -18,11 +24,14 @@ export function SongSearchPanel({
   onFocusToggle(): void;
   onPlay(item: SearchItem): Promise<void>;
   onSave(item: SearchItem): void;
+  onAlbumSelected?(result: SearchAlbumResult): void;
 }) {
   const [items, setItems] = useState<SearchItem[]>([]);
   const [message, setMessage] = useState('正在搜索…');
   const [loading, setLoading] = useState(true);
   const [more, setMore] = useState(false);
+  const [albumMessage, setAlbumMessage] = useState('');
+  const albumRequest = useRef<AbortController | null>(null);
   const nextRef = useRef<() => void>(() => {});
   const panelRef = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
@@ -65,6 +74,26 @@ export function SongSearchPanel({
       controller.abort();
     };
   }, [query]);
+  useLayoutEffect(() => {
+    setAlbumMessage('');
+    return () => albumRequest.current?.abort();
+  }, [open, query]);
+
+  const openAlbum = async (item: SearchItem) => {
+    albumRequest.current?.abort();
+    const request = new AbortController();
+    albumRequest.current = request;
+    setAlbumMessage('正在查找歌曲所属专辑…');
+    try {
+      const album = await fetchSearchAlbum(item, request.signal);
+      if (!request.signal.aborted) onAlbumSelected?.(album);
+    } catch (error) {
+      if (!request.signal.aborted)
+        setAlbumMessage(
+          error instanceof SearchAlbumError ? error.message : '专辑暂时无法打开，请重试。',
+        );
+    }
+  };
   return (
     <QueuePanel
       ref={panelRef}
@@ -75,7 +104,7 @@ export function SongSearchPanel({
       likes={new Map()}
       pendingLikes={new Set()}
       orderStatus=""
-      message={message}
+      message={albumMessage || message}
       loading={loading}
       hasMore={more}
       onLoadMore={() => nextRef.current()}
@@ -86,6 +115,7 @@ export function SongSearchPanel({
       onLike={() => {}}
       onReorder={() => {}}
       onSave={onSave}
+      onOpenAlbum={onAlbumSelected ? (item) => void openAlbum(item) : undefined}
       onPlay={(item) => {
         void onPlay(item).catch(() => setMessage('歌曲暂时无法播放，请尝试其他歌曲。'));
       }}
