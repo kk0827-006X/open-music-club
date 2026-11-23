@@ -166,6 +166,19 @@ function initializeSchema(database) {
       started_at INTEGER NOT NULL CHECK (started_at > 0)
     );
 
+    CREATE TABLE IF NOT EXISTS user_recent_played_tracks (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source TEXT NOT NULL CHECK (source IN ('local', 'netease')),
+      source_id TEXT NOT NULL CHECK (length(source_id) BETWEEN 1 AND 16),
+      started_at INTEGER NOT NULL CHECK (started_at > 0),
+      estimated_start INTEGER NOT NULL DEFAULT 0 CHECK (estimated_start IN (0, 1)),
+      play_order INTEGER NOT NULL,
+      PRIMARY KEY (user_id, source, source_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS index_recent_played_order
+      ON user_recent_played_tracks(user_id, started_at DESC, play_order DESC);
+
     CREATE TABLE IF NOT EXISTS user_two_factor (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       secret_ciphertext TEXT,

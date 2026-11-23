@@ -9,6 +9,7 @@ export interface DemoAlbum {
   description: string;
   totalTracks: number;
   tracks: Array<{ id: string; title: string; duration: string }>;
+  personal?: never;
 }
 
 type AlbumRow = [string, string, string, string, string, number, string, string, string];

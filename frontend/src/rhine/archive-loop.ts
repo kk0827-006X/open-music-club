@@ -1,4 +1,4 @@
-import { archiveColumns, columnFiles, fileLocation } from './data.ts';
+import { archiveLayout, ARCHIVE_START_ROW, columnFiles, fileLocation } from './data.ts';
 
 export type ArchiveCell = { lane: number; row: number };
 export type ArchiveNavigation = { axis: 'row' | 'lane'; direction: number } | { cell: ArchiveCell };
@@ -19,19 +19,20 @@ export function nearestOccurrence(value: number, center: number, period: number)
   return value + Math.floor((center - value + period / 2) / period) * period;
 }
 
-export function fileAtCell({ lane, row }: ArchiveCell) {
-  const files = columnFiles(wrap(lane, archiveColumns.length));
-  return files[wrap(row - 12, files.length)];
+export function fileAtCell({ lane, row }: ArchiveCell, layout = archiveLayout) {
+  const files = columnFiles(wrap(lane, layout.columns.length), layout);
+  return files[wrap(row - ARCHIVE_START_ROW, files.length)];
 }
 
 export function selectionCell(
   index: number,
   current: ArchiveCell,
   navigation?: ArchiveNavigation,
+  layout = archiveLayout,
 ): ArchiveCell {
   if (navigation && 'cell' in navigation) return { ...navigation.cell };
-  const next = fileLocation(index);
-  const row = nearestOccurrence(next.row, current.row, columnFiles(next.lane).length);
+  const next = fileLocation(index, layout);
+  const row = nearestOccurrence(next.row, current.row, columnFiles(next.lane, layout).length);
   if (navigation?.axis === 'row') {
     return { lane: current.lane, row: current.row + navigation.direction };
   }
@@ -39,7 +40,7 @@ export function selectionCell(
     lane:
       navigation?.axis === 'lane'
         ? current.lane + navigation.direction
-        : nearestOccurrence(next.lane, current.lane, archiveColumns.length),
+        : nearestOccurrence(next.lane, current.lane, layout.columns.length),
     row,
   };
 }

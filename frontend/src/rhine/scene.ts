@@ -3,7 +3,7 @@ import { disposeThreeTree } from './three-resources';
 import { type MusicBands, type RhythmStyle } from './archive-play-motion';
 import type { LightingLook } from './archive-lighting';
 import type { RenderQuality } from './render-quality';
-import { fileAtSlot, fileLocation } from './data';
+import { ARCHIVE_START_ROW, fileLocation, type ArchiveLayout } from './data';
 import {
   cellKey,
   sameCell,
@@ -220,6 +220,20 @@ export class ArchiveScene {
   load(assetUrl = publicAsset('assets/archive-cassette.glb')) {
     return this.runtime.assets.load(assetUrl);
   }
+  setCatalog(layout: ArchiveLayout, covers: readonly (string | null)[], record: number) {
+    const { navigation, lifecycle, render } = this.state;
+    this.runtime.layout = layout;
+    this.runtime.coverUrls = covers;
+    if (!lifecycle.loaded) return;
+    this.runtime.assets.syncCovers();
+    if (
+      record !== navigation.selectedRecord ||
+      fileAtCell(navigation.selectedCell, layout) !== record
+    ) {
+      this.select(record);
+    }
+    render.renderState.invalidate();
+  }
   async prepareEntry() {
     const canvas = this.runtime.rendering.renderer.domElement;
     canvas.style.visibility = 'hidden';
@@ -300,7 +314,7 @@ export class ArchiveScene {
     if (mode !== 'archive') this.state.selection.pendingPulse = null;
     this.state.navigation.looping = mode !== 'hidden';
     if (!this.state.navigation.looping) {
-      const canonical = fileLocation(fileAtSlot(this.state.navigation.selectedSlot));
+      const canonical = fileLocation(this.state.navigation.selectedRecord, this.runtime.layout);
       this.state.navigation.selectedCell = { lane: canonical.lane, row: canonical.row };
       this.state.navigation.coordinateOrigin = { lane: 0, row: 0 };
       for (const old of this.state.selection.outgoing) {
@@ -329,6 +343,7 @@ export class ArchiveScene {
   private rebaseCoordinates() {
     // Periodically reduce the logical coordinates while preserving every
     // relative position, spring velocity, ripple and idle phase.
+    const period = this.runtime.layout.rowPeriod;
     const shift = {
       lane:
         Math.abs(this.state.navigation.selectedCell.lane) > 2048
@@ -336,7 +351,8 @@ export class ArchiveScene {
           : 0,
       row:
         Math.abs(this.state.navigation.selectedCell.row) > 2048
-          ? Math.floor((this.state.navigation.selectedCell.row - 12) / 8) * 8
+          ? Math.floor((this.state.navigation.selectedCell.row - ARCHIVE_START_ROW) / period) *
+            period
           : 0,
     };
     if (!shift.lane && !shift.row) return;
@@ -367,10 +383,9 @@ export class ArchiveScene {
     if (!this.state.interaction.navigatingDrag) this.runtime.cancelPointer();
     this.setHover(null);
     this.state.navigation.lastInteraction = this.state.timing.clock;
-    const next = fileLocation(index).slot;
-    const canonical = fileLocation(index);
+    const canonical = fileLocation(index, this.runtime.layout);
     const cell = this.state.navigation.looping
-      ? selectionCell(index, this.state.navigation.selectedCell, navigation)
+      ? selectionCell(index, this.state.navigation.selectedCell, navigation, this.runtime.layout)
       : { lane: canonical.lane, row: canonical.row };
     const changed = !sameCell(cell, this.state.navigation.selectedCell);
     if (
@@ -411,7 +426,8 @@ export class ArchiveScene {
       this.state.selection.lift.value = 0;
       this.state.selection.lift.velocity = 0;
     }
-    this.state.navigation.selectedSlot = next;
+    this.state.navigation.selectedSlot = canonical.slot;
+    this.state.navigation.selectedRecord = index;
     this.state.navigation.selectedCell = cell;
     if (changed) {
       this.state.selection.decryption.select();
@@ -459,7 +475,7 @@ export class ArchiveScene {
     )
       return;
     this.state.interaction.hoverCell = cell ? { ...cell } : null;
-    this.onHover?.(cell ? fileAtCell(cell) : null);
+    this.onHover?.(cell ? fileAtCell(cell, this.runtime.layout) : null);
   }
   private pickCell(x: number, y: number) {
     const r = this.runtime.rendering.renderer.domElement.getBoundingClientRect();
@@ -531,7 +547,7 @@ export class ArchiveScene {
           row: Math.round(from.row + ((goal.row - from.row) * i) / steps),
         };
         if (!sameCell(cell, this.state.navigation.selectedCell))
-          this.onSelect?.(fileAtCell(cell), cell);
+          this.onSelect?.(fileAtCell(cell, this.runtime.layout), cell);
       }
     } finally {
       this.state.interaction.navigatingDrag = false;
@@ -614,6 +630,7 @@ export class ArchiveScene {
       dragProjection: () => this.dragProjection(),
       trackCoordinate: (axis, value) => this.trackCoordinate(axis, value),
       navigatePlane: (coordinate) => this.navigatePlane(coordinate),
+      fileAtCell: (cell) => fileAtCell(cell, this.runtime.layout),
       onSelect: (index, cell) => this.onSelect?.(index, cell),
       onNavigate: (axis, direction) => this.onNavigate?.(axis, direction),
       onRelayPick: (key) => this.onRelayPick?.(key),
@@ -689,7 +706,7 @@ export class ArchiveScene {
       pulses: this.state.selection.pulses.map((pulse) => ({ ...pulse })),
       referenceTime: Math.round((this.state.selection.scanTime + 5) * 100) / 100,
       selectedSlot: this.state.navigation.selectedSlot,
-      selectedLane: Math.floor(this.state.navigation.selectedSlot / 32),
+      selectedLane: fileLocation(this.state.navigation.selectedRecord, this.runtime.layout).lane,
       selectedCell: { ...this.state.navigation.selectedCell },
       hoverCell: this.state.interaction.hoverCell ? { ...this.state.interaction.hoverCell } : null,
       hoverLifts: Object.fromEntries(this.state.interaction.hoverLifts),

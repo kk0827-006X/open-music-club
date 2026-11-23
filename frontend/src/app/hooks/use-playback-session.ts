@@ -21,6 +21,7 @@ export function usePlaybackSession() {
     flushLastPlayed(): Promise<unknown>;
   } | null>(null);
   const [footprintRevision, setFootprintRevision] = useState(0);
+  const [recentPlaybackRevision, setRecentPlaybackRevision] = useState(0);
   useEffect(() => {
     const queue = new MusicQueue();
     const footprintClient = createFootprintClient();
@@ -38,6 +39,9 @@ export function usePlaybackSession() {
         startedAt = Math.max(Date.now(), startedAt + 1);
         lastSave = personalLibrary
           .saveLastPlayed(track, startedAt, lifetime.signal)
+          .then(() => {
+            if (!lifetime.signal.aborted) setRecentPlaybackRevision((value) => value + 1);
+          })
           .catch(() => undefined);
         const controller = new AbortController();
         reports.add(controller);
@@ -82,5 +86,5 @@ export function usePlaybackSession() {
       player.destroy();
     };
   }, []);
-  return { session, footprintRevision };
+  return { session, footprintRevision, recentPlaybackRevision };
 }

@@ -40,9 +40,9 @@ export function CreatePlaylistDialog({
           {createError}
         </p>
         <div className="user-dialog-actions">
-          <button type="button" data-user-dialog-cancel disabled={busy} onClick={onClose}>
+          <ModalAction variant="cancel" data-user-dialog-cancel disabled={busy} onClick={onClose}>
             取消
-          </button>
+          </ModalAction>
           <ModalAction type="submit" data-user-dialog-submit disabled={busy}>
             创建歌单
           </ModalAction>

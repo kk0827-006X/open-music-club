@@ -40,9 +40,12 @@ describe('按账号保存上一首播放曲目', () => {
           if (upstreamUnavailable) throw new Error('/private/music.cfg');
           return {
             code: 200,
-            songs: ids
-              .split(',')
-              .map((id) => ({ id: Number(id), name: `云端歌曲 ${id}`, dt: 180000 })),
+            songs: ids.split(',').map((id) => ({
+              id: Number(id),
+              name: `云端歌曲 ${id}`,
+              dt: 180000,
+              al: { picUrl: `https://p1.music.126.net/cover-${id}.jpg` },
+            })),
           };
         },
       },
@@ -127,5 +130,84 @@ describe('按账号保存上一首播放曲目', () => {
     await write(member, ENDPOINT, { source: 'local', sourceId: '13', startedAt: Date.now() });
     database.exec('DELETE FROM uploaded_music WHERE id = 13');
     await member.get(ENDPOINT).expect(200, { success: true, track: null });
+  });
+
+  it('最近播放按账号合并历史和快速重播，最多保留 50 首且保留来源身份', async () => {
+    const recentPath = '/api/me/recent-played';
+    const summaryPath = '/api/me/archive-collections';
+    const event = database.prepare(
+      `INSERT INTO playback_events (user_id, source, source_id, title, artist, duration_ms, played_at)
+       VALUES (?, ?, ?, '旧歌曲', '隔离歌手', 1000, '2025-11-01 12:00:00')`,
+    );
+    for (let id = 1; id <= 55; id++) event.run(1, 'netease', String(id));
+    event.run(1, 'local', '55');
+    event.run(1, 'netease', '55');
+    event.run(2, 'netease', '999');
+    database.exec(`INSERT INTO user_liked_tracks (user_id, source, source_id)
+       VALUES (1, 'netease', '55'), (2, 'netease', '999'), (2, 'netease', '998')`);
+
+    await request(server).get(recentPath).expect(401);
+    await request(server).get(summaryPath).expect(401);
+    const initial = (
+      await member.get(recentPath).expect('Cache-Control', 'private, no-store').expect(200)
+    ).body.tracks;
+    assert.equal(initial.length, 50);
+    assert.equal(new Set(initial.map((track) => track.trackKey)).size, 50);
+    assert.deepEqual(
+      initial.slice(0, 2).map((track) => track.trackKey),
+      ['netease:55', 'local:55'],
+    );
+    assert.equal(
+      database.prepare('SELECT COUNT(*) AS n FROM user_recent_played_tracks').get().n,
+      0,
+    );
+
+    // 足迹请求先到并使用服务器时间，也应让位给之后收到的精确开播时间。
+    database
+      .prepare(
+        `UPDATE playback_events SET played_at = CURRENT_TIMESTAMP
+                WHERE user_id = 1 AND source = 'netease' AND source_id = '12'`,
+      )
+      .run();
+    const time = Date.now() - 5000;
+    for (const [sourceId, offset] of [
+      ['11', 0],
+      ['12', 10],
+      ['11', 20],
+      ['11', 5],
+    ]) {
+      await write(member, ENDPOINT, {
+        source: 'netease',
+        sourceId,
+        startedAt: time + offset,
+        userId: 2,
+      });
+    }
+    const current = (await member.get(recentPath).expect(200)).body.tracks;
+    assert.equal(current.length, 50);
+    assert.deepEqual(
+      current.slice(0, 2).map((track) => track.trackKey),
+      ['netease:11', 'netease:12'],
+    );
+    assert.equal(
+      database
+        .prepare('SELECT COUNT(*) AS n FROM user_recent_played_tracks WHERE user_id = 1')
+        .get().n,
+      50,
+    );
+    const collection = await member
+      .get(summaryPath)
+      .expect('Cache-Control', 'private, no-store')
+      .expect(200);
+    assert.equal(collection.body.favoritesCount, 1);
+    assert.deepEqual(collection.body.recent, {
+      count: 50,
+      coverUrl: 'https://p1.music.126.net/cover-11.jpg',
+    });
+    assert.deepEqual(
+      (await other.get(recentPath).expect(200)).body.tracks.map((track) => track.sourceId),
+      ['999'],
+    );
+    assert.equal((await other.get(summaryPath).expect(200)).body.favoritesCount, 2);
   });
 });

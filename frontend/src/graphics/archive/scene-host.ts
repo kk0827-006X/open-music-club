@@ -1,5 +1,6 @@
 import type { MusicBands } from '../../rhine/archive-play-motion';
 import type { ArchiveCell, ArchiveNavigation } from '../../rhine/archive-loop.ts';
+import type { ArchiveLayout } from '../../rhine/data.ts';
 import { getThemeState, subscribeTheme } from '../../shared/theme.ts';
 export type ArchiveEntryPhase = 'loading' | 'entering' | 'settling' | 'ready' | 'failed';
 export interface ArchiveSceneController {
@@ -9,6 +10,7 @@ export interface ArchiveSceneController {
   setTheme?(dark: boolean, immediate?: boolean): void;
   setMode(mode: 'hidden' | 'archive' | 'detail'): void;
   select(index: number, navigation?: ArchiveNavigation): void;
+  setCatalog?(layout: ArchiveLayout, covers: readonly (string | null)[], record: number): void;
   resize(): void;
   update(
     seconds: number,
@@ -47,6 +49,7 @@ export function mountArchiveScene(
     disposed = false,
     ready = false;
   let scene: ArchiveSceneController | null = null;
+  let catalog: Parameters<NonNullable<ArchiveSceneController['setCatalog']>> | undefined;
   let phase: ArchiveEntryPhase = 'loading',
     elapsed = 0,
     lastFrame: number | null = null;
@@ -144,9 +147,10 @@ export function mountArchiveScene(
       scene = next;
       next.onCoverUpdate = wake;
       next.setReduced(reduced);
+      if (catalog) next.setCatalog?.(...catalog);
       await next.load();
       if (disposed) return;
-      next.select(options.initialRecord);
+      next.select(catalog?.[2] ?? options.initialRecord);
       next.resize();
       if (options.entry && !reduced) await next.prepareEntry?.();
       if (disposed) return;
@@ -220,6 +224,11 @@ export function mountArchiveScene(
     },
     select(index: number, navigation?: ArchiveNavigation) {
       if (ready && phase === 'ready') scene?.select(index, navigation);
+    },
+    setCatalog(...args: NonNullable<typeof catalog>) {
+      catalog = args;
+      scene?.setCatalog?.(...args);
+      wake();
     },
     destroy() {
       if (disposed) return;

@@ -35,6 +35,7 @@ export interface ArchiveInteractionContext {
   trackCoordinate(axis: DragAxis, value: number): number;
   navigatePlane(coordinate: DragPosition): void;
   onSelect?(index: number, cell: ArchiveCell): void;
+  fileAtCell?(cell: ArchiveCell): number;
   onNavigate?(axis: 'row' | 'lane', direction: number): void;
   onRelayPick?(key: string | null): void;
 }
@@ -204,7 +205,7 @@ export function bindArchiveInteractions(context: ArchiveInteractionContext): () 
           }
         } else if (!moved) {
           const cell = context.pickCell(e.clientX, e.clientY);
-          if (cell) context.onSelect?.(fileAtCell(cell), cell);
+          if (cell) context.onSelect?.((context.fileAtCell ?? fileAtCell)(cell), cell);
         }
       }
       reset();

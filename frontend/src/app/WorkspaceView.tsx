@@ -4,6 +4,8 @@ import { GooeySearch } from '../shared/react/aceternity/GooeySearch';
 import { LibraryView } from '../features/music-library/LibraryView.tsx';
 import type { DemoAlbum } from '../features/music-library/album-data.ts';
 import { albumTrack } from '../features/music-library/tracks.ts';
+import { loadPersonalAlbum } from '../features/music-library/personal-albums.ts';
+import { usePersonalAlbums } from '../features/music-library/use-personal-albums.ts';
 import { PlayerView } from '../features/player/PlayerView.tsx';
 import { SettingsDialog } from '../features/settings/SettingsDialog.tsx';
 import { Brand, Icon } from '../shared/react/ui.tsx';
@@ -58,6 +60,7 @@ export function WorkspaceView({
     player,
     queue,
     footprintRevision = 0,
+    recentPlaybackRevision = 0,
     onLogout,
     initialIndex = 0,
   } = workspace;
@@ -67,9 +70,11 @@ export function WorkspaceView({
   const closeSearch = () => setSongQuery(null);
   const { scene, entryPhase, pageEntryPhase, entering, playbackMotion, changePlaybackMotion } =
     archiveScene;
+  const { albums, refresh } = usePersonalAlbums(client, page === 'archive', recentPlaybackRevision);
   const collectionChanged = useCallback(() => {
+    refresh();
     if (page === 'user') void user.current?.refresh();
-  }, [page, user]);
+  }, [page, refresh, user]);
   return (
     <main
       ref={archive}
@@ -155,6 +160,9 @@ export function WorkspaceView({
         onModeChanged={() => undefined}
         active={page === 'archive' && !entering}
         initialIndex={initialIndex}
+        personalAlbums={albums}
+        recentPlaybackRevision={recentPlaybackRevision}
+        loadPersonalTracks={(album, signal) => loadPersonalAlbum(client, album, signal)}
       />
       <ErrorBoundary>
         <Suspense fallback={null}>

@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { ArchiveVisibility } from './archive-visibility';
 import type { LightingLook } from './archive-lighting';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
-import { poolCell, COLUMN_SPACING, ROW_SPACING, type ArchiveCell } from './archive-loop';
+import { COLUMN_SPACING, ROW_SPACING, type ArchiveCell } from './archive-loop';
+import { archiveLayout } from './data';
 import { ArchiveSceneAssets } from './scene-assets';
 import { ArchiveRendererSetup } from './renderer-setup';
 import { baselineSelectionWave } from './motion';
@@ -20,6 +21,8 @@ export interface SceneRuntimeOptions {
 // 统一连接逻辑状态与资源所有者；保留所有消耗随机种子的 Three.js 对象分配次序。
 export class ArchiveSceneRuntime {
   readonly state = createSceneState();
+  layout = archiveLayout;
+  coverUrls: readonly (string | null)[];
   readonly inputEvents = new AbortController();
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(34, 16 / 9, 5, 300);
@@ -33,9 +36,10 @@ export class ArchiveSceneRuntime {
       this.state.lifecycle.loaded = true;
     },
     lightingLook: () => this.options.lightingLook,
-    coverUrls: () => this.options.coverUrls,
+    coverUrls: () => this.coverUrls,
+    records: () => this.layout.records,
     subduedIndex: () => this.state.presentation.subduedIndex,
-    selectedPosition: () => this.cellPosition(poolCell(this.state.navigation.selectedSlot)),
+    selectedPosition: () => this.cellPosition(this.state.navigation.selectedCell),
     appendCells: (cell) => {
       this.state.navigation.cells.push(cell);
     },
@@ -53,6 +57,7 @@ export class ArchiveSceneRuntime {
   readonly rendering: ArchiveRendererSetup;
   cancelPointer = () => {};
   constructor(readonly options: SceneRuntimeOptions) {
+    this.coverUrls = options.coverUrls;
     this.rendering = new ArchiveRendererSetup({
       container: options.container,
       scene: this.scene,

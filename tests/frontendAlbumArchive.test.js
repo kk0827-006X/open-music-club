@@ -94,6 +94,110 @@ describe('三维专辑档案 UI', () => {
     }
   });
 
+  it('个人专辑接入原三列，保留原位并支持跨出 32 槽与循环', async () => {
+    const { archiveLayout, createArchiveLayout } = await import('../frontend/src/rhine/data.ts');
+    const { fileAtCell, selectionCell } = await import('../frontend/src/rhine/archive-loop.ts');
+    const layout = createArchiveLayout(102);
+    assert.deepEqual(layout.locations.slice(0, 24), archiveLayout.locations);
+    assert.deepEqual(layout.records.slice(0, 24), archiveLayout.records);
+    assert.deepEqual(
+      layout.columns.map((column) => column.length),
+      [42, 42, 42],
+    );
+    assert.equal(new Set(layout.locations.map((location) => location.slot)).size, 126);
+    assert.deepEqual(
+      layout.locations.slice(24, 27).map(({ lane, row }) => [lane, row]),
+      [
+        [0, 20],
+        [1, 20],
+        [2, 20],
+      ],
+    );
+    for (let index = 0; index < 126; index++) {
+      const cell = layout.locations[index];
+      assert.equal(fileAtCell({ lane: cell.lane + 3, row: cell.row - 42 }, layout), index);
+      const selected = selectionCell(index, { lane: 0, row: 57 }, undefined, layout);
+      assert.equal(fileAtCell(selected, layout), index);
+    }
+    const uneven = createArchiveLayout(4);
+    assert.deepEqual(
+      uneven.columns.map((column) => column.length),
+      [10, 9, 9],
+    );
+    for (let lane = 0; lane < 3; lane++) {
+      assert.equal(
+        fileAtCell({ lane, row: 12 - uneven.rowPeriod }, uneven),
+        uneven.columns[lane][0],
+      );
+    }
+  });
+
+  it('收藏无头像时保留 null，打开的最近播放随开播更新排序和封面', async () => {
+    await withReactHarness(async (h) => {
+      const { LibraryView } =
+        await import('../frontend/src/features/music-library/LibraryView.tsx');
+      const { loadPersonalAlbum, personalAlbums } =
+        await import('../frontend/src/features/music-library/personal-albums.ts');
+      const profile = { id: 1, nickname: '验收成员', avatarUrl: null };
+      const albums = (coverUrl) =>
+        personalAlbums(profile, [], {
+          favoritesCount: 1,
+          recent: { count: 2, coverUrl },
+        });
+      assert.equal(albums(null)[0].coverUrl, null);
+      const tracks = ['1', '2'].map((id) => ({
+        source: 'netease',
+        sourceId: id,
+        trackKey: `netease:${id}`,
+        title: `歌曲${id}`,
+        album: { name: null },
+        artists: [],
+        durationMs: 1000,
+        coverUrl: null,
+        playable: true,
+      }));
+      const ref = h.React.createRef();
+      const props = {
+        ref,
+        active: true,
+        onModeChanged() {},
+        onSelected() {},
+        actions: {},
+        scene: { ready: true, select() {}, wake() {}, setMode() {} },
+        loadPersonalTracks: (album, signal) =>
+          loadPersonalAlbum(
+            {
+              recentPlayed: async () => tracks.slice(),
+            },
+            album,
+            signal,
+          ),
+      };
+      const render = (coverUrl, recentPlaybackRevision) =>
+        h.render(
+          h.React.createElement(LibraryView, {
+            ...props,
+            personalAlbums: albums(coverUrl),
+            recentPlaybackRevision,
+          }),
+        );
+      await render(null, 0);
+      await h.React.act(async () => {
+        ref.current.selectRecord(25);
+        ref.current.openDetail();
+      });
+      const first = () => h.require('[data-album-detail] [data-album-play]').dataset.albumPlay;
+      assert.equal(first(), 'netease:1');
+      tracks.reverse();
+      await render('https://p1.music.126.net/recent.jpg', 1);
+      assert.equal(first(), 'netease:2');
+      assert.equal(
+        h.require('[data-album-detail] img').getAttribute('src'),
+        'https://p1.music.126.net/recent.jpg',
+      );
+    });
+  });
+
   it('档案页为原 Three.js 场景提供画布容器，不再生成 CSS 卡片墙', async () => {
     await withArchive(async (h) => {
       h.require('[data-three-scene]');

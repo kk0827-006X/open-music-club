@@ -623,6 +623,91 @@ test.describe('完整播放器 Wake Slider', () => {
   });
 });
 
+test('个人专辑在原三列循环中可打开，使用账号封面并保留两类音源', async ({ page }) => {
+  const { tracks } = await mockWorkspace(page, 'user', []);
+  await page.locator('[data-nav="user"]').click();
+  const covers = {
+    recent: 'https://p1.music.126.net/history-cover.jpg',
+    playlist: 'https://p1.music.126.net/playlist-cover.jpg',
+  };
+  const playlists = Array.from({ length: 100 }, (_, index) => ({
+    id: index + 1,
+    name: `我的歌单 ${index + 1}`,
+    trackCount: 1,
+    coverUrl: covers.playlist,
+  }));
+  let playlistRequests = 0;
+  await page.route('**/api/me/profile', (route) =>
+    route.fulfill({
+      json: { profile: { id: 1, nickname: '验收成员', avatarUrl: '/api/me/avatar?v=isolated' } },
+    }),
+  );
+  await page.route('**/api/me/avatar?*', (route) =>
+    route.fulfill({
+      contentType: 'image/svg+xml',
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="blue"/></svg>',
+    }),
+  );
+  await page.route('**/api/me/archive-collections', (route) =>
+    route.fulfill({ json: { favoritesCount: 2, recent: { count: 2, coverUrl: covers.recent } } }),
+  );
+  await page.route('**/api/me/recent-played', (route) =>
+    route.fulfill({ json: { tracks: tracks.slice(0, 2).reverse() } }),
+  );
+  await page.route('**/api/me/likes?*', (route) =>
+    route.fulfill({ json: { tracks: tracks.slice(0, 2) } }),
+  );
+  await page.route('**/api/me/playlists**', (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/me/playlists') {
+      const offset = Number(url.searchParams.get('offset'));
+      return route.fulfill({ json: { playlists: playlists.slice(offset, offset + 50) } });
+    }
+    playlistRequests++;
+    return route.fulfill({ json: { tracks: tracks.slice(0, 1) } });
+  });
+
+  await page.locator('[data-nav="library"]').click();
+  await expect(page.locator('.archive-callout')).toContainText('/ 126');
+  const counter = page.locator('[data-album-counter]');
+  await expect(counter).toHaveText('01');
+  expect(playlistRequests).toBe(0);
+  const detail = page.locator('[data-album-detail]');
+  const open = async (title, cover) => {
+    await page.evaluate(() => document.activeElement.blur());
+    await page.keyboard.press('Enter');
+    await expect(detail.getByRole('heading', { name: title, exact: true })).toBeVisible();
+    // 大屏的可见封面由三维场景绘制，检查详情使用的同源封面字段。
+    await expect(detail.getByAltText(`${title} 封面`)).toHaveAttribute('src', cover);
+    await expect(detail.locator('[data-album-play]').first()).toBeVisible();
+  };
+  // 原三列的首张与第八张位置保持不变，继续向下到个人专辑。
+  await page.keyboard.press('ArrowRight');
+  await expect(counter).toHaveText('09');
+  for (let index = 0; index < 7; index++) await page.keyboard.press('ArrowDown');
+  await expect(counter).toHaveText('16');
+  await page.keyboard.press('ArrowDown');
+  await open('收藏歌曲', '/api/me/avatar?v=isolated');
+  await expect(detail.locator('[data-album-play="local:1"]')).toBeVisible();
+  await expect(detail.locator('[data-album-play="netease:2"]')).toBeVisible();
+  await detail.locator('[data-album-queue="local:1"]').click();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ArrowRight');
+  await open('最近播放', covers.recent);
+  await expect(detail.locator('[data-album-play]').first()).toHaveAttribute(
+    'data-album-play',
+    'netease:2',
+  );
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ArrowRight');
+  await open('我的歌单 1', covers.playlist);
+  expect(playlistRequests).toBe(1);
+  await page.keyboard.press('Escape');
+  for (let index = 0; index < 9; index++) await page.keyboard.press('ArrowUp');
+  await open('我的歌单 100', covers.playlist);
+  expect(playlistRequests).toBe(2);
+});
+
 test('专辑播放全部替换旧队列，从第一首开播并顺序切歌，不创建第二个音频实例', async ({
   page,
 }, info) => {

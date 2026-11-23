@@ -4,32 +4,21 @@ import {
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import type { MusicActions, SearchItem } from '../../shared/music.ts';
-import { formatDurationSeconds } from '../../shared/format.ts';
-import { replaceBrokenCover } from '../../shared/react/image.ts';
 import type { ArchiveNavigation } from '../../rhine/archive-loop.ts';
-import { archiveColumns, columnFiles, fileLocation, records } from '../../rhine/data.ts';
+import { ARCHIVE_START_ROW, archiveLayout, createArchiveLayout } from '../../rhine/data.ts';
 import type { mountArchiveScene } from '../../graphics/archive/scene-host.ts';
 import { Icon } from '../../shared/react/ui.tsx';
 import { albumTrack } from './tracks.ts';
 import { demoAlbums, fetchAlbumTracks, type DemoAlbum } from './album-data.ts';
+import type { LibraryAlbum, PersonalAlbum } from './personal-albums.ts';
+import { AlbumDetail, AlbumInformation, type DetailTrackState } from './album-views.tsx';
 
 const TICKS_PER_SHELF = 8;
-
-function durationOf(album: DemoAlbum) {
-  const seconds = album.tracks.reduce((total, track) => {
-    const [minutes, remainder] = track.duration.split(':').map(Number);
-    return (
-      total +
-      (Number.isFinite(minutes) ? minutes : 0) * 60 +
-      (Number.isFinite(remainder) ? remainder : 0)
-    );
-  }, 0);
-  return formatDurationSeconds(seconds);
-}
 
 export interface LibraryViewProps {
   scene: ReturnType<typeof mountArchiveScene> | null;
@@ -39,10 +28,13 @@ export interface LibraryViewProps {
   onModeChanged(mode: 'archive' | 'detail'): void;
   active: boolean;
   initialIndex?: number;
+  personalAlbums?: readonly PersonalAlbum[];
+  recentPlaybackRevision?: number;
+  loadPersonalTracks?(album: PersonalAlbum, signal: AbortSignal): Promise<PersonalAlbum>;
 }
 
 export interface LibraryViewHandle {
-  readonly selectedAlbum: DemoAlbum;
+  readonly selectedAlbum: LibraryAlbum;
   readonly mode: 'archive' | 'detail';
   selectRecord(
     index: number,
@@ -56,23 +48,34 @@ export interface LibraryViewHandle {
   afterUpdate(visibility: number, now: number): boolean;
 }
 
-type DetailTrackState = 'ready' | 'loading' | 'unavailable';
-
 // 呼出层只渲染资料、歌单刻度与详情文案；三维画布和档案场景仍由上层 App 持有。
 export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
   function LibraryView(props, ref) {
     const { scene, actions, active } = props;
+    const initialAlbum = demoAlbums[props.initialIndex ?? 0] ?? demoAlbums[0];
+    const albums = useMemo(
+      () => (props.personalAlbums?.length ? [...demoAlbums, ...props.personalAlbums] : demoAlbums),
+      [props.personalAlbums],
+    );
+    const layout = useMemo(
+      () =>
+        albums.length === demoAlbums.length
+          ? archiveLayout
+          : createArchiveLayout(albums.length - demoAlbums.length),
+      [albums.length],
+    );
+    const catalog = useRef({ albums, layout });
     const [informationVisible, setInformationVisible] = useState(false);
-    const [selectedIndex, setSelectedIndex] = useState(props.initialIndex ?? 0);
+    const [selectedId, setSelectedId] = useState(initialAlbum.id);
     const [mode, setModeState] = useState<'archive' | 'detail'>('archive');
-    const [detailData, setDetailData] = useState<DemoAlbum | null>(null);
+    const [detailData, setDetailData] = useState<LibraryAlbum | null>(null);
     const [detailTrackState, setDetailTrackState] = useState<DetailTrackState>('ready');
     const [detailHidden, setDetailHiddenState] = useState(true);
     const [detailInert, setDetailInertState] = useState(true);
 
-    const selectedIndexRef = useRef(props.initialIndex ?? 0);
+    const selectedAlbum = useRef<LibraryAlbum>(initialAlbum);
     const recordIndexRef = useRef(
-      records.findIndex((record) => record.albumIndex === (props.initialIndex ?? 0)),
+      archiveLayout.records.findIndex((record) => demoAlbums[record.albumIndex] === initialAlbum),
     );
     const modeRef = useRef<'archive' | 'detail'>('archive');
     const sceneRef = useRef(scene);
@@ -83,6 +86,10 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
     onSelectedRef.current = props.onSelected;
     const onModeChangedRef = useRef(props.onModeChanged);
     onModeChangedRef.current = props.onModeChanged;
+    const loadPersonalTracks = useRef(props.loadPersonalTracks);
+    loadPersonalTracks.current = props.loadPersonalTracks;
+    const detailAlbum = useRef(detailData);
+    detailAlbum.current = detailData;
     const detailRef = useRef<HTMLElement | null>(null);
     const detailHiddenRef = useRef(true);
     const detailIdleSinceRef = useRef(0);
@@ -92,7 +99,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
 
     useEffect(() => {
       disposedRef.current = false;
-      onSelectedRef.current(demoAlbums[selectedIndexRef.current]);
+      if (!selectedAlbum.current.personal) onSelectedRef.current(selectedAlbum.current);
       return () => {
         disposedRef.current = true;
       };
@@ -130,14 +137,15 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       ) => {
         const currentScene = sceneRef.current;
         if (!currentScene?.ready) return;
-        const record = records[nextRecord];
+        const { albums, layout } = catalog.current;
+        const record = layout.records[nextRecord];
         if (!record) return;
         recordIndexRef.current = nextRecord;
-        const nextIndex = record.albumIndex;
-        selectedIndexRef.current = nextIndex;
-        setSelectedIndex(nextIndex);
+        const album = albums[record.albumIndex];
+        selectedAlbum.current = album;
+        setSelectedId(album.id);
         if (navigation && 'cell' in navigation) setInformationVisible(true);
-        onSelectedRef.current(demoAlbums[nextIndex]);
+        if (!album.personal) onSelectedRef.current(album);
         currentScene.select(nextRecord, navigation as ArchiveNavigation | undefined);
       },
       [],
@@ -145,19 +153,68 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
 
     const navigate = useCallback(
       (axis: 'row' | 'lane', direction: number) => {
-        const current = fileLocation(recordIndexRef.current);
+        const { locations, columns } = catalog.current.layout;
+        const current = locations[recordIndexRef.current];
         const lane =
           axis === 'lane'
-            ? (current.lane + direction + archiveColumns.length) % archiveColumns.length
+            ? (current.lane + direction + columns.length) % columns.length
             : current.lane;
-        const files = columnFiles(lane);
+        const files = columns[lane];
         if (!files.length) return;
         const row =
-          (current.row - 12 + (axis === 'row' ? direction : 0) + files.length) % files.length;
+          (current.row - ARCHIVE_START_ROW + (axis === 'row' ? direction : 0) + files.length) %
+          files.length;
         selectRecord(files[row], { axis, direction });
       },
       [selectRecord],
     );
+
+    const requestDetailTracks = useCallback((album: LibraryAlbum, refresh = false) => {
+      albumControllerRef.current?.abort();
+      const controller = new AbortController();
+      albumControllerRef.current = controller;
+      const load = album.personal
+        ? (loadPersonalTracks.current?.(album, controller.signal) ?? Promise.resolve(album))
+        : fetchAlbumTracks(album.id, undefined, controller.signal).then((tracks) => ({
+            ...album,
+            tracks,
+            totalTracks: tracks.length,
+          }));
+      void load
+        .then((complete) => {
+          if (
+            disposedRef.current ||
+            controller.signal.aborted ||
+            modeRef.current !== 'detail' ||
+            selectedAlbum.current.id !== album.id
+          )
+            return;
+          if (!complete.personal) loadedAlbumsRef.current.set(album.id, complete);
+          const current = selectedAlbum.current;
+          setDetailData(
+            complete.personal && current.personal
+              ? { ...complete, coverUrl: current.coverUrl }
+              : complete,
+          );
+          setDetailTrackState('ready');
+        })
+        .catch(() => {
+          if (controller.signal.aborted) return;
+          if (
+            !disposedRef.current &&
+            modeRef.current === 'detail' &&
+            selectedAlbum.current.id === album.id
+          ) {
+            setDetailTrackState((state) => (refresh && state === 'ready' ? state : 'unavailable'));
+          }
+        });
+    }, []);
+
+    useEffect(() => {
+      if (!props.recentPlaybackRevision || modeRef.current !== 'detail') return;
+      const album = selectedAlbum.current;
+      if (album.personal === 'recent') requestDetailTracks(album, true);
+    }, [props.recentPlaybackRevision, requestDetailTracks]);
 
     const openDetail = useCallback(() => {
       const currentScene = sceneRef.current;
@@ -167,8 +224,8 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       onModeChangedRef.current('detail');
       detailIdleSinceRef.current = 0;
 
-      const album = demoAlbums[selectedIndexRef.current];
-      const cached = loadedAlbumsRef.current.get(album.id);
+      const album = selectedAlbum.current;
+      const cached = album.personal ? undefined : loadedAlbumsRef.current.get(album.id);
       setDetailData(cached ?? album);
       setDetailTrackState(cached ? 'ready' : 'loading');
       setDetailHidden(false);
@@ -182,38 +239,8 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       currentScene.setMode('detail');
       currentScene.wake();
 
-      albumControllerRef.current?.abort();
-      if (cached) {
-        albumControllerRef.current = null;
-        return;
-      }
-      const controller = new AbortController();
-      albumControllerRef.current = controller;
-      void fetchAlbumTracks(album.id, undefined, controller.signal)
-        .then((tracks) => {
-          if (
-            disposedRef.current ||
-            controller.signal.aborted ||
-            modeRef.current !== 'detail' ||
-            demoAlbums[selectedIndexRef.current].id !== album.id
-          )
-            return;
-          const complete = { ...album, tracks, totalTracks: tracks.length };
-          loadedAlbumsRef.current.set(album.id, complete);
-          setDetailData(complete);
-          setDetailTrackState('ready');
-        })
-        .catch((error: unknown) => {
-          if (error instanceof DOMException && error.name === 'AbortError') return;
-          if (
-            !disposedRef.current &&
-            modeRef.current === 'detail' &&
-            demoAlbums[selectedIndexRef.current].id === album.id
-          ) {
-            setDetailTrackState('unavailable');
-          }
-        });
-    }, [setArchiveMode, setDetailHidden, setDetailInert]);
+      if (!cached) requestDetailTracks(album);
+    }, [requestDetailTracks, setArchiveMode, setDetailHidden, setDetailInert]);
 
     const closeDetail = useCallback(() => {
       if (modeRef.current !== 'detail') return;
@@ -241,6 +268,33 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       setArchiveMode('archive');
       sceneRef.current?.setMode('archive');
     }, [setArchiveMode, setDetailHidden, setDetailInert]);
+
+    useLayoutEffect(() => {
+      catalog.current = { albums, layout };
+      const index = albums.findIndex((album) => album.id === selectedAlbum.current.id);
+      const next = albums[index] ?? albums[0];
+      if (index < 0) {
+        resetDetail();
+        setSelectedId(next.id);
+        if (!next.personal) onSelectedRef.current(next);
+      }
+      selectedAlbum.current = next;
+      recordIndexRef.current = layout.records.findIndex(
+        (record) => record.albumIndex === Math.max(index, 0),
+      );
+      scene?.setCatalog?.(
+        layout,
+        albums.map((album) => album.coverUrl),
+        recordIndexRef.current,
+      );
+      if (next.personal && modeRef.current === 'detail') {
+        setDetailData((current) =>
+          current?.personal && current.id === next.id
+            ? { ...current, coverUrl: next.coverUrl }
+            : current,
+        );
+      }
+    }, [albums, layout, resetDetail, scene]);
 
     const afterUpdate = useCallback(
       (visibility: number, now: number) => {
@@ -276,11 +330,11 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
     }, [mode]);
 
     const resolveDetailTrack = useCallback((trackId: string): SearchItem | null => {
-      const album =
-        loadedAlbumsRef.current.get(demoAlbums[selectedIndexRef.current].id) ??
-        demoAlbums[selectedIndexRef.current];
+      const album = detailAlbum.current;
+      if (!album) return null;
       const index = album.tracks.findIndex((track) => track.id === trackId);
-      return index >= 0 ? albumTrack(album, index) : null;
+      const track = album.tracks[index];
+      return track && (!('playable' in track) || track.playable) ? albumTrack(album, index) : null;
     }, []);
 
     const playDetailTrack = useCallback(
@@ -303,7 +357,7 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       ref,
       () => ({
         get selectedAlbum() {
-          return demoAlbums[selectedIndexRef.current];
+          return selectedAlbum.current;
         },
         get mode() {
           return modeRef.current;
@@ -318,14 +372,22 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
       [afterUpdate, closeDetail, navigate, openDetail, resetDetail, selectRecord],
     );
 
-    const album = demoAlbums[selectedIndex];
+    const selectedIndex = Math.max(
+      0,
+      albums.findIndex((album) => album.id === selectedId),
+    );
+    const album = albums[selectedIndex];
+    const record = layout.records.findIndex((item) => item.albumIndex === selectedIndex);
+    const { lane, row } = layout.locations[record];
+    const position = row - ARCHIVE_START_ROW;
+    const tickStart = Math.floor(position / TICKS_PER_SHELF) * TICKS_PER_SHELF;
 
     return (
       <>
         <aside className="archive-callout">
           <p>ALBUM / SELECT</p>
           <strong data-album-counter>{String(selectedIndex + 1).padStart(2, '0')}</strong>
-          <span>/ {demoAlbums.length}</span>
+          <span>/ {albums.length}</span>
         </aside>
         <div
           className="archive-switcher"
@@ -341,19 +403,18 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
             <Icon name="up" />
           </button>
           <div className="archive-position-ticks">
-            {Array.from({ length: TICKS_PER_SHELF }, (_, index) => (
-              <button
-                key={index}
-                type="button"
-                data-album-tick={index}
-                aria-label={`当前排第 ${index + 1} 张专辑`}
-                aria-current={index === selectedIndex % TICKS_PER_SHELF ? 'true' : undefined}
-                onClick={() => {
-                  const lane = fileLocation(recordIndexRef.current).lane;
-                  selectRecord(columnFiles(lane)[index], { axis: 'row', direction: 1 });
-                }}
-              />
-            ))}
+            {layout.columns[lane]
+              .slice(tickStart, tickStart + TICKS_PER_SHELF)
+              .map((recordIndex, offset) => (
+                <button
+                  key={recordIndex}
+                  type="button"
+                  data-album-tick={tickStart + offset}
+                  aria-label={`当前排第 ${tickStart + offset + 1} 张专辑`}
+                  aria-current={recordIndex === record ? 'true' : undefined}
+                  onClick={() => selectRecord(recordIndex)}
+                />
+              ))}
           </div>
           <button
             type="button"
@@ -399,200 +460,4 @@ export const LibraryView = forwardRef<LibraryViewHandle, LibraryViewProps>(
 
 export default LibraryView;
 
-export function AlbumInformation({
-  album,
-  index,
-  active = true,
-  visible = true,
-  onOpen = () => undefined,
-}: {
-  album: DemoAlbum;
-  index: number;
-  active?: boolean;
-  visible?: boolean;
-  onOpen?: () => void;
-}) {
-  return (
-    <aside
-      className="archive-selection-copy"
-      data-album-information
-      hidden={!visible}
-      aria-hidden={!visible}
-      aria-live="polite"
-      inert={active ? undefined : true}
-    >
-      <p>ALBUM {String(index + 1).padStart(3, '0')}</p>
-      <h2>{album.title}</h2>
-      <h3>{album.artist}</h3>
-      <span>{album.artist}</span>
-      <dl>
-        <div>
-          <dt>RELEASE / 发行年份</dt>
-          <dd>{album.year}</dd>
-        </div>
-        <div>
-          <dt>ARTIST / 艺术家</dt>
-          <dd>{album.artist}</dd>
-        </div>
-        <div>
-          <dt>GENRE / 流派</dt>
-          <dd>{album.genre}</dd>
-        </div>
-        <div>
-          <dt>SOURCE / 来源</dt>
-          <dd>
-            <b>
-              <i />
-              NETEASE
-            </b>
-          </dd>
-        </div>
-        <div>
-          <dt>TRACKS / 曲目数量</dt>
-          <dd>{album.totalTracks} 首</dd>
-        </div>
-        <div>
-          <dt>FORMAT / 播放形式</dt>
-          <dd>在线音源</dd>
-        </div>
-        <div>
-          <dt>PREVIEW / 代表曲目</dt>
-          <dd>{durationOf(album)}</dd>
-        </div>
-        <div>
-          <dt>CATALOG / 目录</dt>
-          <dd>网易云音乐</dd>
-        </div>
-      </dl>
-      <button type="button" data-open-selected onClick={onOpen}>
-        打开专辑{' '}
-        <span>
-          <Icon name="open" />
-        </span>
-      </button>
-    </aside>
-  );
-}
-
-export function AlbumDetail({
-  album,
-  trackState = 'ready',
-  onClose = () => undefined,
-  onPlay = () => undefined,
-  onEnqueue = () => undefined,
-  onPlayAll,
-}: {
-  album: DemoAlbum;
-  trackState?: DetailTrackState;
-  onClose?: () => void;
-  onPlay?: (id: string) => void;
-  onEnqueue?: (id: string) => void;
-  onPlayAll?: (tracks: SearchItem[]) => Promise<void>;
-}) {
-  const [playingAll, setPlayingAll] = useState(false);
-  const playingRef = useRef(false);
-  const [playError, setPlayError] = useState('');
-  const playAll = async () => {
-    if (trackState !== 'ready' || !album.tracks.length || !onPlayAll || playingRef.current) return;
-    playingRef.current = true;
-    setPlayingAll(true);
-    setPlayError('');
-    try {
-      await onPlayAll(album.tracks.map((_, index) => albumTrack(album, index)));
-    } catch {
-      setPlayError('专辑播放失败，请重试。');
-    } finally {
-      playingRef.current = false;
-      setPlayingAll(false);
-    }
-  };
-  const trackHeading =
-    trackState === 'loading'
-      ? '正在获取专辑全部曲目…'
-      : trackState === 'unavailable'
-        ? '完整曲目暂时不可用 · 以下为代表曲目'
-        : '专辑曲目';
-  return (
-    <>
-      {' '}
-      <button className="detail-back" type="button" data-back-to-archive onClick={onClose}>
-        <Icon name="left" />
-        &nbsp;&nbsp;返回专辑架 <kbd>ESC</kbd>
-      </button>
-      <section className="detail-cover-frame">
-        <div className="detail-cover">
-          <img src={album.coverUrl} alt={`${album.title} 封面`} onError={replaceBrokenCover} />
-        </div>
-        <p>ALBUM / {album.id}</p>
-        <small>网易云音乐 · 真实专辑封面</small>
-      </section>
-      <article className="detail-information" data-detail-information>
-        <p>ALBUM DETAIL&nbsp;&nbsp;/&nbsp;&nbsp;MUSIC ARCHIVE</p>
-        <h2>{album.title}</h2>
-        <h3>{album.artist}</h3>
-        <div className="detail-facts">
-          <p>
-            <small>RELEASE / 发行年份</small>
-            {album.year}
-          </p>
-          <p>
-            <small>ARTIST / 艺术家</small>
-            {album.artist}
-          </p>
-          <p>
-            <small>GENRE / 流派</small>
-            {album.genre}
-          </p>
-          <p>
-            <small>SOURCE / 来源</small>NETEASE
-          </p>
-        </div>
-        <p className="detail-description">{album.description}</p>
-        <section className="detail-track-preview" aria-live="polite">
-          <header>
-            <b>01&nbsp;&nbsp;{trackHeading}</b>
-            <div className="detail-album-actions">
-              <span>专辑共 {album.totalTracks} 首</span>
-              <button
-                type="button"
-                data-album-play-all
-                disabled={
-                  trackState !== 'ready' || !album.tracks.length || !onPlayAll || playingAll
-                }
-                onClick={() => {
-                  void playAll();
-                }}
-                aria-busy={playingAll}
-              >
-                <Icon name="play" />
-                播放全部
-              </button>
-            </div>
-          </header>
-          {playError && <p role="status">{playError}</p>}
-          <ol>
-            {trackState !== 'loading' &&
-              album.tracks.map((track, index) => (
-                <li key={`${track.id}-${index}`}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <strong>{track.title}</strong>
-                  <small>NETEASE</small>
-                  <time>{track.duration}</time>
-                  <button type="button" data-album-play={track.id} onClick={() => onPlay(track.id)}>
-                    <Icon name="play" /> 播放
-                  </button>
-                  <button
-                    type="button"
-                    data-album-queue={track.id}
-                    onClick={() => onEnqueue(track.id)}
-                  >
-                    <Icon name="plus" /> 队列
-                  </button>
-                </li>
-              ))}
-          </ol>
-        </section>
-      </article>
-    </>
-  );
-}
+export { AlbumDetail, AlbumInformation } from './album-views.tsx';

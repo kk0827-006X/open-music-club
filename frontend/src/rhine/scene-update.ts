@@ -9,7 +9,7 @@ import {
   rhythmDisplacement,
   quietBands,
 } from './archive-play-motion';
-import { records } from './data';
+import { archiveLayout } from './data';
 import {
   cellKey,
   fileAtCell,
@@ -765,6 +765,7 @@ export class ArchiveSceneUpdate {
     assets.matrixUpdates ??= new InstanceUpdates(assets.instances[0].instanceMatrix);
     if (assets.themeAttribute) assets.themeUpdates ??= new InstanceUpdates(assets.themeAttribute);
     const coverCounts = assets.coverInstances.map(() => 0);
+    const layout = navigation.looping ? this.runtime.layout : archiveLayout;
     for (const cell of navigation.cells) {
       const { row, lane } = cell;
       if (hidden.has(cellKey(cell))) continue;
@@ -787,7 +788,8 @@ export class ArchiveSceneUpdate {
           point: new THREE.Vector3(0, 3.5, 0).applyMatrix4(scratch.dummy.matrix),
         });
       assets.matrixUpdates!.set(i * 16, scratch.dummy.matrix.elements);
-      const albumIndex = records[fileAtCell(cell)].albumIndex;
+      const albumIndex = layout.records[fileAtCell(cell, layout)].albumIndex;
+      assets.loadCover(albumIndex);
       assets.coverInstances[albumIndex].setMatrixAt(
         coverCounts[albumIndex]++,
         scratch.dummy.matrix,
@@ -795,7 +797,7 @@ export class ArchiveSceneUpdate {
     }
     assets.coverInstances.forEach((cover, albumIndex) => {
       cover.count = coverCounts[albumIndex];
-      cover.instanceMatrix.needsUpdate = true;
+      if (cover.count) cover.instanceMatrix.needsUpdate = true;
     });
     const countChanged = assets.instances[0].count !== render.drawnCells.length;
     const matricesChanged = assets.matrixUpdates!.commit();

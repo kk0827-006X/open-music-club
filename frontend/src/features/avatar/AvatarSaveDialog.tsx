@@ -50,9 +50,9 @@ export function AvatarSaveDialog({
           />
         </label>
         <div className="modal-actions">
-          <button className="btn" type="button" disabled={busy} onClick={onClose}>
+          <ModalAction variant="cancel" disabled={busy} onClick={onClose}>
             取消
-          </button>
+          </ModalAction>
           <ModalAction type="submit" disabled={busy}>
             {busy ? '保存中…' : '保存'}
           </ModalAction>

@@ -74,6 +74,7 @@ export function createSceneState() {
       lastInteraction: 0,
       cameraAim: new THREE.Vector3(),
       selectedSlot: 76,
+      selectedRecord: 16,
     },
     selection: {
       lift: { value: 0, velocity: 0 },

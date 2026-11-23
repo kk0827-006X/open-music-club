@@ -272,14 +272,14 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(
               ))}
             </select>
             <div className="user-dialog-actions">
-              <button
-                type="button"
+              <ModalAction
+                variant="cancel"
                 data-collection-close
                 disabled={collection.collectionBusy}
                 onClick={collection.closeCollection}
               >
                 取消
-              </button>
+              </ModalAction>
               <ModalAction
                 type="submit"
                 disabled={collection.collectionBusy || collection.playlists.length === 0}

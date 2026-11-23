@@ -18,6 +18,7 @@ export interface WorkspaceProps {
   personalLibrary?: ReturnType<typeof createPersonalLibraryClient>;
   footprintClient?: ReturnType<typeof createFootprintClient>;
   footprintRevision?: number;
+  recentPlaybackRevision?: number;
   onLogout?: () => Promise<void>;
   loadScene?: () => Promise<ArchiveSceneController>;
   page?: WorkspacePage;

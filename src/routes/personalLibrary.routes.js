@@ -1,7 +1,11 @@
 const express = require('express');
 const repository = require('../db/personalLibrary');
 const playbackQueue = require('../db/playbackQueue');
-const { readLastPlayedTrack, saveLastPlayedTrack } = require('../db/lastPlayedTrack');
+const {
+  readLastPlayedTrack,
+  readRecentPlayedTracks,
+  saveLastPlayedTrack,
+} = require('../db/lastPlayedTrack');
 const {
   createPersonalLibraryService,
   SourceLookupError,
@@ -14,7 +18,7 @@ function parseId(value) {
   return String(Number(text));
 }
 
-function parsePage(query) {
+function parsePage(query, maxOffset = 10000) {
   const limit = query.limit === undefined ? 20 : Number(query.limit);
   const offset = query.offset === undefined ? 0 : Number(query.offset);
   if (
@@ -23,7 +27,7 @@ function parsePage(query) {
     limit > 50 ||
     !Number.isSafeInteger(offset) ||
     offset < 0 ||
-    offset > 10000
+    offset > maxOffset
   )
     return null;
   return { limit, offset };
@@ -84,6 +88,33 @@ function createPersonalLibraryRouter({ database, neteaseService }) {
     const playbackTime = Math.max(now - 60000, Math.min(startedAt, now));
     saveLastPlayedTrack(database, req.user.id, reference, playbackTime);
     return res.set('Cache-Control', 'private, no-store').json({ success: true });
+  });
+
+  router.get('/archive-collections', async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const recent = readRecentPlayedTracks(database, userId);
+      const favoritesCount = database
+        .prepare('SELECT COUNT(*) AS count FROM user_liked_tracks WHERE user_id = ?')
+        .get(userId).count;
+      const [latest] = recent.length ? await service.hydrate(recent.slice(0, 1)) : [];
+      return res.set('Cache-Control', 'private, no-store').json({
+        success: true,
+        favoritesCount,
+        recent: { count: recent.length, coverUrl: latest?.coverUrl ?? null },
+      });
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  router.get('/recent-played', async (req, res, next) => {
+    try {
+      const tracks = await service.hydrate(readRecentPlayedTracks(database, req.user.id));
+      return res.set('Cache-Control', 'private, no-store').json({ success: true, tracks });
+    } catch (error) {
+      return next(error);
+    }
   });
 
   router.get('/queue', async (req, res, next) => {
@@ -282,13 +313,13 @@ function createPersonalLibraryRouter({ database, neteaseService }) {
   });
 
   router.get('/likes', async (req, res, next) => {
-    const page = parsePage(req.query);
+    const page = parsePage(req.query, Number.MAX_SAFE_INTEGER);
     if (!page) return errorResponse(res, 400, '分页参数无效');
     try {
       const tracks = await service.hydrate(
         repository.listLikes(database, req.user.id, page.limit, page.offset),
       );
-      return res.json({ success: true, tracks });
+      return res.set('Cache-Control', 'private, no-store').json({ success: true, tracks });
     } catch (error) {
       return next(error);
     }

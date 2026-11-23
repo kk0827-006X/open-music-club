@@ -143,10 +143,13 @@ frontend/src/
 - 页面不读取 `HTMLAudioElement`，也不访问其他 Features 的内部 DOM。
 - ref 只公开必要能力：用户 refresh/hasOpenDialog；足迹 hasOpenDialog；库 selectRecord/navigate/openDetail/closeDetail/resetDetail；设置 show/close/open；播放器 play/enqueue/choosePlaylist/setExpanded。
 - 退出动画使用 active 与 visible 两个状态：先 inert、开始淡出，再 hidden；重进时清理旧隐藏计时。
-- 矩形弹窗共用原生 `Modal` 的顶层和焦点约束。右上角关闭按钮、点击遮罩和 Escape 走同一关闭回调，提交期间由 `busy` 阻止关闭。表单确认使用 `ModalAction`，保留按钮和提交语义，外观为带下划线的文字和箭头。180ms 退场仍由所属页面管理。
+- 矩形弹窗共用原生 `Modal` 的顶层和焦点约束。右上角关闭按钮、点击遮罩和 Escape 走同一关闭回调，提交期间由 `busy` 阻止关闭。确认和取消共用 `ModalAction` 的下划线文字样式和按钮语义，确认操作附带箭头。180ms 退场仍由所属页面管理。
 - 关闭和移除操作中的叉号统一使用 `Icon` 的 `close` 字符图标。悬停时只旋转图标 90°，系统启用减少动态效果时停用旋转。
 
 ### 音频与队列
+
+- 音乐库保留原 24 张推荐专辑的三列位置，在各列后续位置交替追加账号自己的收藏、最近播放和歌单。个人封面按场景可见范围加载，点开个人专辑再取曲目。本地和网易云的曲目由来源及各自的 ID 标识，通过现有播放器和队列入口播放。
+- 最近播放沿用现有开播请求按账号保存每首曲目的开播时间，最多 50 首，封面取第一首。旧账号在首次写入前可读取听歌里程的去重历史，首次写入时仅初始化该账号。足迹统计及其合并规则仍由音乐足迹负责。
 
 - 同一认证会话只有一个 Audio，唯一创建点 `features/player/player-core.ts`。
 - 音乐足迹通过可选 `onPlayed` 接收当前请求的成功开播通知；App 装配上报服务，核心不依赖足迹 API。暂停恢复、失败或迟到请求不重复通知；退出会话取消在途上报。

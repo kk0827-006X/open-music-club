@@ -308,9 +308,9 @@ export function FriendsPanel({
             </p>
           )}
           <div className="user-dialog-actions">
-            <button type="button" disabled={pending} onClick={() => showDialog(null)}>
+            <ModalAction variant="cancel" disabled={pending} onClick={() => showDialog(null)}>
               取消
-            </button>
+            </ModalAction>
             <ModalAction type="submit" disabled={pending}>
               {pending ? '正在处理…' : dialog?.kind === 'remove' ? '确认解除' : '发送申请'}
             </ModalAction>

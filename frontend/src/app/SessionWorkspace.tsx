@@ -17,7 +17,7 @@ export function SessionWorkspace({
   page: WorkspacePage;
   onNavigate(page: WorkspacePage): void;
 }) {
-  const { session, footprintRevision } = usePlaybackSession();
+  const { session, footprintRevision, recentPlaybackRevision } = usePlaybackSession();
   if (!session) return null;
   const { flushLastPlayed, ...workspaceSession } = session;
   return (
@@ -29,6 +29,7 @@ export function SessionWorkspace({
           onNavigate={onNavigate}
           role={role}
           footprintRevision={footprintRevision}
+          recentPlaybackRevision={recentPlaybackRevision}
           onLogout={async () => {
             await flushLastPlayed();
             await onLogout();

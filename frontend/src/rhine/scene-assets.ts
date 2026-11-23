@@ -5,7 +5,7 @@ import { configureInternalOptics } from './internal-optics';
 import { themeMaterial } from './theme-material';
 import { collectThreeTextures, disposeThreeTree } from './three-resources';
 import { InstanceUpdates } from './instance-updates';
-import { records } from './data';
+import { records, type ArchiveRecord } from './data';
 import { poolCell, LOOP_COLUMNS, LOOP_ROWS, type ArchiveCell } from './archive-loop';
 import { labelMarkSvg } from './brand';
 import { assetUrl as publicAsset } from './asset-url';
@@ -18,7 +18,8 @@ interface SceneAssetsContext {
   isLoaded: () => boolean;
   markLoaded: () => void;
   lightingLook: () => LightingLook;
-  coverUrls: () => readonly string[];
+  coverUrls: () => readonly (string | null)[];
+  records?: () => readonly ArchiveRecord[];
   subduedIndex: () => { value: number };
   selectedPosition: () => THREE.Vector3;
   appendCells: (cell: ArchiveCell) => void;
@@ -30,6 +31,7 @@ export class ArchiveSceneAssets {
   instances: THREE.InstancedMesh[] = [];
   coverInstances: THREE.InstancedMesh[] = [];
   coverTextures: THREE.Texture[] = [];
+  private coverRequests = new Map<number, { url: string }>();
   selectedCover?: THREE.Mesh;
   fallbackCover?: THREE.Texture;
   selectedAlbumIndex = 0;
@@ -190,30 +192,19 @@ export class ArchiveSceneAssets {
       this.labelTexture.colorSpace = THREE.SRGBColorSpace;
       this.labelTexture.anisotropy = this.context.renderer().capabilities.getMaxAnisotropy();
       this.fallbackCover = this.createFallbackCover();
-      this.coverTextures = Array.from({ length: records.length }, () => this.fallbackCover!);
       const coverGeometry = new THREE.PlaneGeometry(2.65, 2.65);
       coverGeometry.translate(0, 1.85, 0.34);
-      for (const texture of this.coverTextures) {
-        const instances = new THREE.InstancedMesh(
-          coverGeometry,
-          new THREE.MeshBasicMaterial({ map: texture, toneMapped: false, side: THREE.DoubleSide }),
-          count,
-        );
-        instances.count = 0;
-        instances.frustumCulled = false;
-        this.coverInstances.push(instances);
-        this.context.scene.add(instances);
-      }
       this.selectedCover = new THREE.Mesh(
         coverGeometry,
         new THREE.MeshBasicMaterial({
-          map: this.coverTextures[0],
+          map: this.fallbackCover,
           toneMapped: false,
           side: THREE.DoubleSide,
         }),
       );
       this.selectedCover.userData.preserveArtwork = true;
       this.model.add(this.selectedCover);
+      this.syncCovers();
       const label = new THREE.Mesh(
         new THREE.PlaneGeometry(0.99, 0.46),
         new THREE.MeshBasicMaterial({
@@ -262,41 +253,89 @@ export class ArchiveSceneAssets {
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
   }
+  syncCovers() {
+    if (!this.selectedCover || !this.fallbackCover) return;
+    const total = (this.context.records?.() ?? records).length;
+    for (const [index, request] of this.coverRequests) {
+      if (index < total && this.context.coverUrls()[index] === request.url) continue;
+      this.coverRequests.delete(index);
+      const previous = this.coverTextures[index];
+      this.applyCover(index, this.fallbackCover);
+      if (previous !== this.fallbackCover) previous?.dispose();
+    }
+    while (this.coverInstances.length > total) {
+      const instances = this.coverInstances.pop()!;
+      this.coverTextures.pop();
+      this.context.scene.remove(instances);
+      instances.dispose();
+      (instances.material as THREE.Material).dispose();
+    }
+    while (this.coverInstances.length < total) {
+      const instances = new THREE.InstancedMesh(
+        this.selectedCover.geometry,
+        new THREE.MeshBasicMaterial({
+          map: this.fallbackCover,
+          toneMapped: false,
+          side: THREE.DoubleSide,
+        }),
+        this.instanceCapacity,
+      );
+      instances.count = 0;
+      instances.frustumCulled = false;
+      this.coverTextures.push(this.fallbackCover);
+      this.coverInstances.push(instances);
+      this.context.scene.add(instances);
+    }
+    this.loadCover(this.selectedAlbumIndex);
+  }
+  private applyCover(index: number, texture: THREE.Texture) {
+    this.coverTextures[index] = texture;
+    const material = this.coverInstances[index].material as THREE.MeshBasicMaterial;
+    material.map = texture;
+    material.needsUpdate = true;
+    if (index === this.selectedAlbumIndex && this.selectedCover) {
+      const selectedMaterial = this.selectedCover.material as THREE.MeshBasicMaterial;
+      selectedMaterial.map = texture;
+      selectedMaterial.needsUpdate = true;
+    }
+  }
   private startCoverLoading() {
-    const loader = new THREE.TextureLoader();
-    this.context.coverUrls().forEach((coverUrl, index) => {
-      void loader
-        .loadAsync(coverUrl)
-        .then((source) => {
-          try {
-            if (!this.context.isLoaded()) return;
-            const canvas = document.createElement('canvas');
-            canvas.width = 384;
-            canvas.height = 384;
-            const context = canvas.getContext('2d');
-            if (!context) return;
-            context.drawImage(source.image as CanvasImageSource, 0, 0, 384, 384);
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.colorSpace = THREE.SRGBColorSpace;
-            texture.anisotropy = this.context.renderer().capabilities.getMaxAnisotropy();
-            this.coverTextures[index] = texture;
-            const material = this.coverInstances[index].material as THREE.MeshBasicMaterial;
-            material.map = texture;
-            material.needsUpdate = true;
-            if (index === this.selectedAlbumIndex && this.selectedCover) {
-              const selectedMaterial = this.selectedCover.material as THREE.MeshBasicMaterial;
-              selectedMaterial.map = texture;
-              selectedMaterial.needsUpdate = true;
-            }
-            this.context.onCoverUpdate();
-          } finally {
-            source.dispose();
-          }
-        })
-        .catch(() => {
-          // 远程封面不可用时保留本地生成的占位贴图，不影响档案墙。
-        });
-    });
+    for (let index = 0; index < records.length; index++) this.loadCover(index);
+  }
+  loadCover(index: number) {
+    const url = this.context.coverUrls()[index];
+    if (
+      !url ||
+      !this.context.isLoaded() ||
+      this.coverRequests.has(index) ||
+      !this.coverInstances[index]
+    )
+      return;
+    const request = { url };
+    this.coverRequests.set(index, request);
+    void new THREE.TextureLoader()
+      .loadAsync(url)
+      .then((source) => {
+        try {
+          if (!this.context.isLoaded() || this.coverRequests.get(index) !== request) return;
+          const canvas = document.createElement('canvas');
+          canvas.width = 384;
+          canvas.height = 384;
+          const context = canvas.getContext('2d');
+          if (!context) return;
+          context.drawImage(source.image as CanvasImageSource, 0, 0, 384, 384);
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = this.context.renderer().capabilities.getMaxAnisotropy();
+          this.applyCover(index, texture);
+          this.context.onCoverUpdate();
+        } finally {
+          source.dispose();
+        }
+      })
+      .catch(() => {
+        // 远程封面不可用时保留本地生成的占位贴图，不影响档案墙。
+      });
   }
   drawLabel(index: number) {
     if (!this.labelTexture) return;
@@ -323,7 +362,8 @@ export class ArchiveSceneAssets {
     c.fillText('INFO', 830, 143);
     c.drawImage(this.labelMark, 790, 242, 210, 98);
     this.labelTexture.needsUpdate = true;
-    this.selectedAlbumIndex = records[index].albumIndex;
+    this.selectedAlbumIndex = (this.context.records?.() ?? records)[index].albumIndex;
+    this.loadCover(this.selectedAlbumIndex);
     if (this.selectedCover) {
       const material = this.selectedCover.material as THREE.MeshBasicMaterial;
       material.map = this.coverTextures[this.selectedAlbumIndex];

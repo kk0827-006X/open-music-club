@@ -857,15 +857,14 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
               <p>{dialog?.kind === 'card' ? '已分享的内容也会一起移除。' : '评论也会一并移除。'}</p>
             )}
             <div className="fp-dialog-actions">
-              <button
-                type="button"
-                className="fp-ghost"
+              <ModalAction
+                variant="cancel"
                 data-fp-dialog-cancel
                 disabled={busy}
                 onClick={() => setDialog(null)}
               >
                 取消
-              </button>
+              </ModalAction>
               <ModalAction type="submit" disabled={busy}>
                 {busy ? '处理中…' : dialog?.kind === 'share' ? '确认分享' : '确认删除'}
               </ModalAction>

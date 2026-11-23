@@ -59,6 +59,83 @@ test('模型请求迟到时不复活已销毁场景', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('真实档案墙接入个人封面，撤下专辑后恢复原资源与选中位置', async ({ page }) => {
+  await fixture(page);
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.evaluate(async () => {
+    const scene = new window.__ArchiveScene(document.querySelector('#scene'));
+    scene.setReduced(true);
+    await scene.load();
+    const base = scene.runtime.layout;
+    const layout = {
+      records: [...base.records, { id: '1-9', category: base.records[0].category, albumIndex: 24 }],
+      locations: [...base.locations, { lane: 0, row: 20, slot: 20 }],
+      columns: [[...base.columns[0], 24], base.columns[1], base.columns[2]],
+      rowPeriod: 72,
+    };
+    window.__personalScene = { scene, base, layout };
+    const covers = Array(24).fill(null);
+    scene.setCatalog(layout, [...covers, '/images/album-placeholder-01.svg'], 24);
+    scene.finishOpening(true);
+    scene.update(performance.now() / 1000);
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const { assets } = window.__personalScene.scene.runtime;
+        return assets.coverTextures[24] !== assets.fallbackCover;
+      }),
+    )
+    .toBe(true);
+  await page.evaluate(() => {
+    const current = window.__personalScene;
+    const { scene, layout } = current;
+    current.firstTexture = scene.runtime.assets.coverTextures[24];
+    current.firstReleased = false;
+    current.firstTexture.addEventListener('dispose', () => {
+      current.firstReleased = true;
+    });
+    scene.setCatalog(layout, [...Array(24).fill(null), '/images/album-placeholder-01.svg?v=2'], 24);
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const { scene, firstTexture, firstReleased } = window.__personalScene;
+        const { assets } = scene.runtime;
+        const next = assets.coverTextures[24];
+        return firstReleased && next !== firstTexture && next !== assets.fallbackCover;
+      }),
+    )
+    .toBe(true);
+  const result = await page.evaluate(() => {
+    const { scene, base } = window.__personalScene;
+    const { assets } = scene.runtime;
+    const personal = {
+      cell: scene.getStats().selectedCell,
+      instances: assets.coverInstances.length,
+      selectedMap: assets.selectedCover.material.map === assets.coverTextures[24],
+    };
+    const texture = assets.coverTextures[24];
+    let released = false;
+    texture.addEventListener('dispose', () => {
+      released = true;
+    });
+    scene.setCatalog(base, Array(24).fill(null), 16);
+    scene.update(performance.now() / 1000 + 0.2);
+    const restored = {
+      instances: assets.coverInstances.length,
+      slot: scene.getStats().selectedSlot,
+      released,
+    };
+    scene.dispose();
+    return { personal, restored };
+  });
+  expect(result.personal).toEqual({ cell: { lane: 0, row: 20 }, instances: 25, selectedMap: true });
+  expect(result.restored).toEqual({ instances: 24, slot: 76, released: true });
+  expect(errors).toEqual([]);
+});
+
 test('封面更新与销毁、AO 替换后的共享景深和尺寸同步', async ({ page }) => {
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));

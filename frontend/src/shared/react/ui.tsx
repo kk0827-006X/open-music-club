@@ -85,12 +85,13 @@ export const IconButton = forwardRef<
 export function ModalAction({
   children,
   type = 'button',
+  variant = 'confirm',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement>) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'confirm' | 'cancel' }) {
   return (
-    <button {...props} type={type} data-modal-action>
+    <button {...props} type={type} data-modal-action={variant}>
       <span>{children}</span>
-      <Icon name="right" />
+      {variant === 'confirm' && <Icon name="right" />}
     </button>
   );
 }

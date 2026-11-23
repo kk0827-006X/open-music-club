@@ -24,6 +24,10 @@ export type UserPlaylist = {
   updatedAt: string;
 };
 export type UserProfile = { id: number; nickname: string; avatarUrl: string | null };
+export type ArchiveCollections = {
+  favoritesCount: number;
+  recent: { count: number; coverUrl: string | null };
+};
 type Fetcher = (
   url: string,
   init?: RequestInit,
@@ -142,7 +146,20 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
       throw error;
     }
   };
+  const read = <T>(url: string, signal?: AbortSignal) =>
+    request<T>(url, 'GET', undefined, false, undefined, signal);
+  const likesPage = async (offset: number, limit: number, signal?: AbortSignal) =>
+    (
+      await read<{ tracks: PersonalTrack[] }>(
+        `/api/me/likes?limit=${limit}&offset=${offset}`,
+        signal,
+      )
+    ).tracks;
   return {
+    archiveCollections: (signal?: AbortSignal) =>
+      read<ArchiveCollections>('/api/me/archive-collections', signal),
+    recentPlayed: async (signal?: AbortSignal) =>
+      (await read<{ tracks: PersonalTrack[] }>('/api/me/recent-played', signal)).tracks,
     lastPlayed: async (signal: AbortSignal) =>
       (
         await request<{ track: PersonalTrack | null }>(
@@ -171,18 +188,20 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
       savePlayback('/api/me/queue', {
         tracks: tracks.map(({ source, sourceId }) => ({ source, sourceId })),
       }),
-    profile: async () => (await request<{ profile: UserProfile }>('/api/me/profile')).profile,
+    profile: async (signal?: AbortSignal) =>
+      (await read<{ profile: UserProfile }>('/api/me/profile', signal)).profile,
     uploadAvatar: async (file: File) => {
       const data = new FormData();
       data.append('file', file);
       return (await request<{ profile: UserProfile }>('/api/me/avatar', 'PUT', data)).profile;
     },
-    playlists: async () => {
+    playlists: async (signal?: AbortSignal) => {
       const all: UserPlaylist[] = [];
       for (let offset = 0; offset < 100; offset += 50) {
         const page = (
-          await request<{ playlists: UserPlaylist[] }>(
+          await read<{ playlists: UserPlaylist[] }>(
             `/api/me/playlists?limit=50&offset=${offset}`,
+            signal,
           )
         ).playlists;
         all.push(...page);
@@ -190,8 +209,8 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
       }
       return all;
     },
-    playlist: (id: number) =>
-      request<{ playlist: UserPlaylist; tracks: PersonalTrack[] }>(`/api/me/playlists/${id}`),
+    playlist: (id: number, signal?: AbortSignal) =>
+      read<{ playlist: UserPlaylist; tracks: PersonalTrack[] }>(`/api/me/playlists/${id}`, signal),
     createPlaylist: async (name: string) =>
       (await request<{ playlist: UserPlaylist }>('/api/me/playlists', 'POST', { name })).playlist,
     renamePlaylist: (id: number, name: string) =>
@@ -204,8 +223,8 @@ export function createPersonalLibraryClient(fetcher: Fetcher = globalThis.fetch.
       }),
     removeTrack: (id: number, track: TrackReference) =>
       request(`/api/me/playlists/${id}/tracks/${track.source}/${track.sourceId}`, 'DELETE'),
-    likes: async (offset = 0) =>
-      (await request<{ tracks: PersonalTrack[] }>(`/api/me/likes?limit=6&offset=${offset}`)).tracks,
+    likes: (offset = 0) => likesPage(offset, 6),
+    likesPage,
     uploads: async (userId: number) =>
       (
         await request<{ tracks: (PersonalTrack & { uploadedBy: { id: number } })[] }>(

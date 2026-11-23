@@ -30,9 +30,15 @@ export function DeletePlaylistDialog({
         {deleteError}
       </p>
       <div className="user-dialog-actions">
-        <button type="button" data-user-delete-cancel autoFocus disabled={busy} onClick={onClose}>
+        <ModalAction
+          variant="cancel"
+          data-user-delete-cancel
+          autoFocus
+          disabled={busy}
+          onClick={onClose}
+        >
           取消
-        </button>
+        </ModalAction>
         <ModalAction
           data-user-delete-confirm
           disabled={busy || loading}

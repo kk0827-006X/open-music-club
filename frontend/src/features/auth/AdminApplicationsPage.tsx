@@ -415,14 +415,9 @@ export function AdminApplicationsPage({
             : '系统将发送固定拒绝通知，申请人可在 7 天后重新申请。'}
         </p>
         <div className="application-review-actions">
-          <button
-            className="application-secondary"
-            type="button"
-            disabled={busy}
-            onClick={() => setDecision(null)}
-          >
+          <ModalAction variant="cancel" disabled={busy} onClick={() => setDecision(null)}>
             取消
-          </button>
+          </ModalAction>
           <ModalAction disabled={busy} onClick={() => void review()}>
             {busy ? '正在处理…' : '确认决定'}
           </ModalAction>
@@ -442,14 +437,9 @@ export function AdminApplicationsPage({
         </p>
         <p>重发后，旧链接会立即失效。</p>
         <div className="application-review-actions">
-          <button
-            className="application-secondary"
-            type="button"
-            disabled={busy}
-            onClick={() => setResendOpen(false)}
-          >
+          <ModalAction variant="cancel" disabled={busy} onClick={() => setResendOpen(false)}>
             取消
-          </button>
+          </ModalAction>
           <ModalAction disabled={busy} onClick={() => void resendActivation()}>
             {busy ? '正在处理…' : '确认重发'}
           </ModalAction>
