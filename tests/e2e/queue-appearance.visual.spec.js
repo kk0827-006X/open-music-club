@@ -63,9 +63,18 @@ test('展开播放器、底栏与搜索共用抽屉样式并保留各自的位�
     const expanded = await appearance(queue);
     await expect(queue).toHaveCSS('border-radius', '14px');
     await expect(queue.locator('header')).toHaveCSS('position', 'sticky');
-    await expect(closeQueue.locator('[data-ui-icon="dismiss"]')).toHaveCount(1);
+    const queueCloseIcon = closeQueue.locator('span[data-ui-icon="close"]');
+    await expect(queueCloseIcon).toHaveText('×');
     expect(compact).toEqual(expanded);
     expect(compactBounds.y).toBeGreaterThan(expandedBounds.y);
+
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await closeQueue.hover();
+    await expect(queueCloseIcon).toHaveCSS('animation-name', 'none');
+    await expect(queueCloseIcon).toHaveCSS('transform', 'matrix(0, 1, -1, 0, 0, 0)');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(queueCloseIcon).toHaveCSS('transform', 'none');
+
     await closeQueue.click();
     await page.locator('[data-player-close]').click();
 
@@ -77,7 +86,7 @@ test('展开播放器、底栏与搜索共用抽屉样式并保留各自的位�
     const searchClose = search.getByRole('button', { name: '关闭搜索结果' });
     await expect(search.locator('[data-queue-play]').first()).toBeVisible();
     expect(await appearance(search)).toEqual(expanded);
-    await expect(searchClose.locator('[data-ui-icon="dismiss"]')).toHaveCount(1);
+    await expect(searchClose.locator('span[data-ui-icon="close"]')).toHaveText('×');
     const searchBounds = await search.boundingBox();
     expect(searchBounds.y).toBeCloseTo(width > 600 ? 104 : 138, 0);
     expect(searchBounds.x).toBeGreaterThanOrEqual(0);

@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { IconButton, Modal } from '../../shared/react/ui.tsx';
+import { Modal } from '../../shared/react/ui.tsx';
 import { useReducedMotion } from '../../shared/react/hooks.ts';
 import { getThemeState, setThemePreference, subscribeTheme } from '../../shared/theme.ts';
 import { NeteaseAccountPanel } from './NeteaseAccountPanel.tsx';
@@ -178,15 +178,9 @@ export const SettingsDialog = forwardRef<
       }
     }
   }
-  const heading = (en: string, title: string) => (
+  const heading = (title: string) => (
     <div className="settings-section-heading">
-      <p>{en}</p>
       <h3 id="settings-section-title">{title}</h3>
-      <span>
-        {category === 'appearance'
-          ? '主题与播放动效立即生效；其他偏好仅展示'
-          : '仅展示界面；设置功能尚未接入'}
-      </span>
     </div>
   );
   const section = () => {
@@ -203,7 +197,7 @@ export const SettingsDialog = forwardRef<
     if (category === 'appearance')
       return (
         <>
-          {heading('APPEARANCE', '外观与动效')}
+          {heading('外观与动效')}
           <SettingsRow name="界面主题" description="立即生效；跟随系统会自动响应系统配色变化">
             <div className="settings-theme-options" role="group" aria-label="界面主题">
               {(
@@ -228,7 +222,7 @@ export const SettingsDialog = forwardRef<
           <SettingsRow name="减少动态效果" description="简化界面过渡和三维动态">
             <PreviewToggle label="减少动态效果" />
           </SettingsRow>
-          <SettingsRow name="播放器常驻显示" description="保留原有播放器动效，此处不控制播放器">
+          <SettingsRow name="播放器常驻显示" description="仅展示，保留原有播放器设置">
             <PreviewToggle label="播放器常驻显示" />
           </SettingsRow>
           <SettingsRow name="歌词字号" description="展开播放器中的歌词文字大小">
@@ -264,7 +258,7 @@ export const SettingsDialog = forwardRef<
     if (category === 'playback')
       return (
         <>
-          {heading('PLAYBACK', '播放偏好')}
+          {heading('播放偏好')}
           <SettingsRow name="默认音量" description="此处不改变当前音乐音量">
             <input
               type="range"
@@ -294,11 +288,7 @@ export const SettingsDialog = forwardRef<
     if (category === 'account')
       return (
         <>
-          <div className="settings-section-heading">
-            <p>ACCOUNT &amp; SECURITY</p>
-            <h3 id="settings-section-title">账号与安全</h3>
-            <span>密码修改、两步验证与退出登录已接入，其他设置暂不开放</span>
-          </div>
+          {heading('账号与安全')}
           <SettingsRow name="账户资料" description="头像与个人音乐收藏仍在用户页管理">
             <Pending />
           </SettingsRow>
@@ -313,7 +303,7 @@ export const SettingsDialog = forwardRef<
               data-settings-factor
               onClick={() => {
                 setFactor(true);
-                setStatus('安全设置已接入；其他偏好仍仅展示');
+                setStatus('');
               }}
             >
               管理 2FA
@@ -344,7 +334,7 @@ export const SettingsDialog = forwardRef<
     if (category === 'upload')
       return (
         <>
-          {heading('UPLOAD', '上传偏好')}
+          {heading('上传偏好')}
           <SettingsRow name="音频标签识别" description="沿用上传页现有流程，此处不改变识别行为">
             <PreviewToggle label="音频标签识别" />
           </SettingsRow>
@@ -360,7 +350,7 @@ export const SettingsDialog = forwardRef<
       );
     return (
       <>
-        {heading('DATA & ABOUT', '数据与关于')}
+        {heading('数据与关于')}
         <SettingsRow
           name="恢复默认设置"
           description="主题与播放动效偏好保存在当前浏览器；其他设置暂未接入"
@@ -393,23 +383,13 @@ export const SettingsDialog = forwardRef<
       open={open}
       onClose={close}
       busy={busy || closing}
+      closeButton={{ label: '关闭设置', marker: 'data-settings-close' }}
       className={`settings-dialog${closing ? ' is-closing' : ''}`}
       data-settings-dialog
       aria-labelledby="settings-title"
     >
       <header className="settings-header">
-        <div>
-          <p>OPEN MUSIC CLUB / SYSTEM PREFERENCES</p>
-          <h2 id="settings-title">设置</h2>
-        </div>
-        <IconButton
-          icon="close"
-          type="button"
-          data-settings-close
-          aria-label="关闭设置"
-          disabled={busy || closing}
-          onClick={close}
-        />
+        <h2 id="settings-title">设置</h2>
       </header>
       <div className="settings-layout">
         <aside className="settings-sidebar">
@@ -433,14 +413,10 @@ export const SettingsDialog = forwardRef<
               </button>
             ))}
           </nav>
-          <p>
-            PERSONAL PREFERENCES<span>个人偏好设置</span>
-          </p>
         </aside>
         <section className="settings-operations" aria-labelledby="settings-section-title">
           <div data-settings-content>{section()}</div>
           <footer>
-            <span>主题、播放动效、密码修改和两步验证已接入；其他偏好仅展示</span>
             <span data-settings-status role="status">
               {feedback}
             </span>

@@ -397,16 +397,6 @@ h2 {
   margin: 0;
   border: 0;
 }
-.login-factor-dialog [data-login-factor-close] {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 28px;
-  margin-left: 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
 @media (prefers-reduced-motion: reduce) {
   .login-factor-dialog[open],
   .login-factor-dialog.is-closing {
@@ -491,22 +481,17 @@ h2 {
 .login-factor-dialog.is-challenge .authenticator-panel::after {
   display: none;
 }
-.login-factor-dialog.is-challenge .panel-rail {
-  display: flex;
-  justify-content: flex-end;
-  border: 0;
-}
-.login-factor-dialog.is-challenge .panel-rail > span {
-  display: none;
-}
 .login-factor-dialog.is-challenge .authenticator-content {
-  padding: 12px 18px 22px;
+  padding: 54px 18px 22px;
 }
 .factor-challenge[data-login-factor] {
   justify-items: center;
   gap: 0;
   margin: 0;
   text-align: center;
+}
+.factor-challenge h2 {
+  margin: 0 0 14px;
 }
 .factor-challenge .factor-recovery-option {
   display: flex;
@@ -523,7 +508,6 @@ h2 {
   accent-color: var(--amber);
 }
 .factor-challenge .factor-confirm {
-  min-width: 180px;
   margin-top: 18px;
 }
 .factor-challenge [data-factor-feedback] {

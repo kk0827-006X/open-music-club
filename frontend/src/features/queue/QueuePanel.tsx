@@ -285,7 +285,7 @@ function QueueRow(props: QueueRowProps) {
             title="移除"
             onClick={() => onRemove(item)}
           >
-            <Icon name="dismiss" />
+            <Icon name="close" />
           </button>
         )}
       </div>
@@ -619,7 +619,7 @@ export const QueuePanel = memo(
               onFocusToggle();
             }}
           >
-            <Icon name="dismiss" />
+            <Icon name="close" />
           </button>
           {props.mode !== 'search' && (
             <button

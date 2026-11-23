@@ -1,0 +1,52 @@
+/* 原生弹窗共用关闭与确认控件；各表单保留自身字段和内容布局。 */
+dialog[data-modal] > [data-modal-close] {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+  display: grid;
+  inline-size: 44px;
+  min-inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 1.375rem;
+}
+dialog[data-modal] [data-modal-action] {
+  --button-hover-color: var(--amber);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  gap: 8px;
+  inline-size: fit-content;
+  min-block-size: 44px;
+  max-inline-size: 100%;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 650;
+  transform: none;
+}
+dialog[data-modal] button[data-modal-action] > span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 0.28em;
+}
+dialog[data-modal] :is([data-modal-close], [data-modal-action]):focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+dialog[data-modal] :is([data-modal-close], [data-modal-action]):disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+dialog.login-application-dialog [data-modal-action] {
+  display: flex;
+  margin-block-start: 16px;
+  margin-inline-start: auto;
+}

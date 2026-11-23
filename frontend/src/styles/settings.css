@@ -31,23 +31,10 @@
   padding-bottom: 18px;
   border-bottom: 1px solid var(--hairline);
 }
-.settings-header p {
-  margin: 0 0 9px;
-  font-size: 0.59rem;
-  letter-spacing: 0.14em;
-  color: var(--muted);
-}
 .settings-header h2 {
   margin: 0;
   font-size: 1.8rem;
   font-weight: 650;
-}
-.settings-header > button {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  background: transparent;
-  font-size: 1.5rem;
 }
 .settings-layout {
   display: grid;
@@ -90,14 +77,6 @@
   width: 3px;
   background: var(--amber);
 }
-.settings-sidebar > p {
-  margin: 12px;
-  display: grid;
-  gap: 8px;
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
 .settings-operations {
   display: flex;
   flex-direction: column;
@@ -115,20 +94,10 @@
 .settings-section-heading {
   padding-bottom: 16px;
 }
-.settings-section-heading > p {
-  margin: 0 0 8px;
-  font-size: 0.59rem;
-  letter-spacing: 0.15em;
-  color: var(--muted);
-}
 .settings-section-heading h3 {
   margin: 0 0 9px;
   font-size: 1.3rem;
   font-weight: 600;
-}
-.settings-section-heading > span {
-  font-size: 0.72rem;
-  color: var(--muted);
 }
 .settings-row {
   display: flex;

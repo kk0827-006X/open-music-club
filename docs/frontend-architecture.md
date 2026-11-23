@@ -50,7 +50,7 @@ frontend/src/
 │  ├─ format.ts              秒/毫秒时长展示，各入口保留原边界策略
 │  ├─ theme.ts / ui/icons.ts  主题窄接口、唯一图标几何
 │  └─ react/
-│     ├─ ui.tsx               Icon、IconButton、Brand、原生 Modal
+│     ├─ ui.tsx               Icon、IconButton、Brand、原生 Modal 与 ModalAction
 │     ├─ image.ts             图片加载失败回退，避免占位图错误循环
 │     ├─ controls.tsx         Radix 音量滑杆
 │     ├─ hooks.ts             减少动态效果、延迟隐藏
@@ -143,7 +143,8 @@ frontend/src/
 - 页面不读取 `HTMLAudioElement`，也不访问其他 Features 的内部 DOM。
 - ref 只公开必要能力：用户 refresh/hasOpenDialog；足迹 hasOpenDialog；库 selectRecord/navigate/openDetail/closeDetail/resetDetail；设置 show/close/open；播放器 play/enqueue/choosePlaylist/setExpanded。
 - 退出动画使用 active 与 visible 两个状态：先 inert、开始淡出，再 hidden；重进时清理旧隐藏计时。
-- 原生 dialog 的 top layer 和焦点围栏保留；180ms 退场只由所属页面拥有，不在共享 Modal 重复计时。
+- 矩形弹窗共用原生 `Modal` 的顶层和焦点约束。右上角关闭按钮、点击遮罩和 Escape 走同一关闭回调，提交期间由 `busy` 阻止关闭。表单确认使用 `ModalAction`，保留按钮和提交语义，外观为带下划线的文字和箭头。180ms 退场仍由所属页面管理。
+- 关闭和移除操作中的叉号统一使用 `Icon` 的 `close` 字符图标。悬停时只旋转图标 90°，系统启用减少动态效果时停用旋转。
 
 ### 音频与队列
 

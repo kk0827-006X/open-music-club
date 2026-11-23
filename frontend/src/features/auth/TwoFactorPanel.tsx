@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { restoreSession, twoFactorRequest } from '../../services/auth/session.ts';
-import { Icon } from '../../shared/react/ui.tsx';
+import { ModalAction } from '../../shared/react/ui.tsx';
 
 type Action = 'setup' | 'confirm' | 'disable' | 'recovery-codes/regenerate';
 type FactorView =
@@ -158,10 +158,9 @@ export function TwoFactorPanel({
           />
         </label>
       )}
-      <button type="submit" disabled={busy}>
+      <ModalAction type="submit" disabled={busy}>
         {title}
-        <Icon name="right" />
-      </button>
+      </ModalAction>
     </form>
   );
 
@@ -197,9 +196,9 @@ export function TwoFactorPanel({
         )}
         {view.kind === 'codes' && <pre className="two-factor-codes">{view.codes.join('\n')}</pre>}
         {(view.kind === 'codes' || view.kind === 'saved') && (
-          <button type="button" data-factor-saved disabled={busy} onClick={() => void saved()}>
+          <ModalAction data-factor-saved disabled={busy} onClick={() => void saved()}>
             我已保存恢复码
-          </button>
+          </ModalAction>
         )}
       </div>
     </div>

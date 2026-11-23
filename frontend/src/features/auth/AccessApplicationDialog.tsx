@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { submitAccessApplication } from '../../services/auth/applications.ts';
-import { Icon, IconButton, Modal } from '../../shared/react/ui.tsx';
+import { Modal, ModalAction } from '../../shared/react/ui.tsx';
 
 export function AccessApplicationDialog({ onClose }: { onClose(): void }) {
   const email = useRef<HTMLInputElement>(null);
@@ -39,9 +39,7 @@ export function AccessApplicationDialog({ onClose }: { onClose(): void }) {
       );
       if (!mounted.current || controller.signal.aborted) return;
       setSubmitted(true);
-      setFeedback(
-        '申请已提交并进入审核，无需验证邮箱。审核结果将通过邮件通知；通过后请打开激活邮件，点击链接设置密码。',
-      );
+      setFeedback('申请已提交并进入审核。审核结果将通过邮件通知。');
     } catch (error) {
       if (mounted.current && !controller.signal.aborted)
         setFeedback(error instanceof Error ? error.message : '申请暂时无法提交，请稍后再试');
@@ -59,27 +57,15 @@ export function AccessApplicationDialog({ onClose }: { onClose(): void }) {
       open
       onClose={onClose}
       busy={busy}
+      closeButton={{ label: '关闭账号申请', marker: 'data-application-close' }}
       className="login-factor-dialog login-application-dialog"
       data-application-dialog
       aria-labelledby="application-title"
     >
       <section className="access-panel">
-        <div className="panel-rail">
-          <span className="panel-index">＋</span>
-          <span>MEMBER ACCESS</span>
-          <span className="panel-mode">APPLICATION</span>
-          <IconButton
-            icon="close"
-            data-application-close
-            aria-label="关闭账号申请"
-            disabled={busy}
-            onClick={onClose}
-          />
-        </div>
         <div className="panel-content">
           <div className="panel-heading application-heading">
             <h2 id="application-title">申请账号</h2>
-            <p>提交后直接进入管理员审核，审核结果通过邮件通知。</p>
           </div>
           <form data-application-form onSubmit={(event) => void submit(event)}>
             <fieldset disabled={busy || submitted}>
@@ -119,17 +105,11 @@ export function AccessApplicationDialog({ onClose }: { onClose(): void }) {
               </label>
             </fieldset>
             <p className="application-note">
-              昵称和理由会展示给管理员，请勿填写邮箱、电话、密码、验证码或其他敏感信息。此处不是找回密码入口。
+              昵称和理由会展示给管理员，请勿填写邮箱、电话、密码或验证码。
             </p>
-            <button
-              className="primary-action"
-              type="submit"
-              data-application-submit
-              disabled={busy || submitted}
-            >
-              <span>{submitted ? '申请已提交' : busy ? '正在提交申请' : '提交申请'}</span>
-              <Icon name="right" />
-            </button>
+            <ModalAction type="submit" data-application-submit disabled={busy || submitted}>
+              {submitted ? '申请已提交' : busy ? '正在提交申请' : '提交申请'}
+            </ModalAction>
             {submitted && (
               <a
                 className="application-resend-link"

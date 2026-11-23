@@ -160,13 +160,15 @@ it('关闭、Escape 与遮罩取消回到密码登录，不触发认证成功', 
         const dialog = h.require('[data-login-factor-dialog]');
         if (way === 'button') await h.click('[data-login-factor-close]');
         else
-          await h.React.act(async () =>
-            dialog.dispatchEvent(
-              way === 'escape'
-                ? new h.window.Event('cancel', { cancelable: true })
-                : new h.window.MouseEvent('click', { bubbles: true, clientX: -1, clientY: -1 }),
-            ),
-          );
+          await h.React.act(async () => {
+            if (way === 'escape') {
+              dialog.dispatchEvent(new h.window.Event('cancel', { cancelable: true }));
+              return;
+            }
+            const outside = { bubbles: true, clientX: -1, clientY: -1 };
+            dialog.dispatchEvent(new h.window.MouseEvent('pointerdown', outside));
+            dialog.dispatchEvent(new h.window.MouseEvent('click', outside));
+          });
         await h.wait(10);
         assert.equal(h.require('[data-login-factor-dialog]').open, false);
         assert.equal(h.require('.primary-action').disabled, false);
@@ -290,6 +292,14 @@ it('Code Slots 支持带空格粘贴，自动验证期间禁止重复提交及�
       assert.equal(h.require('[name=code]').disabled, true);
       assert.equal(h.require('[name=recovery]').disabled, true);
       assert.equal(h.require('[data-login-factor-close]').disabled, true);
+      const dialog = h.require('[data-login-factor-dialog]');
+      await h.React.act(async () => {
+        const outside = { bubbles: true, clientX: -1, clientY: -1 };
+        dialog.dispatchEvent(new h.window.Event('cancel', { cancelable: true }));
+        dialog.dispatchEvent(new h.window.MouseEvent('pointerdown', outside));
+        dialog.dispatchEvent(new h.window.MouseEvent('click', outside));
+      });
+      assert.equal(dialog.open, true);
       await h.submit('[data-login-factor]');
       await h.submit('[data-login-factor]');
       assert.equal(verifications, 1);

@@ -9,7 +9,7 @@ import {
 import type { RefObject } from 'react';
 import type { createPersonalLibraryClient } from '../../services/music/personal-library.ts';
 import type { SearchItem } from '../../shared/music.ts';
-import { Icon, Modal } from '../../shared/react/ui.tsx';
+import { Modal, ModalAction } from '../../shared/react/ui.tsx';
 import { useReducedMotion } from '../../shared/react/hooks.ts';
 import type { PlayerController } from './player-core.ts';
 import type { PlayerPreview, PlayerDisplay, PlayerDisplayActions } from './types.ts';
@@ -247,22 +247,12 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(
           open={collection.collectionOpen}
           onClose={collection.closeCollection}
           busy={collection.collectionBusy}
+          closeButton={{ label: '关闭歌单选择' }}
           className="user-create-dialog"
           data-collection-dialog
           aria-label="将歌曲加入歌单"
         >
           <form data-collection-form onSubmit={collection.submitCollection}>
-            <header>
-              <span>ADD TO PLAYLIST / 加入歌单</span>
-              <button
-                type="button"
-                data-collection-close
-                aria-label="关闭歌单选择"
-                onClick={collection.closeCollection}
-              >
-                <Icon name="close" />
-              </button>
-            </header>
             <h2>加入歌单</h2>
             <p data-collection-message role="status">
               {collection.collectionMessage}
@@ -282,15 +272,20 @@ export const PlayerView = forwardRef<PlayerViewHandle, PlayerViewProps>(
               ))}
             </select>
             <div className="user-dialog-actions">
-              <button type="button" data-collection-close onClick={collection.closeCollection}>
+              <button
+                type="button"
+                data-collection-close
+                disabled={collection.collectionBusy}
+                onClick={collection.closeCollection}
+              >
                 取消
               </button>
-              <button
+              <ModalAction
                 type="submit"
                 disabled={collection.collectionBusy || collection.playlists.length === 0}
               >
-                保存到歌单 <Icon name="right" />
-              </button>
+                保存到歌单
+              </ModalAction>
             </div>
           </form>
         </Modal>

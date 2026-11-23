@@ -5,7 +5,7 @@ import {
   type FriendRow,
   type FriendsView,
 } from '../../services/friends.ts';
-import { Icon, IconButton, Modal } from '../../shared/react/ui.tsx';
+import { Icon, IconButton, Modal, ModalAction } from '../../shared/react/ui.tsx';
 
 const views = [
   { id: 'friends', label: '好友列表', empty: '还没有好友' },
@@ -278,16 +278,9 @@ export function FriendsPanel({
         onClose={() => showDialog(null)}
         className="user-create-dialog friends-dialog"
         aria-labelledby={dialogTitle}
+        closeButton={{ label: '关闭' }}
       >
         <form onSubmit={submit}>
-          <header>
-            <IconButton
-              icon="close"
-              aria-label="关闭"
-              disabled={pending}
-              onClick={() => showDialog(null)}
-            />
-          </header>
           <h2 id={dialogTitle}>{dialog?.kind === 'remove' ? '解除好友' : '添加好友'}</h2>
           {dialog?.kind === 'remove' ? (
             <p>解除与「{dialog.row.label}」的好友关系？</p>
@@ -318,9 +311,9 @@ export function FriendsPanel({
             <button type="button" disabled={pending} onClick={() => showDialog(null)}>
               取消
             </button>
-            <button type="submit" disabled={pending}>
+            <ModalAction type="submit" disabled={pending}>
               {pending ? '正在处理…' : dialog?.kind === 'remove' ? '确认解除' : '发送申请'}
-            </button>
+            </ModalAction>
           </div>
         </form>
       </Modal>

@@ -595,20 +595,6 @@
   background: var(--backdrop-user);
   backdrop-filter: blur(4px);
 }
-.user-create-dialog header {
-  display: flex;
-  justify-content: space-between;
-  color: var(--color-text-82);
-  font-size: 0.56rem;
-  letter-spacing: 0.14em;
-}
-.user-create-dialog header button {
-  border: 0;
-  background: transparent;
-  font-size: 1.3rem;
-  cursor: pointer;
-  transition: transform 200ms ease;
-}
 .user-create-dialog h2 {
   margin-top: 24px;
   font-size: 1.9rem;
@@ -636,13 +622,6 @@
   justify-content: flex-end;
   gap: 10px;
   margin-top: 25px;
-}
-.user-dialog-actions button[type='submit'] {
-  background: var(--color-action-08);
-  color: var(--color-inverse-04);
-}
-.user-dialog-actions button[type='submit']:hover {
-  background: var(--color-accent-20);
 }
 .user-preview-note[data-error='true'] {
   color: var(--color-danger-01);
@@ -804,13 +783,6 @@
 }
 .user-delete-dialog[open] {
   animation: user-dialog-enter 220ms ease-out;
-}
-.user-delete-dialog .user-confirm-delete {
-  background: var(--color-action-08);
-  color: var(--color-inverse-04);
-}
-.user-delete-dialog .user-confirm-delete:hover:not(:disabled) {
-  background: var(--color-danger-01);
 }
 .user-delete-dialog button:disabled {
   opacity: 0.45;

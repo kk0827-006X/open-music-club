@@ -7,6 +7,7 @@ import {
   type ButtonHTMLAttributes,
   type DialogHTMLAttributes,
   type HTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
 import { glyphs, paths, type UiIconName } from '../ui/icons.ts';
@@ -81,6 +82,19 @@ export const IconButton = forwardRef<
   );
 });
 
+export function ModalAction({
+  children,
+  type = 'button',
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button {...props} type={type} data-modal-action>
+      <span>{children}</span>
+      <Icon name="right" />
+    </button>
+  );
+}
+
 export function Brand({ statistics = false }: { statistics?: boolean }) {
   return (
     <header className="archive-brand">
@@ -99,26 +113,46 @@ export function Brand({ statistics = false }: { statistics?: boolean }) {
 type ModalProps = Omit<DialogHTMLAttributes<HTMLDialogElement>, 'open' | 'onClose'> & {
   open: boolean;
   busy?: boolean;
+  closeButton?: { label: string; marker?: `data-${string}` };
   onClose(): void;
   children: ReactNode;
 };
+
+function isBackdrop({
+  target,
+  currentTarget,
+  clientX,
+  clientY,
+}: ReactMouseEvent<HTMLDialogElement>) {
+  if (target !== currentTarget) return false;
+  const { left, right, top, bottom } = currentTarget.getBoundingClientRect();
+  return clientX < left || clientX > right || clientY < top || clientY > bottom;
+}
+
 // 保留原生 top layer、焦点围栏和 ::backdrop，React 只拥有内容和开闭状态。
 export function Modal({
   open,
   busy = false,
+  closeButton,
   onClose,
   children,
   className = '',
   onCancel,
   onClick,
+  onPointerDown,
   ...props
 }: ModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const startedOutside = useRef(false);
   const latest = useRef({ busy, onClose });
   latest.current = { busy, onClose };
+  const requestClose = () => {
+    if (!latest.current.busy) latest.current.onClose();
+  };
   useLayoutEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
+    startedOutside.current = false;
     if (open && !dialog.open) dialog.showModal();
     else if (!open && dialog.open) dialog.close();
   }, [open]);
@@ -134,26 +168,32 @@ export function Modal({
       {...props}
       ref={ref}
       className={className}
+      data-modal
       onCancel={(event) => {
         event.preventDefault();
         onCancel?.(event);
-        if (!latest.current.busy) latest.current.onClose();
+        requestClose();
+      }}
+      onPointerDown={(event) => {
+        onPointerDown?.(event);
+        startedOutside.current = !event.defaultPrevented && event.button === 0 && isBackdrop(event);
       }}
       onClick={(event) => {
         onClick?.(event);
-        if (event.defaultPrevented || event.target !== event.currentTarget || latest.current.busy)
-          return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        if (
-          event.clientX < bounds.left ||
-          event.clientX > bounds.right ||
-          event.clientY < bounds.top ||
-          event.clientY > bounds.bottom
-        )
-          latest.current.onClose();
+        const close = startedOutside.current && !event.defaultPrevented && isBackdrop(event);
+        startedOutside.current = false;
+        if (close) requestClose();
       }}
     >
       {children}
+      <IconButton
+        {...(closeButton?.marker ? { [closeButton.marker]: true } : {})}
+        data-modal-close
+        icon="close"
+        aria-label={closeButton?.label ?? '关闭弹窗'}
+        disabled={busy}
+        onClick={requestClose}
+      />
     </dialog>
   );
 }

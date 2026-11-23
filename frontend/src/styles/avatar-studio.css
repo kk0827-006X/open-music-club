@@ -1479,13 +1479,6 @@
   color: var(--as-ink-strong);
 }
 
-.avatar-studio-original .modal-sub {
-  margin: -8px 0 0;
-  font-size: 11px;
-  color: var(--as-ink-faint);
-  letter-spacing: 0.3px;
-}
-
 .avatar-studio-original .field {
   display: flex;
   flex-direction: column;

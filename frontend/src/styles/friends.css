@@ -135,9 +135,6 @@
   align-self: flex-end;
   margin-top: 12px;
 }
-.friends-dialog header {
-  justify-content: flex-end;
-}
 .friends-dialog h2 {
   margin: 6px 0 22px;
 }

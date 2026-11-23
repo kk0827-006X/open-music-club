@@ -7,7 +7,7 @@ import {
   type ApplicationFilter,
   type MailStatus,
 } from '../../services/auth/applications.ts';
-import { Brand, Modal } from '../../shared/react/ui.tsx';
+import { Brand, Modal, ModalAction } from '../../shared/react/ui.tsx';
 
 const filters: [ApplicationFilter, string][] = [
   ['pending', '待审核'],
@@ -411,7 +411,7 @@ export function AdminApplicationsPage({
         </p>
         <p>
           {decision === 'approve'
-            ? '系统将向申请人发送一次性激活链接，由申请人自行设置密码。邮件发送结果以入队为准，不代表已送达或已阅读。'
+            ? '系统将向申请人发送一次性激活链接，用于设置密码。'
             : '系统将发送固定拒绝通知，申请人可在 7 天后重新申请。'}
         </p>
         <div className="application-review-actions">
@@ -423,14 +423,9 @@ export function AdminApplicationsPage({
           >
             取消
           </button>
-          <button
-            className="primary-action"
-            type="button"
-            disabled={busy}
-            onClick={() => void review()}
-          >
-            <span>{busy ? '正在处理…' : '确认决定'}</span>
-          </button>
+          <ModalAction disabled={busy} onClick={() => void review()}>
+            {busy ? '正在处理…' : '确认决定'}
+          </ModalAction>
         </div>
       </Modal>
       <Modal
@@ -445,9 +440,7 @@ export function AdminApplicationsPage({
         <p>
           申请 #{selected?.id} · {selected?.nickname}
         </p>
-        <p>
-          系统将签发新的激活链接，旧链接会立即失效。成功只表示邮件已入队，不代表已送达或申请人已阅读；发送过于频繁时需稍后再试。
-        </p>
+        <p>重发后，旧链接会立即失效。</p>
         <div className="application-review-actions">
           <button
             className="application-secondary"
@@ -457,14 +450,9 @@ export function AdminApplicationsPage({
           >
             取消
           </button>
-          <button
-            className="primary-action"
-            type="button"
-            disabled={busy}
-            onClick={() => void resendActivation()}
-          >
-            <span>{busy ? '正在处理…' : '确认重发'}</span>
-          </button>
+          <ModalAction disabled={busy} onClick={() => void resendActivation()}>
+            {busy ? '正在处理…' : '确认重发'}
+          </ModalAction>
         </div>
       </Modal>
     </Container>

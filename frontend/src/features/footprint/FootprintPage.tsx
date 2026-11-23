@@ -6,7 +6,7 @@ import { MilestoneView } from './MilestoneView.tsx';
 import { CardStylePicker } from './CardStylePicker.tsx';
 import { useCardStyles } from './use-card-styles.ts';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { IconButton, Modal } from '../../shared/react/ui.tsx';
+import { IconButton, Modal, ModalAction } from '../../shared/react/ui.tsx';
 import { motion } from 'motion/react';
 import { useLatest } from '../../shared/react/hooks.ts';
 import { usePageMotion, useSectionTransition } from '../../shared/react/page-transitions.ts';
@@ -866,13 +866,9 @@ export const FootprintPage = forwardRef<FootprintPageHandle, FootprintPageProps>
               >
                 取消
               </button>
-              <button
-                type="submit"
-                className={dialog?.kind === 'share' ? 'fp-ghost' : 'fp-danger'}
-                disabled={busy}
-              >
+              <ModalAction type="submit" disabled={busy}>
                 {busy ? '处理中…' : dialog?.kind === 'share' ? '确认分享' : '确认删除'}
-              </button>
+              </ModalAction>
             </div>
           </form>
         </Modal>

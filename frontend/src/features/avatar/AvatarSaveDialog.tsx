@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Modal } from '../../shared/react/ui.tsx';
+import { Modal, ModalAction } from '../../shared/react/ui.tsx';
 
 export function AvatarSaveDialog({
   open,
@@ -38,7 +38,6 @@ export function AvatarSaveDialog({
         }}
       >
         <h3 id="avatar-save-title">保存形象</h3>
-        <p className="modal-sub">为这套形象起一个名字</p>
         <label className="field">
           <span>形象名称</span>
           <input
@@ -54,9 +53,9 @@ export function AvatarSaveDialog({
           <button className="btn" type="button" disabled={busy} onClick={onClose}>
             取消
           </button>
-          <button className="btn btn--primary" type="submit" disabled={busy}>
+          <ModalAction type="submit" disabled={busy}>
             {busy ? '保存中…' : '保存'}
-          </button>
+          </ModalAction>
         </div>
       </form>
     </Modal>

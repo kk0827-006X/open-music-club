@@ -211,7 +211,7 @@ it('管理员可直接审批待审核申请，确认后才发送空 body 且处�
       await h.click('.application-detail .primary-action');
       assert.equal(calls.filter((call) => call.init?.method === 'POST').length, 0);
       assert.equal(h.require('.application-confirm-dialog').open, true);
-      await h.click('.application-confirm-dialog .primary-action');
+      await h.click('.application-confirm-dialog [data-modal-action]');
       const post = calls.find((call) => call.init?.method === 'POST');
       assert.equal(post.url, '/api/admin/applications/7/approve');
       assert.deepEqual(JSON.parse(post.init.body), {});
@@ -272,7 +272,7 @@ it('管理员补发激活邮件先确认旧链接失效，Escape 关闭模态框
       assert.equal(h.query('[data-resend-dialog]')?.open, false);
       assert.equal(h.dialogOpen, false);
       await h.click('[data-resend-activation]');
-      await h.click('[data-resend-dialog] .primary-action');
+      await h.click('[data-resend-dialog] [data-modal-action]');
       const post = calls.find((call) => call.init?.method === 'POST');
       assert.equal(post.url, '/api/admin/applications/7/resend-activation');
       assert.deepEqual(JSON.parse(post.init.body), {});
@@ -310,7 +310,7 @@ it('补发命中额度时展示频率提示，不误报成功或已送达', asyn
       await h.until(() => h.query('.application-list-item'), '待激活列表应加载');
       await h.click('.application-list-item');
       await h.click('[data-resend-activation]');
-      await h.click('[data-resend-dialog] .primary-action');
+      await h.click('[data-resend-dialog] [data-modal-action]');
       assert.match(h.require('[role="alert"]').textContent, /操作过于频繁/);
       assert.doesNotMatch(h.require('.application-feedback').textContent, /已重新入队/);
     },
@@ -416,7 +416,7 @@ it('管理员入口位于用户左侧分类末尾，内嵌审核不跳页，普�
       assert.equal(h.require('.application-detail .primary-action span').textContent, '通过审核');
       await h.click('.application-detail .primary-action');
       assert.equal(
-        h.require('.application-confirm-dialog .primary-action span').textContent,
+        h.require('.application-confirm-dialog [data-modal-action] span').textContent,
         '确认决定',
       );
       assert.equal(handle.current.hasOpenDialog, true);

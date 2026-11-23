@@ -1,4 +1,4 @@
-import { Icon, Modal } from '../../shared/react/ui.tsx';
+import { Modal, ModalAction } from '../../shared/react/ui.tsx';
 import type { usePlaylistMutations } from './hooks/use-playlist-mutations.ts';
 
 export function CreatePlaylistDialog({
@@ -15,26 +15,16 @@ export function CreatePlaylistDialog({
     <Modal
       open={createOpen}
       onClose={onClose}
+      busy={busy}
+      closeButton={{ label: '关闭歌单编辑窗口', marker: 'data-user-dialog-close' }}
       className="user-create-dialog"
       data-user-dialog
       aria-labelledby="user-dialog-title"
     >
       <form data-user-create-form onSubmit={(event) => void onCreateSubmit(event)}>
-        <header>
-          <span>PERSONAL ARCHIVE</span>
-          <button
-            type="button"
-            data-user-dialog-close
-            aria-label="关闭歌单编辑窗口"
-            onClick={onClose}
-          >
-            <Icon name="close" />
-          </button>
-        </header>
         <h2 id="user-dialog-title" data-user-dialog-title>
           新建歌单
         </h2>
-        <p>保存后，下次登录仍能看到这份声音档案。</p>
         <label htmlFor="user-playlist-name">歌单名称</label>
         <input
           id="user-playlist-name"
@@ -50,15 +40,12 @@ export function CreatePlaylistDialog({
           {createError}
         </p>
         <div className="user-dialog-actions">
-          <button type="button" data-user-dialog-cancel onClick={onClose}>
+          <button type="button" data-user-dialog-cancel disabled={busy} onClick={onClose}>
             取消
           </button>
-          <button type="submit" disabled={busy}>
-            <span data-user-dialog-submit>创建歌单</span>{' '}
-            <span>
-              <Icon name="right" />
-            </span>
-          </button>
+          <ModalAction type="submit" data-user-dialog-submit disabled={busy}>
+            创建歌单
+          </ModalAction>
         </div>
       </form>
     </Modal>

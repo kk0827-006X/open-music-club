@@ -147,15 +147,39 @@ test('找回入口遇到非JSON代理响应仅显示固定提示，窄屏仍可�
     }),
   );
   await page.goto('/login');
-  await page.locator('[data-forgot-password-open]').click();
-  await page.getByLabel('注册邮箱', { exact: true }).fill('isolated@example.com');
-  await page.getByRole('button', { name: '发送重置邮件', exact: true }).click();
-  await expect(page.locator('[data-forgot-password-dialog] [role="status"]')).toHaveText(
-    '服务响应暂时不可用，请稍后重试',
-  );
-  await expect(page.locator('[data-forgot-password-dialog]')).not.toContainText(
-    '/private/internal',
-  );
-  await page.getByRole('button', { name: '关闭密码找回', exact: true }).click();
-  await expect(page.locator('[data-forgot-password-open]')).toBeFocused();
+  const trigger = page.locator('[data-forgot-password-open]');
+  const dialog = page.locator('[data-forgot-password-dialog]');
+  const email = dialog.getByLabel('注册邮箱', { exact: true });
+  const submit = dialog.getByRole('button', { name: '发送重置邮件', exact: true });
+  const close = dialog.getByRole('button', { name: '关闭密码找回', exact: true });
+
+  await trigger.click();
+  await expect(email).toBeFocused();
+  const panel = await dialog.boundingBox();
+  const dismiss = await close.boundingBox();
+  const input = await email.boundingBox();
+  const action = await submit.boundingBox();
+  expect(dismiss.x).toBeGreaterThan(panel.x + panel.width / 2);
+  expect(dismiss.y - panel.y).toBeLessThan(24);
+  expect(dismiss.width).toBeLessThan(60);
+  expect(action.width).toBeLessThan(input.width * 0.75);
+
+  // 从弹窗内拖到遮罩应保留输入，直接点击遮罩应关闭并归焦。
+  await email.fill('isolated@example.com');
+  await page.mouse.move(input.x + 10, input.y + input.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(4, 4);
+  await page.mouse.up();
+  await expect(email).toHaveValue('isolated@example.com');
+
+  await page.mouse.click(4, 4);
+  await expect(dialog).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await email.fill('isolated@example.com');
+  await submit.click();
+  await expect(dialog.getByRole('status')).toHaveText('服务响应暂时不可用，请稍后重试');
+  await expect(dialog).not.toContainText('/private/internal');
+  await close.click();
+  await expect(trigger).toBeFocused();
 });

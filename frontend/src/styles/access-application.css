@@ -15,13 +15,6 @@
 .login-application-dialog .access-panel::after {
   display: none;
 }
-.login-application-dialog .panel-rail > button {
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
 .application-heading h2 {
   font-size: clamp(1.4rem, 1.7vw, 1.85rem);
   letter-spacing: -0.035em;

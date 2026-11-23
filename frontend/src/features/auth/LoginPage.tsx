@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { motion } from 'motion/react';
 import { verifyTwoFactor, type LoginCredentials } from '../../services/auth/session.ts';
-import { Brand, Icon, IconButton, Modal } from '../../shared/react/ui.tsx';
+import { Brand, Icon, IconButton, Modal, ModalAction } from '../../shared/react/ui.tsx';
 import { useReducedMotion } from '../../shared/react/hooks.ts';
 import CodeSlots, { type CodeSlotsStatus } from '../../shared/react/react-bits/CodeSlots.tsx';
 import { LoginBackgroundEffect } from '../../shared/react/LoginBackgroundEffect.tsx';
@@ -83,7 +83,7 @@ function FactorChallenge({
         void verify(code, recovery);
       }}
     >
-      <h2 id="authenticator-title" className="sr-only">
+      <h2 id="authenticator-title">
         {recovery ? '输入一组未使用的恢复码' : '输入 6 位认证器验证码'}
       </h2>
       {recovery ? (
@@ -133,10 +133,9 @@ function FactorChallenge({
         使用恢复码
       </label>
       {recovery && (
-        <button className="factor-confirm" type="submit" disabled={busy}>
+        <ModalAction className="factor-confirm" type="submit" disabled={busy}>
           确认登录
-          <Icon name="right" />
-        </button>
+        </ModalAction>
       )}
       <p role="status" data-factor-feedback>
         {feedback}
@@ -467,24 +466,12 @@ export function LoginPage({
         open={factor !== null}
         onClose={() => closeFactor()}
         busy={factorBusy || closing}
+        closeButton={{ label: '关闭两步验证', marker: 'data-login-factor-close' }}
         className={`login-factor-dialog${factor === 'challenge' ? ' is-challenge' : ''}${closing ? ' is-closing' : ''}`}
         data-login-factor-dialog
         aria-labelledby={factor === 'enrollment' ? 'settings-section-title' : 'authenticator-title'}
       >
         <section className="authenticator-panel is-active">
-          <div className="panel-rail">
-            <span className="panel-index">02</span>
-            <span>AUTHENTICATOR</span>
-            <span className="panel-mode">AFTER PASSWORD</span>
-            <IconButton
-              icon="close"
-              type="button"
-              data-login-factor-close
-              aria-label="关闭两步验证"
-              disabled={factorBusy || closing}
-              onClick={() => closeFactor()}
-            />
-          </div>
           <div className="authenticator-content" data-login-factor-content>
             {factor === 'enrollment' && (
               <TwoFactorPanel onComplete={closeFactor} onBusyChange={reportFactorBusy} />

@@ -16,8 +16,7 @@ button:has([data-ui-icon='trash']) {
 .upload-submit {
   --button-hover-color: var(--on-accent);
 }
-.upload-dropzone > button,
-.user-dialog-actions button[type='submit'] {
+.upload-dropzone > button {
   --button-hover-color: var(--on-accent);
 }
 body button:not(:disabled):not([aria-disabled='true']) {

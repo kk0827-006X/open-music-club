@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ModalAction } from '../../shared/react/ui.tsx';
 import { passwordRequest } from '../../services/auth/password.ts';
 import {
   activationPasswordError,
@@ -81,6 +82,7 @@ export function PasswordForm({
       }
     }
   }
+  const Submit = mode === 'change' ? ModalAction : 'button';
   return (
     <div className="two-factor-manager" data-password-panel>
       <h3 id="settings-section-title">{mode === 'change' ? '修改密码' : '设置新密码'}</h3>
@@ -143,9 +145,9 @@ export function PasswordForm({
               />
             </label>
           </fieldset>
-          <button type="submit" disabled={busy}>
+          <Submit type="submit" disabled={busy}>
             {busy ? '正在更新…' : '确认更新密码'}
-          </button>
+          </Submit>
         </form>
       )}
       <p role="status" aria-live="polite">
