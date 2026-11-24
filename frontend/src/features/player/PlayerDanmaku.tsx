@@ -12,7 +12,7 @@ const POLL_MS = 12000
 const MAX_FLIGHTS = 36
 const VOICE_MAX_MS = 60000
 
-type ComposerTab = 'text' | 'voice' | 'image'
+type ComposerTab = 'compose' | 'voice'
 
 type Flight = {
   key: string
@@ -50,7 +50,7 @@ function secondsLabel(durationMs: number): string {
 }
 
 // 播放器右列的内嵌弹幕墙：和展开歌词共用同一块区域，由外层切换「歌词 / 弹幕」。
-// 弹幕按播放进度触发；支持文字、语音（录音上传）、图片（选取上传）三种形式。
+// 弹幕按播放进度触发；发送板块只有两个：文字 / 图片（可只发文字，也可选图后配一句话）和语音。
 export function PlayerDanmaku({ track, positionMs, paused, client: injectedClient }: PlayerDanmakuProps) {
   const reduced = useReducedMotion()
   const client = useMemo(() => injectedClient ?? createDanmakuClient(), [injectedClient])
@@ -65,7 +65,7 @@ export function PlayerDanmaku({ track, positionMs, paused, client: injectedClien
   const [status, setStatus] = useState('')
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
-  const [tab, setTab] = useState<ComposerTab>('text')
+  const [tab, setTab] = useState<ComposerTab>('compose')
   const [recording, setRecording] = useState(false)
   const [recSeconds, setRecSeconds] = useState(0)
   const [voiceReady, setVoiceReady] = useState<VoiceReady | null>(null)
@@ -86,6 +86,7 @@ export function PlayerDanmaku({ track, positionMs, paused, client: injectedClien
   const recorderStartRef = useRef(0)
   const recorderTimerRef = useRef(0)
   const voiceAudioRef = useRef<HTMLAudioElement | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
 
   const updateSettings = useCallback((patch: Partial<DanmakuSettings>) => {
     setSettings((previous) => {
@@ -218,23 +219,35 @@ export function PlayerDanmaku({ track, positionMs, paused, client: injectedClien
     launch({ ...sent, mine: true })
   }, [launch])
 
-  const sendText = useCallback(async () => {
+  // 合并板块：有图走图片弹幕（输入框文字作为配文，可留空），没图就是纯文字弹幕。
+  const sendCompose = useCallback(async () => {
     const content = draft.trim()
-    if (!content || busy || !trackRef) return
+    if ((!content && !imageReady) || busy || !trackRef) return
     setBusy(true)
     setStatus('')
     try {
-      // 弹幕钉在「此刻」的进度上：别人听到同一秒时，这条弹幕准时飘出。
-      const sent = await client.send(trackRef, content, positionMs)
+      if (imageReady) {
+        if (typeof client.uploadMedia !== 'function') throw new Error('当前环境不支持媒体上传')
+        const extension = imageReady.file.name.includes('.') ? imageReady.file.name.split('.').pop() || 'png' : 'png'
+        const uploaded = await client.uploadMedia(imageReady.file, 'image', `danmaku.${extension}`)
+        const sent = await client.send(trackRef, content, positionMs, { kind: 'image', mediaPath: uploaded.path })
+        if (disposedRef.current) return
+        setImageReady(null)
+        appendSent(sent)
+      } else {
+        // 弹幕钉在「此刻」的进度上：别人听到同一秒时，这条弹幕准时飘出。
+        const sent = await client.send(trackRef, content, positionMs)
+        if (disposedRef.current) return
+        appendSent(sent)
+      }
       if (disposedRef.current) return
       setDraft('')
-      appendSent(sent)
     } catch (error) {
       if (!disposedRef.current) setStatus(error instanceof Error ? error.message : '弹幕发送失败，请稍后重试')
     } finally {
       if (!disposedRef.current) setBusy(false)
     }
-  }, [appendSent, busy, client, draft, positionMs, trackRef])
+  }, [appendSent, busy, client, draft, imageReady, positionMs, trackRef])
 
   const startRecording = useCallback(async () => {
     if (!trackRef || busy || recording) return
@@ -330,24 +343,12 @@ export function PlayerDanmaku({ track, positionMs, paused, client: injectedClien
     })
   }, [])
 
-  const sendImage = useCallback(async () => {
-    if (!imageReady || !trackRef || busy) return
-    setBusy(true)
-    setStatus('')
-    try {
-      if (typeof client.uploadMedia !== 'function') throw new Error('当前环境不支持媒体上传')
-      const extension = imageReady.file.name.includes('.') ? imageReady.file.name.split('.').pop() || 'png' : 'png'
-      const uploaded = await client.uploadMedia(imageReady.file, 'image', `danmaku.${extension}`)
-      const sent = await client.send(trackRef, '', positionMs, { kind: 'image', mediaPath: uploaded.path })
-      if (disposedRef.current) return
-      setImageReady(null)
-      appendSent(sent)
-    } catch (error) {
-      if (!disposedRef.current) setStatus(error instanceof Error ? error.message : '图片弹幕发送失败，请稍后重试')
-    } finally {
-      if (!disposedRef.current) setBusy(false)
-    }
-  }, [appendSent, busy, client, imageReady, positionMs, trackRef])
+  const clearImage = useCallback(() => {
+    setImageReady((previous) => {
+      if (previous) URL.revokeObjectURL(previous.url)
+      return null
+    })
+  }, [])
 
   const playVoice = useCallback((url: string | null) => {
     const element = voiceAudioRef.current
@@ -436,14 +437,11 @@ export function PlayerDanmaku({ track, positionMs, paused, client: injectedClien
 
       <div className="player-dm-composer">
         <div className="player-dm-tabs">
-          <button type="button" data-player-dm-tab="text" className={tab === 'text' ? 'is-active' : undefined} onClick={() => setTab('text')}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M12 6v12" /></svg>文字
+          <button type="button" data-player-dm-tab="text" className={tab === 'compose' ? 'is-active' : undefined} onClick={() => setTab('compose')}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M12 6v12" /></svg>文字 / 图片
           </button>
           <button type="button" data-player-dm-tab="voice" className={tab === 'voice' ? 'is-active' : undefined} onClick={() => setTab('voice')}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0014 0M12 18v3" /></svg>语音
-          </button>
-          <button type="button" data-player-dm-tab="image" className={tab === 'image' ? 'is-active' : undefined} onClick={() => setTab('image')}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4 17l5-5 4 4 3-3 4 4" /></svg>图片
           </button>
           <span className="player-dm-spacer" />
           <span className="player-dm-enable">弹幕显示
@@ -458,23 +456,67 @@ export function PlayerDanmaku({ track, positionMs, paused, client: injectedClien
           </span>
         </div>
 
-        {tab === 'text' ? (
-          <div className="player-dm-row">
-            <input
-              type="text"
-              data-player-dm-input
-              value={draft}
-              maxLength={60}
-              autoComplete="off"
-              placeholder={trackRef ? '发一条弹幕，和听这首歌的人聊聊…' : '播放歌曲后可以发弹幕'}
-              disabled={!trackRef || busy}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') void sendText() }}
-            />
-            <button type="button" className="player-dm-send" data-player-dm-send disabled={!canSend || !draft.trim()} onClick={() => void sendText()}>
-              {busy ? '发送中…' : '发射'}
-            </button>
-          </div>
+        {tab === 'compose' ? (
+          <>
+            <div className={`player-dm-row${imageReady ? ' has-image' : ''}`} data-player-dm-row-compose>
+              <input
+                type="text"
+                data-player-dm-input
+                value={draft}
+                maxLength={60}
+                autoComplete="off"
+                placeholder={imageReady
+                  ? '给这张图配一句话（可留空）…'
+                  : trackRef ? '发一条弹幕，和听这首歌的人聊聊…' : '播放歌曲后可以发弹幕'}
+                disabled={!trackRef || busy}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') void sendCompose() }}
+              />
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                hidden
+                onChange={(event) => {
+                  pickImage(event.target.files?.[0] ?? null)
+                  event.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                className={`player-dm-pick${imageReady ? ' is-picked' : ''}`}
+                data-player-dm-pick
+                disabled={!trackRef || busy}
+                aria-label={imageReady ? '取消已选图片' : '附带一张图片'}
+                onClick={() => { if (imageReady) clearImage(); else imageInputRef.current?.click() }}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4 17l5-5 4 4 3-3 4 4" /></svg>
+                {imageReady ? '取消图' : '选图'}
+              </button>
+              <button
+                type="button"
+                className="player-dm-send"
+                data-player-dm-send
+                disabled={!canSend || (!draft.trim() && !imageReady)}
+                onClick={() => void sendCompose()}
+              >
+                {busy ? '发送中…' : '发射'}
+              </button>
+            </div>
+            {imageReady ? (
+              <div className="player-dm-attach" data-player-dm-attach>
+                <span className="player-dm-chip is-picked" data-player-dm-image-chip>
+                  <img src={imageReady.url} alt="待发送的图片" />
+                  <span className="player-dm-chip-copy">
+                    <b>图片已就绪</b>
+                    <small>发射后随弹幕飘出</small>
+                  </span>
+                  <button type="button" aria-label="取消这张图片" data-player-dm-image-clear onClick={clearImage}>×</button>
+                </span>
+                <span className="player-dm-attach-hint">图片会带着输入框里的文字一起飘出去，文字可留空</span>
+              </div>
+            ) : null}
+          </>
         ) : null}
 
         {tab === 'voice' ? (
@@ -504,41 +546,6 @@ export function PlayerDanmaku({ track, positionMs, paused, client: injectedClien
               onClick={() => void sendVoice()}
             >
               {busy ? '发送中…' : '发送语音'}
-            </button>
-          </div>
-        ) : null}
-
-        {tab === 'image' ? (
-          <div className="player-dm-row">
-            <label className="player-dm-mic" data-player-dm-image>
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                hidden
-                onChange={(event) => {
-                  pickImage(event.target.files?.[0] ?? null)
-                  event.target.value = ''
-                }}
-              />
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M4 17l5-5 4 4 3-3 4 4" /></svg>
-              选择一张图片
-            </label>
-            {imageReady
-              ? <span className="player-dm-chip" data-player-dm-image-chip>
-                <img src={imageReady.url} alt="待发送的图片" />
-                {imageReady.file.name}
-                <button type="button" aria-label="取消这张图片" onClick={() => setImageReady(null)}>×</button>
-              </span>
-              : null}
-            <span className="player-dm-spacer" />
-            <button
-              type="button"
-              className="player-dm-send"
-              data-player-dm-image-send
-              disabled={!canSend || !imageReady}
-              onClick={() => void sendImage()}
-            >
-              {busy ? '发送中…' : '发送图片'}
             </button>
           </div>
         ) : null}

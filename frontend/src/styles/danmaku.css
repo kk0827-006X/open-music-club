@@ -271,6 +271,25 @@
 }
 .player-dm-row input[type="text"]:focus { border-color: var(--color-accent-08); }
 .player-dm-row input[type="text"]::placeholder { color: var(--color-text-26); }
+/* 文字 / 图片合并板块：选图后输入框进入「配文」状态 */
+.player-dm-row.has-image input[type="text"] { border-color: var(--color-accent-08); background: rgba(217, 170, 107, .08); }
+.player-dm-pick {
+  display: inline-flex; gap: 7px; align-items: center; height: 38px; padding: 0 13px;
+  border: 1px solid var(--color-border-17); border-radius: 999px;
+  background: transparent; color: var(--color-text-19);
+  font-family: inherit; font-size: .64rem; cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, background 180ms ease;
+}
+.player-dm-pick svg {
+  width: 14px; height: 14px; fill: none; stroke: currentColor;
+  stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
+}
+.player-dm-pick:hover { border-color: var(--color-accent-08); color: var(--color-accent-08); }
+.player-dm-pick.is-picked { border-color: var(--color-accent-08); background: rgba(217, 170, 107, .12); color: var(--color-accent-08); }
+.player-dm-pick:disabled { opacity: .5; cursor: default; }
+/* 选图后的附件 chip 行：缩略图 + 说明，不挤发送行 */
+.player-dm-attach { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.player-dm-attach-hint { color: var(--color-text-26); font-size: .56rem; letter-spacing: .04em; }
 .player-dm-send {
   height: 38px; padding: 0 18px; border: 1px solid var(--color-accent-08); border-radius: 999px;
   background: transparent; color: var(--color-accent-08);
@@ -302,6 +321,11 @@
   color: var(--color-text-26); font-size: .58rem;
 }
 .player-dm-chip img { width: 24px; height: 24px; border-radius: 5px; object-fit: cover; }
+.player-dm-chip.is-picked { border-color: var(--color-accent-08); background: rgba(217, 170, 107, .1); color: var(--color-accent-08); }
+.player-dm-chip.is-picked img { width: 34px; height: 34px; border-radius: 7px; }
+.player-dm-chip-copy { display: grid; gap: 1px; }
+.player-dm-chip-copy b { font-size: .6rem; font-weight: 600; }
+.player-dm-chip-copy small { color: var(--color-text-26); font-size: .54rem; }
 .player-dm-chip button {
   padding: 0; border: 0; background: transparent; color: var(--color-text-26);
   font-size: .82rem; line-height: 1; cursor: pointer;

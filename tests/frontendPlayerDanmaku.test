@@ -1,0 +1,205 @@
+const assert = require('node:assert/strict')
+const { describe, it } = require('node:test')
+const path = require('node:path')
+const { pathToFileURL } = require('node:url')
+const { withReactHarness } = require('./helpers/reactHarness')
+
+function frontendModule(relativePath) {
+  return `${pathToFileURL(path.resolve(__dirname, '../frontend/src', relativePath)).href}?test=${Date.now()}-${Math.random()}`
+}
+
+const TRACK = {
+  key: 'local:8', kind: 'song', source: 'local', sourceId: '8',
+  title: '热梗神曲', artist: '梗王', album: '梗专辑', coverUrl: '', duration: '4:00', year: '', description: '',
+}
+
+const MESSAGES = [
+  {
+    id: 1, source: 'local', sourceId: '8', userId: 2, nickname: '老歌友', content: '前奏一响拾起回忆',
+    kind: 'text', mediaUrl: null, mediaDurationMs: 0, positionMs: 5000, createdAt: '',
+  },
+  {
+    id: 2, source: 'local', sourceId: '8', userId: 2, nickname: '老歌友', content: '语音弹幕',
+    kind: 'voice', mediaUrl: '/api/me/danmaku/media/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee.webm',
+    mediaDurationMs: 12000, positionMs: 83000, createdAt: '',
+  },
+  {
+    id: 3, source: 'local', sourceId: '8', userId: 3, nickname: '梗王本王', content: '现场图',
+    kind: 'image', mediaUrl: '/api/me/danmaku/media/aaaaaaaa-bbbb-4ccc-8ddd-ffffffffffff.png',
+    mediaDurationMs: 0, positionMs: 120000, createdAt: '',
+  },
+]
+
+function api(overrides = {}) {
+  return {
+    list: async (_source, _sourceId, afterId) => ({ messages: afterId ? [] : MESSAGES, total: MESSAGES.length }),
+    recent: async () => ({ messages: [], total: 0 }),
+    send: async (track, content, positionMs, extras = {}) => ({
+      id: 99, source: track.source, sourceId: track.sourceId, userId: 1, nickname: '我自己',
+      content, positionMs, kind: extras.kind || 'text', mediaUrl: null, mediaDurationMs: extras.mediaDurationMs || 0,
+      createdAt: '', mine: true,
+    }),
+    uploadMedia: async () => ({
+      path: 'cccccccc-dddd-4eee-8fff-000000000000.png', kind: 'image', durationMs: 0,
+      url: '/api/me/danmaku/media/cccccccc-dddd-4eee-8fff-000000000000.png',
+    }),
+    remove: async () => true,
+    ...overrides,
+  }
+}
+
+async function mount(h, client, props = {}) {
+  const { PlayerDanmaku } = await import(frontendModule('features/player/PlayerDanmaku.tsx'))
+  await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 0, paused: false, client, ...props }))
+  return PlayerDanmaku
+}
+
+describe('播放器内嵌弹幕组件', () => {
+  it('弹幕墙按播放进度触发：载入时已越过的弹幕不回放，经过时间点时准时飘出', async () => {
+    await withReactHarness(async (h) => {
+      const client = api()
+      const PlayerDanmaku = await import(frontendModule('features/player/PlayerDanmaku.tsx'))
+        .then((module) => module.PlayerDanmaku)
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 0, paused: false, client }))
+      await h.until(() => h.require('[data-player-dm-total]').textContent.includes('3'))
+      assert.equal(h.document.querySelectorAll('[data-player-dm-flight]').length, 0, '载入时不回放历史弹幕')
+      assert.match(h.require('[data-player-dm-total]').textContent, /弹幕 3 条/)
+
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 5000, paused: false, client }))
+      const flights = [...h.document.querySelectorAll('[data-player-dm-flight]')]
+      assert.ok(flights.some((node) => node.textContent.includes('前奏一响拾起回忆')), '5 秒的弹幕准时飘出')
+    })
+  })
+
+  it('语音弹幕渲染为可点击气泡，图片弹幕渲染为卡片', async () => {
+    await withReactHarness(async (h) => {
+      const client = api()
+      const PlayerDanmaku = await import(frontendModule('features/player/PlayerDanmaku.tsx'))
+        .then((module) => module.PlayerDanmaku)
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 80000, paused: false, client }))
+      await h.until(() => h.require('[data-player-dm-total]').textContent.includes('3'))
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 84000, paused: false, client }))
+      const voice = h.require('.player-dm-flight.is-voice')
+      assert.match(voice.textContent, /12″/)
+      assert.ok(voice.querySelector('.player-dm-wave'))
+      assert.equal(voice.getAttribute('aria-label'), '播放 12″ 的语音弹幕')
+    })
+
+    await withReactHarness(async (h) => {
+      const client = api()
+      const PlayerDanmaku = await import(frontendModule('features/player/PlayerDanmaku.tsx'))
+        .then((module) => module.PlayerDanmaku)
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 119000, paused: false, client }))
+      await h.until(() => h.require('[data-player-dm-total]').textContent.includes('3'))
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 121000, paused: false, client }))
+      const image = h.require('.player-dm-flight.is-image')
+      assert.equal(image.querySelector('img').getAttribute('src'), MESSAGES[2].mediaUrl)
+      assert.match(image.textContent, /现场图/)
+    })
+  })
+
+  it('发送文字弹幕记录当前进度，成功后立刻以「我发的」样式起飞', async () => {
+    await withReactHarness(async (h) => {
+      const sent = []
+      const client = api({
+        send: async (track, content, positionMs) => {
+          sent.push({ track, content, positionMs })
+          return {
+            id: 99, source: track.source, sourceId: track.sourceId, userId: 1, nickname: '我自己',
+            content, positionMs, kind: 'text', mediaUrl: null, mediaDurationMs: 0, createdAt: '', mine: true,
+          }
+        },
+      })
+      await mount(h, client, { positionMs: 83000 })
+      await h.until(() => h.require('[data-player-dm-total]').textContent.includes('3'))
+      await h.input('[data-player-dm-input]', '来了来了！')
+      await h.click('[data-player-dm-send]')
+      assert.equal(sent.length, 1)
+      assert.equal(sent[0].positionMs, 83000, '发送时刻的播放进度被记录')
+      assert.equal(sent[0].content, '来了来了！')
+      const flight = h.require('.player-dm-flight.is-mine')
+      assert.match(flight.textContent, /我发的/)
+      assert.match(flight.textContent, /来了来了！/)
+      assert.match(h.require('[data-player-dm-total]').textContent, /弹幕 4 条/)
+      assert.equal(h.require('[data-player-dm-input]').value, '')
+    })
+  })
+
+  it('文字 / 图片合并板块：选图后发射发图片弹幕并带输入框配文，取消后回到纯文字', async () => {
+    await withReactHarness(async (h) => {
+      const sent = []
+      const client = api({
+        uploadMedia: async (blob, kind, name) => {
+          assert.equal(kind, 'image')
+          return { path: 'media-1.png', kind: 'image', durationMs: 0, url: '/api/me/danmaku/media/media-1.png' }
+        },
+        send: async (track, content, positionMs, extras = {}) => {
+          sent.push({ content, kind: extras.kind || 'text' })
+          return {
+            id: 100, source: track.source, sourceId: track.sourceId, userId: 1, nickname: '我自己',
+            content, positionMs, kind: extras.kind || 'text',
+            mediaUrl: extras.kind === 'image' ? '/api/me/danmaku/media/media-1.png' : null,
+            mediaDurationMs: extras.mediaDurationMs || 0, createdAt: '', mine: true,
+          }
+        },
+      })
+      await mount(h, client, { positionMs: 30000 })
+      await h.until(() => h.require('[data-player-dm-total]').textContent.includes('3'))
+
+      // 纯文字状态：没输入时发射按钮禁用
+      assert.equal(h.require('[data-player-dm-send]').disabled, true)
+
+      // 选图：给隐藏 file input 塞一个 File 并触发 change
+      const fileInput = h.require('[data-player-dm-row-compose] input[type="file"]')
+      const file = new h.window.File(['fake-image'], 'shot.png', { type: 'image/png' })
+      Object.defineProperty(fileInput, 'files', { value: { 0: file, length: 1 } })
+      await h.React.act(async () => { fileInput.dispatchEvent(new h.window.Event('change', { bubbles: true })) })
+      await h.flush()
+      await h.until(() => h.require('[data-player-dm-image-chip]'))
+      assert.match(h.require('[data-player-dm-pick]').textContent, /取消图/)
+      // 只选图不配文也可以发射
+      assert.equal(h.require('[data-player-dm-send]').disabled, false)
+      await h.input('[data-player-dm-input]', '现场太燃了')
+      await h.click('[data-player-dm-send]')
+      assert.equal(sent.length, 1)
+      assert.equal(sent[0].kind, 'image')
+      assert.equal(sent[0].content, '现场太燃了', '输入框文字作为图片弹幕的配文')
+      const flight = h.require('.player-dm-flight.is-image')
+      assert.equal(flight.querySelector('img').getAttribute('src'), '/api/me/danmaku/media/media-1.png')
+      assert.match(flight.textContent, /现场太燃了/)
+
+      // 发射后清空图片，回到纯文字状态
+      await h.until(() => !h.query('[data-player-dm-image-chip]'))
+      assert.equal(h.require('[data-player-dm-send]').disabled, true)
+      assert.match(h.require('[data-player-dm-pick]').textContent, /选图/)
+    })
+  })
+
+  it('弹幕显示开关关闭后不再起飞新弹幕，状态文案同步', async () => {
+    await withReactHarness(async (h) => {
+      const client = api()
+      const PlayerDanmaku = await import(frontendModule('features/player/PlayerDanmaku.tsx'))
+        .then((module) => module.PlayerDanmaku)
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 0, paused: false, client }))
+      await h.until(() => h.require('[data-player-dm-total]').textContent.includes('3'))
+      assert.equal(h.require('[data-player-dm-toggle]').getAttribute('aria-pressed'), 'true')
+      await h.click('[data-player-dm-toggle]')
+      assert.equal(h.require('[data-player-dm-toggle]').getAttribute('aria-pressed'), 'false')
+      await h.render(h.React.createElement(PlayerDanmaku, { track: TRACK, positionMs: 5200, paused: false, client }))
+      assert.equal(h.document.querySelectorAll('[data-player-dm-flight]').length, 0, '关闭后不再生成飞行体')
+    })
+  })
+
+  it('语音 tab 在没有录音能力的环境给出提示；没有歌曲时发送控件禁用', async () => {
+    await withReactHarness(async (h) => {
+      const client = api()
+      const PlayerDanmaku = await import(frontendModule('features/player/PlayerDanmaku.tsx'))
+        .then((module) => module.PlayerDanmaku)
+      await h.render(h.React.createElement(PlayerDanmaku, { track: null, positionMs: 0, paused: true, client }))
+      assert.equal(h.require('[data-player-dm-input]').disabled, true, '没有歌曲时不能发弹幕')
+      await h.click('[data-player-dm-tab="voice"]')
+      assert.equal(h.require('[data-player-dm-mic]').disabled, true, '没有歌曲时不能录音')
+      assert.equal(h.require('[data-player-dm-voice-send]').disabled, true)
+    })
+  })
+})
