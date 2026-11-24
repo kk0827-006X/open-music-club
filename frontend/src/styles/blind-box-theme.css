@@ -1,0 +1,60 @@
+/* ============================================================
+   音乐盲盒 · 主题层（blind-box-theme.css）
+   页面壳 / 标题 / 莫兰迪色板。色值全部写死，不依赖全局变量。
+   模块拆分：stage → blind-box-stage.css，结果卡 → blind-box-cards.css，
+   右侧面板 → blind-box-panel.css。
+   ============================================================ */
+
+/* 页面壳：与搜索页同层，覆盖三维档案区，但不重新挂载播放器和队列。 */
+.blind-box-page {
+  position: absolute; inset: 0; z-index: 25;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(286px, 30%);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  column-gap: clamp(22px, 3.2vw, 58px);
+  padding: 85px 4% 121px;
+  background: radial-gradient(ellipse at 36% 34%, var(--color-surface-21) 0%, var(--color-surface-22) 68%, var(--color-surface-23) 100%);
+  opacity: 0; transform: translateY(12px);
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+.blind-box-page[hidden] { display: none; }
+.album-archive[data-view="blindbox"] .blind-box-page { opacity: 1; transform: translateY(0); }
+.album-archive[data-view="blindbox"] .archive-brand { top: 19px; }
+.album-archive[data-view="blindbox"] .archive-brand h1 { font-size: 1.05rem; letter-spacing: -.02em; }
+.album-archive[data-view="blindbox"] .archive-brand > p { margin-top: 2px; font-size: .43rem; }
+.album-archive[data-view="blindbox"] .archive-brand > small { display: none; }
+.album-archive[data-view="blindbox"] .album-wave-stage,
+.album-archive[data-view="blindbox"] .archive-selection-copy,
+.album-archive[data-view="blindbox"] .archive-callout,
+.album-archive[data-view="blindbox"] .archive-switcher { opacity: 0; pointer-events: none; }
+.archive-nav button[data-nav="blindbox"] { cursor: pointer; }
+
+/* 标题区 */
+.blind-box-heading { grid-column: 1; grid-row: 1; }
+.blind-box-heading > p { margin: 0; color: var(--color-text-31); font-size: .55rem; letter-spacing: .38em; }
+.blind-box-heading h2 { margin: 5px 0 0; font-size: clamp(2rem, 3vw, 2.9rem); font-weight: 790; letter-spacing: -.045em; line-height: 1; }
+.blind-box-heading h2 span { color: var(--color-accent-10); font-weight: 300; }
+.blind-box-heading > small { display: block; margin-top: 6px; color: var(--color-text-32); font-size: .64rem; letter-spacing: .06em; }
+
+/* 莫兰迪低饱和灰调色板（轨道卡与结果卡共用，写死）
+   灰粉 / 雾霾蓝 / 灰绿 / 灰紫 / 燕麦杏 / 豆沙 / 灰卡其 / 雾青 */
+.blind-box-tone-g1 { background: radial-gradient(circle at 70% 26%, rgba(255, 250, 240, .5), transparent 44%), linear-gradient(135deg, #d9b8ab, #c39a92 62%, #ad837e); }
+.blind-box-tone-g2 { background: radial-gradient(circle at 30% 70%, rgba(255, 250, 240, .45), transparent 46%), linear-gradient(135deg, #b7c4d1, #96a9bb 64%, #7f93a6); }
+.blind-box-tone-g3 { background: linear-gradient(135deg, #c2cdb4, #9fb294 62%, #86997c); }
+.blind-box-tone-g4 { background: radial-gradient(circle at 62% 62%, rgba(255, 250, 240, .45), transparent 50%), linear-gradient(135deg, #cfc0cd, #ab9aad 64%, #908197); }
+.blind-box-tone-g5 { background: radial-gradient(circle at 38% 26%, rgba(255, 251, 243, .5), transparent 46%), linear-gradient(135deg, #e3d1bd, #cdb498 66%, #b49c7f); }
+.blind-box-tone-g6 { background: linear-gradient(135deg, #d6a9a2, #bd8d87 62%, #a37671); }
+.blind-box-tone-g7 { background: radial-gradient(circle at 64% 34%, rgba(255, 251, 243, .45), transparent 44%), linear-gradient(135deg, #cdc4ab, #b1a68c 64%, #978c72); }
+.blind-box-tone-g8 { background: linear-gradient(135deg, #b2c1bc, #90a5a0 62%, #7b908b); }
+
+@media (prefers-reduced-motion: reduce) {
+  .blind-box-page { transition: none; }
+}
+
+@media (max-width: 1080px) {
+  .blind-box-page { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto; padding: 78px 4% 118px; }
+  .blind-box-heading > small { display: none; }
+}
+
+@media (max-width: 720px) {
+  .blind-box-page { padding: 74px 16px 112px; }
+}

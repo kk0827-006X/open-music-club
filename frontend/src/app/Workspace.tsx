@@ -138,4 +138,3 @@ export default function Workspace({ player, queue, personalLibrary, footprintCli
     <SettingsDialog ref={settings} logout={onLogout} onOpen={() => setSettingsOpen(true)} onClose={() => setSettingsOpen(false)} />
   </main>
 }
-

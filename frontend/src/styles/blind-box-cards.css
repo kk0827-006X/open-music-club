@@ -1,0 +1,49 @@
+/* ============================================================
+   音乐盲盒 · 结果卡层（blind-box-cards.css）
+   本次抽到的结果托盘 / 结果卡 / 底部操作条。
+   色板与页面壳见 blind-box-theme.css，轨道区见 blind-box-stage.css。
+   ============================================================ */
+
+/* ===== 抽中结果：固定每行三张 ===== */
+.blind-box-results { grid-column: 1; grid-row: 3; display: flex; flex-direction: column; min-height: 0; margin-top: 12px; }
+.blind-box-results[hidden] { display: none; }
+.blind-box-result-head { display: flex; gap: 12px; align-items: baseline; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--color-border-27); }
+.blind-box-result-head p { margin: 0; color: var(--color-text-43); font-size: .52rem; letter-spacing: .2em; }
+.blind-box-result-head strong { font-size: .78rem; }
+.blind-box-result-head span { color: var(--color-text-36); font-size: .55rem; }
+.blind-box-cards {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11px;
+  align-content: start; min-height: 0; margin-top: 12px; padding-bottom: 2px;
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-border-26) transparent;
+}
+.blind-box-card { display: flex; flex-direction: column; gap: 5px; min-width: 0; padding: 9px; border: 1px solid var(--color-border-31); background: var(--color-surface-29); animation: blind-box-deal 420ms cubic-bezier(.2, .9, .2, 1) backwards; animation-delay: var(--card-delay, 0ms); }
+@keyframes blind-box-deal { from { opacity: 0; transform: translateY(11px) rotate(-1.6deg); } to { opacity: 1; transform: none; } }
+.blind-box-card-cover { position: relative; aspect-ratio: 1; overflow: hidden; border: 1px solid var(--color-border-31); background: var(--color-surface-27); }
+.blind-box-card-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.blind-box-card-cover b { position: absolute; bottom: 6px; left: 6px; padding: 2px 5px; background: var(--color-action-06); color: var(--color-inverse-03); font-size: .51rem; letter-spacing: .08em; }
+.blind-box-card-style { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; margin: 2px 0 0; color: var(--color-text-43); font-size: .51rem; }
+.blind-box-card-style i { color: var(--color-accent-10); font-style: normal; letter-spacing: .1em; }
+.blind-box-card h3 { margin: 0; overflow: hidden; font-size: .78rem; font-weight: 620; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.blind-box-card-artist { display: flex; flex-direction: column; gap: 1px; min-width: 0; margin: 0; color: var(--color-text-46); font-size: .59rem; }
+.blind-box-card-artist span { overflow: hidden; color: var(--color-text-30); text-overflow: ellipsis; white-space: nowrap; }
+.blind-box-card-actions { display: flex; gap: 4px; margin-top: auto; padding-top: 4px; }
+.blind-box-card-actions button { display: inline-flex; flex: 1; gap: 5px; align-items: center; justify-content: center; height: 27px; padding: 0 4px; border: 1px solid var(--color-border-33); background: transparent; color: var(--color-text-41); font-size: .57rem; cursor: pointer; }
+.blind-box-card-actions button:first-child { border-color: var(--color-border-34); background: var(--color-action-06); color: var(--color-inverse-03); }
+.blind-box-card-actions button:hover { border-color: var(--color-border-24); }
+
+/* 结果操作条 */
+.blind-box-actions { grid-column: 1; grid-row: 4; display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-top: 11px; }
+.blind-box-actions[hidden] { display: none; }
+.blind-box-actions button { display: inline-flex; gap: 7px; align-items: center; height: 33px; padding: 0 13px; border: 1px solid var(--color-border-33); background: transparent; color: var(--color-text-41); font-size: .63rem; cursor: pointer; }
+.blind-box-actions button[aria-pressed="true"] { border-color: var(--color-border-24); background: var(--color-surface-24); }
+.blind-box-actions button:disabled { opacity: .55; cursor: progress; }
+.blind-box-actions p { flex: 1 1 140px; margin: 0 0 0 auto; color: var(--color-text-43); font-size: .57rem; letter-spacing: .04em; text-align: right; }
+
+@media (prefers-reduced-motion: reduce) {
+  .blind-box-card { animation: none; }
+}
+
+@media (max-width: 720px) {
+  .blind-box-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .blind-box-actions p { flex-basis: 100%; margin: 4px 0 0; text-align: left; }
+}

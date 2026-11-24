@@ -100,17 +100,15 @@ async function mount(h, api, props = {}) {
 }
 
 describe('音乐盲盒 React 页面', () => {
-  it('首屏风格标签与每箱数量可用，曲库数量来自接口', async () => {
+  it('首屏只有每箱数量与抽取入口，曲库数量来自接口', async () => {
     await withReactHarness(async (h) => {
       await mount(h, client())
       assert.equal(h.query('[data-blind-box-page]').hidden, false)
-      // 风格数量在接口返回后覆盖占位符，未拿到数据时不显示 0 误导用户。
-      assert.equal(h.require('[data-style-count="pop"]').textContent, '4')
-      assert.equal(h.require('[data-style-count="jazz"]').textContent, '0')
+      // 分类条上长期为 0 的风格标签已移除，抽取直接覆盖整个曲库。
+      assert.equal(h.query('[data-blind-box-style]'), null)
       assert.match(h.require('[data-blind-box-pool]').textContent, /曲库 12 首/)
-      assert.equal(h.require('[data-blind-box-style="pop"]').getAttribute('aria-pressed'), 'true')
       assert.equal(h.require('[data-blind-box-count="3"]').getAttribute('aria-pressed'), 'true')
-      assert.match(h.require('[data-blind-box-hint]').textContent, /当前风格「流行」/)
+      assert.match(h.require('[data-blind-box-hint]').textContent, /封面轨道/)
       assert.ok(h.require('[data-blind-box-draw]'))
       assert.ok(h.require('[data-blind-box-tab="ranking"]'))
       assert.doesNotMatch(h.document.body.innerHTML, /undefined/)
@@ -157,27 +155,27 @@ describe('音乐盲盒 React 页面', () => {
     })
   })
 
-  it('迟到的旧榜单响应不会覆盖当前筛选的榜单', async () => {
+  it('迟到的旧榜单响应不会覆盖当前排序的榜单', async () => {
     let releaseOld
     const api = client({
-      ranking: async (metric, style) => {
-        if (style !== 'pop') {
-          return { entries: [{ rank: 1, key: 'netease:song:2', source: 'netease', sourceId: '2', title: '爵士歌', artist: '爵士歌手', coverUrl: null, style: 'jazz', styleLabel: '爵士', drawCount: 5, favoriteCount: 4 }], styleLabel: '爵士', metric }
+      ranking: async (metric) => {
+        if (metric === 'draw') {
+          return { entries: [{ rank: 1, key: 'netease:song:2', source: 'netease', sourceId: '2', title: '被狂抽的歌', artist: '热门歌手', coverUrl: null, style: 'jazz', styleLabel: '爵士', drawCount: 12, favoriteCount: 3 }], styleLabel: '全部', metric }
         }
         return new Promise((resolve) => {
-          releaseOld = () => resolve({ entries: [{ rank: 1, key: 'netease:song:1', source: 'netease', sourceId: '1', title: '旧流行歌', artist: '流行歌手', coverUrl: null, style: 'pop', styleLabel: '流行', drawCount: 9, favoriteCount: 9 }], styleLabel: '流行', metric })
+          releaseOld = () => resolve({ entries: [{ rank: 1, key: 'netease:song:1', source: 'netease', sourceId: '1', title: '旧收藏榜', artist: '流行歌手', coverUrl: null, style: 'pop', styleLabel: '流行', drawCount: 9, favoriteCount: 9 }], styleLabel: '全部', metric })
         })
       },
     })
     await withReactHarness(async (h) => {
       await mount(h, api)
-      await h.click('[data-blind-box-tab="ranking"]')   // 流行榜单请求在途
-      await h.click('[data-blind-box-style="jazz"]')    // 切到爵士，立即返回
-      assert.match(h.require('[data-blind-box-panel-body]').textContent, /爵士歌/)
-      releaseOld()                                      // 迟到的流行结果
+      await h.click('[data-blind-box-tab="ranking"]')   // 被收藏榜请求在途
+      await h.click('[data-blind-box-metric="draw"]')   // 切到被抽取榜，立即返回
+      assert.match(h.require('[data-blind-box-panel-body]').textContent, /被狂抽的歌/)
+      releaseOld()                                      // 迟到的被收藏榜结果
       await h.flush()
-      assert.match(h.require('[data-blind-box-panel-body]').textContent, /爵士歌/)
-      assert.doesNotMatch(h.require('[data-blind-box-panel-body]').textContent, /旧流行歌/)
+      assert.match(h.require('[data-blind-box-panel-body]').textContent, /被狂抽的歌/)
+      assert.doesNotMatch(h.require('[data-blind-box-panel-body]').textContent, /旧收藏榜/)
     })
   })
 

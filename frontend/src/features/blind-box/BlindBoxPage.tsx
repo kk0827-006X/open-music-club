@@ -15,7 +15,7 @@ import {
 
 const COUNT_OPTIONS = [1, 3, 5] as const
 const FALLBACK_COVER = '/images/album-placeholder-01.svg'
-// 封面轨道只用莫兰迪低饱和渐变唱片（色值在 blind-box.css 的 blind-box-tone-g1~g8），
+// 封面轨道只用莫兰迪低饱和渐变唱片（色值在 blind-box-theme.css 的 blind-box-tone-g1~g8），
 // 不依赖外链图片；抽中后才显示真实封面。
 const ORBIT_TILES = 18
 const ORBIT_GRADIENTS = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8']
@@ -152,8 +152,8 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
         const el = coverRefs.current[index]
         if (!el) return
         const ribbon = tile.ribbon === 0
-          ? { rx: 0.44, squash: 0.34, dir: 1 }
-          : { rx: 0.27, squash: 0.28, dir: -1 }
+          ? { rx: 0.44, squash: 0.42, dir: 1 }
+          : { rx: 0.27, squash: 0.34, dir: -1 }
         anglesRef.current[index] += dt * speedRef.current * ribbon.dir
         const angle = anglesRef.current[index]
         const depth = (Math.sin(angle) + 1) / 2
@@ -161,7 +161,7 @@ export const BlindBoxPage = forwardRef<BlindBoxPageHandle, BlindBoxPageProps>(fu
         const y = Math.sin(angle) * ribbon.rx * width * ribbon.squash
         const scale = 0.6 + 0.45 * depth
         const blur = (1 - depth) * 4
-        el.style.transform = `translate(${(cx + x - 37).toFixed(1)}px, ${(cy + y - 37).toFixed(1)}px) scale(${scale.toFixed(3)}) rotate(${tile.tilt}deg)`
+        el.style.transform = `translate(${(cx + x - 50).toFixed(1)}px, ${(cy + y - 50).toFixed(1)}px) scale(${scale.toFixed(3)}) rotate(${tile.tilt}deg)`
         el.style.filter = blur > 0.2 ? `blur(${blur.toFixed(2)}px)` : 'none'
         el.style.opacity = (0.5 + 0.5 * depth).toFixed(2)
         el.style.zIndex = String(10 + Math.round(depth * 40))

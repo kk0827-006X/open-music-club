@@ -12,6 +12,9 @@
 @import './styles/settings.css';
 @import './styles/react-components.css';
 @import './styles/footprint.css';
-@import './styles/blind-box.css';
+@import './styles/blind-box-theme.css';
+@import './styles/blind-box-stage.css';
+@import './styles/blind-box-cards.css';
+@import './styles/blind-box-panel.css';
 @import './styles/danmaku.css';
 @import './styles/member-sidebar.css';

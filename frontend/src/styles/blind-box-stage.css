@@ -1,0 +1,97 @@
+/* ============================================================
+   音乐盲盒 · 抽取轨道层（blind-box-stage.css）
+   轨道视口 / 封面 / 聚焦 / 抽取按钮 / 虚线操作条。
+   布局常量写死：轨道视口 clamp(320px, 42vh, 460px)、封面 100px、
+   虚线与轨道间距 64px。页面壳与色板见 blind-box-theme.css。
+   ============================================================ */
+
+/* ===== 抽取区：无框轨道，直接裸放在纸面页面上 ===== */
+.blind-box-stage {
+  position: relative; grid-column: 1; grid-row: 2;
+  display: flex; flex-direction: column;
+  margin-top: 14px; padding: 14px clamp(12px, 1.6vw, 20px) 10px;
+  overflow: hidden;
+}
+.blind-box-stage-head { position: relative; z-index: 4; display: flex; align-items: baseline; justify-content: space-between; color: var(--color-text-43); font-size: .52rem; letter-spacing: .22em; }
+.blind-box-stage-head b { color: var(--color-text-33); font-size: .68rem; letter-spacing: .1em; }
+
+.blind-box-orbit { position: relative; z-index: 1; height: clamp(320px, 42vh, 460px); margin: 2px 0 0; }
+.blind-box-orbit-cover {
+  position: absolute; top: 0; left: 0;
+  width: 100px; height: 100px; border-radius: 18px;
+  box-shadow: 0 10px 22px rgba(75, 60, 40, .2), inset 0 1px 0 rgba(255, 255, 255, .5);
+  will-change: transform, filter, opacity;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* 封面上的圆形母题 */
+.blind-box-orbit-cover::before {
+  content: ""; position: absolute; inset: 20% 24% 32% 16%; border-radius: 50%;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, .5), rgba(255, 255, 255, .12) 60%, transparent 64%);
+}
+.blind-box-orbit-cover::after {
+  content: ""; position: absolute; inset: 44% 48% 26% 22%; border-radius: 50%;
+  background: radial-gradient(circle at 46% 40%, rgba(72, 60, 52, .35), rgba(72, 60, 52, .1) 70%, transparent);
+  mix-blend-mode: multiply;
+}
+
+/* 抽中聚焦：封面从轨道位置拉到正中央 */
+.blind-box-focus {
+  position: absolute; left: 50%; top: 50%; z-index: 60;
+  width: 196px; margin: -98px 0 0 -98px;
+  animation: blind-box-focus-pull 700ms cubic-bezier(.2, .9, .2, 1) both;
+  pointer-events: none;
+}
+.blind-box-focus img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 16px; box-shadow: 0 16px 34px rgba(75, 60, 40, .28); background: var(--color-surface-27); }
+.blind-box-focus p { display: flex; flex-direction: column; gap: 2px; margin: 10px 0 0; color: var(--color-text-33); font-size: .7rem; letter-spacing: .04em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blind-box-focus p span { color: var(--color-text-43); font-size: .55rem; }
+@keyframes blind-box-focus-pull {
+  from { opacity: 0; transform: scale(.42) translateY(-10px); filter: blur(9px); }
+  to { opacity: 1; transform: scale(1); filter: none; }
+}
+
+/* 中央抽取按钮：纸面暖奶油圆钮（渐变写死） */
+.blind-box-draw {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 50;
+  display: flex; flex-direction: column; gap: 3px; align-items: center; justify-content: center;
+  width: clamp(92px, 13vw, 110px); aspect-ratio: 1; padding: 0;
+  border: 1px solid var(--color-border-24); border-radius: 50%; cursor: pointer;
+  background: radial-gradient(circle at 34% 30%, #fffaf0, #f2e9d4 72%);
+  color: var(--color-text-33);
+  box-shadow: 0 0 0 6px rgba(33, 28, 18, .045), 0 12px 28px rgba(75, 60, 40, .18);
+  transition: opacity 260ms ease, box-shadow 260ms ease, transform 260ms ease;
+}
+.blind-box-draw span { font-size: .9rem; letter-spacing: .28em; margin-left: .28em; }
+.blind-box-draw i { font-size: .48rem; font-style: normal; letter-spacing: .26em; color: var(--color-text-43); }
+.blind-box-draw:hover { transform: translate(-50%, -50%) scale(1.045); box-shadow: 0 0 0 6px rgba(167, 121, 66, .12), 0 14px 32px rgba(167, 121, 66, .22), 0 12px 28px rgba(75, 60, 40, .18); }
+.blind-box-draw:disabled { cursor: progress; transform: translate(-50%, -50%); }
+/* 聚焦时按钮让位给封面 */
+.blind-box-stage.is-focusing .blind-box-draw { opacity: 0; pointer-events: none; }
+
+/* 虚线操作条：与轨道拉开 64px，整体下移 */
+.blind-box-stage-foot { position: relative; z-index: 4; display: flex; gap: 12px 18px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 64px; padding-top: 18px; border-top: 1px dashed var(--color-border-27); }
+.blind-box-count { display: flex; gap: 4px; align-items: center; color: var(--color-text-41); font-size: .62rem; }
+.blind-box-count > span:last-child { margin-left: 3px; }
+.blind-box-count button { min-width: 27px; height: 27px; padding: 0 6px; border: 1px solid var(--color-border-33); background: transparent; color: var(--color-text-41); font-size: .62rem; cursor: pointer; }
+.blind-box-count button[aria-pressed="true"] { border-color: var(--color-action-06); background: var(--color-action-06); color: var(--color-inverse-03); }
+.blind-box-count button:disabled { opacity: .5; cursor: progress; }
+.blind-box-hint { flex: 1 1 260px; margin: 0; color: var(--color-text-43); font-size: .6rem; line-height: 1.6; text-align: right; letter-spacing: .03em; }
+.blind-box-inline-link { margin-left: 4px; padding: 0; border: 0; border-bottom: 1px solid var(--color-border-34); background: transparent; color: var(--color-accent-10); font-size: .6rem; cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  .blind-box-focus { animation: none; }
+  .blind-box-draw { transition: none; }
+}
+
+@media (max-width: 1080px) {
+  .blind-box-orbit { height: clamp(300px, 40vh, 420px); }
+}
+
+@media (max-width: 720px) {
+  .blind-box-stage { padding: 12px 12px 9px; }
+  .blind-box-orbit { height: 280px; }
+  .blind-box-orbit-cover { width: 72px; height: 72px; border-radius: 14px; }
+  .blind-box-focus { width: 150px; margin: -75px 0 0 -75px; }
+  .blind-box-stage-foot { margin-top: 40px; padding-top: 14px; }
+  .blind-box-hint { text-align: left; }
+}
